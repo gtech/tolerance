@@ -328,6 +328,13 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   badge.className = `tolerance-score-badge ${score.bucket}`;
   badge.textContent = displayScore.toString();
 
+  // Add tooltip with reason
+  if (score.apiReason) {
+    badge.title = score.apiReason;
+    badge.style.cursor = 'help';
+    badge.style.pointerEvents = 'auto';
+  }
+
   // Always append to the article element for consistent positioning
   element.style.position = 'relative';
   element.appendChild(badge);
@@ -339,12 +346,47 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 }
 
 function applyBlur(element: HTMLElement): void {
-  // Find the media container for the blur overlay
-  const mediaContainer = element.querySelector('div[role="button"]') ||
-                         element.querySelector('video')?.parentElement?.parentElement ||
-                         element.querySelector('img:not([alt*="profile"])')?.parentElement;
+  // Find the main content image (not profile pic) to locate the media area
+  const contentImages = element.querySelectorAll('img');
+  let mediaContainer: HTMLElement | null = null;
 
-  if (!mediaContainer || !(mediaContainer instanceof HTMLElement)) {
+  for (const img of contentImages) {
+    const alt = img.alt || '';
+    // Skip profile pictures
+    if (alt.includes('profile picture')) continue;
+    // Skip small images (icons, etc)
+    if (img.width < 100 && img.height < 100) continue;
+
+    // Found a content image - get a parent that's likely the media container
+    // Go up a few levels to find a container that spans the content area
+    let parent = img.parentElement;
+    for (let i = 0; i < 5 && parent; i++) {
+      // Look for a container with significant width
+      if (parent.offsetWidth > 300) {
+        mediaContainer = parent;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (mediaContainer) break;
+  }
+
+  // Fallback: look for video element's container
+  if (!mediaContainer) {
+    const video = element.querySelector('video');
+    if (video) {
+      let parent = video.parentElement;
+      for (let i = 0; i < 5 && parent; i++) {
+        if (parent.offsetWidth > 300) {
+          mediaContainer = parent;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+    }
+  }
+
+  if (!mediaContainer) {
     return;
   }
 
