@@ -178,11 +178,23 @@ export function isValidFeedPage(): boolean {
 
   // Feed pages: home feed only
   // Home feed is at /
-  if (pathname === '/') return true;
+  if (pathname === '/') {
+    return true;
+  }
 
-  // Profile pages with feed
-  if (pathname.match(/^\/[a-zA-Z0-9._]+\/?$/)) return true;
+  // Profile pages with feed - but NOT reserved paths
+  if (pathname.match(/^\/[a-zA-Z0-9._]+\/?$/)) {
+    // Double-check this isn't a reserved path that slipped through
+    const reservedPaths = ['reels', 'explore', 'stories', 'direct', 'accounts', 'reel', 'p'];
+    const pathSegment = pathname.split('/')[1];
+    if (reservedPaths.includes(pathSegment)) {
+      log.warn(' Instagram: isValidFeedPage = false (reserved path):', pathname);
+      return false;
+    }
+    return true;
+  }
 
+  log.warn(' Instagram: isValidFeedPage = false:', pathname);
   return false;
 }
 

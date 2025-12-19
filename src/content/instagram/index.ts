@@ -235,8 +235,12 @@ async function sendMessage(message: unknown): Promise<unknown> {
 async function processPosts(): Promise<void> {
   if (!isExtensionValid()) return;
 
+  const pathname = window.location.pathname;
+  log.warn(' Instagram: processPosts called, pathname:', pathname);
+
   // Extra safety: disconnect observer if we somehow end up on reels
   if (!isValidFeedPage()) {
+    log.warn(' Instagram: processPosts bailing - not valid feed page');
     disconnectObserver();
     return;
   }
