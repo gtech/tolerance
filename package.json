@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "node esbuild.config.js",
+    "build:chrome": "node esbuild.config.js",
+    "build:firefox": "node esbuild.config.js --firefox",
+    "build:all": "rm -rf dist-chrome dist-firefox && node esbuild.config.js && mv dist dist-chrome && node esbuild.config.js --firefox && mv dist dist-firefox",
     "watch": "node esbuild.config.js --watch",
-    "clean": "rm -rf dist",
+    "watch:firefox": "node esbuild.config.js --watch --firefox",
+    "clean": "rm -rf dist dist-chrome dist-firefox",
     "dev": "node esbuild.config.js --watch",
     "ship": "pnpm build && git add -A && git commit -m \"update\" && git push"
   },

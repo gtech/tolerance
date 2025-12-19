@@ -3,12 +3,13 @@ import { copyFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { dirname, join } from 'path';
 
 const isWatch = process.argv.includes('--watch');
+const isFirefox = process.argv.includes('--firefox');
 
 const commonOptions = {
   bundle: true,
   minify: !isWatch,
   sourcemap: isWatch,
-  target: 'chrome120',
+  target: isFirefox ? 'firefox109' : 'chrome120',
   format: 'esm',
 };
 
@@ -21,8 +22,9 @@ dirs.forEach(dir => {
 });
 
 // Copy static files
+const manifestFile = isFirefox ? 'manifest.firefox.json' : 'manifest.json';
 const staticFiles = [
-  ['manifest.json', 'dist/manifest.json'],
+  [manifestFile, 'dist/manifest.json'],
   ['src/popup/popup.html', 'dist/popup/popup.html'],
   ['src/dashboard/index.html', 'dist/dashboard/index.html'],
 ];
@@ -77,6 +79,7 @@ const builds = [
     ...commonOptions,
     entryPoints: ['src/background/index.ts'],
     outfile: 'dist/background.js',
+    format: isFirefox ? 'iife' : 'esm', // Firefox background scripts need IIFE
   },
   {
     ...commonOptions,
