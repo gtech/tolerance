@@ -24,11 +24,19 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 
 ### From release
 
-1. Download the latest `.zip` from [Releases](https://github.com/gtech/tolerance/releases)
-2. Unzip the file
-3. Open Chrome → `chrome://extensions`
-4. Enable "Developer mode" (top right)
-5. Click "Load unpacked" and select the unzipped folder
+Download the latest `.zip` for your browser from [Releases](https://github.com/gtech/tolerance/releases).
+
+**Chrome:**
+1. Unzip `tolerance-chrome.zip`
+2. Go to `chrome://extensions`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" and select the unzipped folder
+
+**Firefox:**
+1. Unzip `tolerance-firefox.zip`
+2. Go to `about:debugging#/runtime/this-firefox`
+3. Click "Load Temporary Add-on"
+4. Select `manifest.json` from the unzipped folder
 
 ### Build from source
 
@@ -36,10 +44,12 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 git clone https://github.com/gtech/tolerance.git
 cd tolerance
 pnpm install
-pnpm build
+pnpm build          # Chrome
+pnpm build:firefox  # Firefox
+pnpm build:all      # Both (outputs to dist-chrome/ and dist-firefox/)
 ```
 
-Load `dist/` as an unpacked extension.
+Load the `dist/` folder as an unpacked extension.
 
 ## Setup
 
@@ -89,9 +99,41 @@ Post titles are sent to OpenRouter for scoring. Nothing else leaves your browser
 
 ```bash
 pnpm install    # Install dependencies
-pnpm build      # Build once
+pnpm build      # Build once (Chrome)
+pnpm build:firefox  # Build for Firefox
 pnpm dev        # Watch mode
 ```
+
+## Source Code Submission (for Mozilla Add-ons reviewers)
+
+This extension is built using esbuild which bundles and minifies the source code.
+
+### Build environment
+
+- **OS:** Any (Linux, macOS, Windows)
+- **Node.js:** v18 or later
+- **Package manager:** pnpm (install via `npm install -g pnpm`)
+
+### Build instructions
+
+```bash
+pnpm install
+pnpm build:firefox
+```
+
+The built extension will be in `dist/`. Compare this output against the submitted `.zip` file.
+
+### Dependencies
+
+All dependencies are listed in `package.json` and locked in `pnpm-lock.yaml`:
+
+- `idb` - IndexedDB wrapper (runtime)
+- `esbuild` - Bundler (dev)
+- `typescript` - Type checking (dev)
+- `@anthropic-ai/sdk` - Types only, not bundled (dev)
+- `@types/chrome` - TypeScript definitions (dev)
+
+No obfuscation is used. Minification is applied only in production builds for smaller file size.
 
 ### Project structure
 
