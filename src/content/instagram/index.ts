@@ -158,18 +158,19 @@ function injectStyles(): void {
 
     /* Blur overlay for high-engagement content */
     .tolerance-blur-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      z-index: 50;
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      z-index: 50 !important;
       transition: opacity 0.3s ease;
-      display: flex;
+      display: flex !important;
       align-items: center;
       justify-content: center;
+      background: rgba(0, 0, 0, 0.1) !important;
     }
 
     .tolerance-blur-overlay::after {
@@ -396,25 +397,36 @@ function applyBlur(element: HTMLElement): void {
   // Find and pause any videos in this post
   const video = element.querySelector('video');
   let videoBlocked = true;
+  let userInteracted = false;
 
   if (video) {
     video.pause();
     video.removeAttribute('autoplay');
     video.preload = 'none';
 
-    // Aggressively block play attempts while blurred
+    // Block autoplay but allow user-initiated plays
     const blockPlay = () => {
-      if (videoBlocked) {
+      if (videoBlocked && !userInteracted) {
         video.pause();
       }
     };
 
+    // Detect user interaction - any click in the element means user wants to play
+    const handleUserClick = () => {
+      userInteracted = true;
+      // Remove the block after user interaction
+      video.removeEventListener('play', blockPlay);
+      video.removeEventListener('playing', blockPlay);
+    };
+
     video.addEventListener('play', blockPlay);
     video.addEventListener('playing', blockPlay);
+    element.addEventListener('click', handleUserClick, { once: true });
 
-    // Store the cleanup function on the overlay for later
+    // Store the cleanup function for when blur is revealed
     (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo = () => {
       videoBlocked = false;
+      userInteracted = true;
       video.removeEventListener('play', blockPlay);
       video.removeEventListener('playing', blockPlay);
     };
