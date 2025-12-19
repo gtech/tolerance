@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tolerance Dashboard</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #222;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .mode-badge {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .mode-baseline {
+      background: #2d4a3e;
+      color: #7dcea0;
+    }
+
+    .mode-active {
+      background: #3d2d4a;
+      color: #b07dce;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      background: #2d4a3e;
+      color: #7dcea0;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-small:hover {
+      background: #3d5a4e;
+    }
+
+    /* Progressive Boredom Phase Styles */
+    .phase-indicator {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .phase-normal {
+      background: #1a472a;
+      color: #4caf50;
+    }
+
+    .phase-reduced {
+      background: #3d3d1a;
+      color: #ffc107;
+    }
+
+    .phase-wind-down {
+      background: #4a2d1a;
+      color: #ff9800;
+    }
+
+    .phase-minimal {
+      background: #4a1a1a;
+      color: #f44336;
+    }
+
+    .session-progress {
+      display: flex;
+      gap: 4px;
+      margin-top: 12px;
+    }
+
+    .session-progress-segment {
+      flex: 1;
+      height: 8px;
+      border-radius: 4px;
+      background: #222;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .session-progress-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .session-time-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      font-size: 10px;
+      color: #666;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 14px;
+      font-weight: 500;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    .big-number {
+      font-size: 48px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .chart-container {
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #444;
+    }
+
+    .distribution-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .bar-label {
+      width: 80px;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .bar-container {
+      flex: 1;
+      height: 24px;
+      background: #222;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .bar-high { background: #e74c3c; }
+    .bar-medium { background: #f39c12; }
+    .bar-low { background: #27ae60; }
+
+    .bar-value {
+      width: 50px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .sessions-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #222;
+    }
+
+    .session-item:last-child {
+      border-bottom: none;
+    }
+
+    .session-date {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .session-stats {
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary {
+      background: #3d2d4a;
+      color: #b07dce;
+    }
+
+    .btn-primary:hover {
+      background: #4d3d5a;
+    }
+
+    .btn-secondary {
+      background: #222;
+      color: #888;
+    }
+
+    .btn-secondary:hover {
+      background: #333;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px;
+      color: #444;
+    }
+
+    .settings-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid #222;
+    }
+
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid #222;
+    }
+
+    .setting-label {
+      font-size: 14px;
+    }
+
+    .setting-description {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    input[type="text"], input[type="number"] {
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 14px;
+      width: 200px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #555;
+    }
+
+    /* Narrative Awareness Styles */
+    .narrative-alert {
+      background: #4a2d2d;
+      border: 1px solid #6b3d3d;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 16px;
+      color: #ff9999;
+      font-size: 13px;
+    }
+
+    .narrative-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .narrative-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .narrative-label {
+      width: 120px;
+      font-size: 12px;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .narrative-bar-container {
+      flex: 1;
+      height: 20px;
+      background: #222;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .narrative-bar {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .bar-doom { background: #9b59b6; }
+    .bar-conspiracy { background: #e67e22; }
+    .bar-identity { background: #3498db; }
+    .bar-user { background: #1abc9c; }
+
+    .baseline-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #fff;
+      opacity: 0.5;
+    }
+
+    .narrative-value {
+      width: 50px;
+      text-align: right;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .time-selector {
+      display: flex;
+      gap: 8px;
+    }
+
+    .time-btn {
+      padding: 6px 12px;
+      background: #222;
+      border: 1px solid #333;
+      color: #888;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .time-btn.active {
+      background: #3d2d4a;
+      border-color: #4d3d5a;
+      color: #b07dce;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #e74c3c;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      margin-left: 8px;
+    }
+
+    .emerging-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .emerging-item {
+      padding: 12px;
+      background: #1a1a1a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .emerging-name {
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .emerging-desc {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .emerging-samples {
+      font-size: 11px;
+      color: #555;
+      max-height: 60px;
+      overflow: hidden;
+    }
+
+    .emerging-sample {
+      margin-bottom: 2px;
+    }
+
+    .emerging-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .emerging-actions button {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .strategies-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .strategy-item {
+      padding: 16px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 3px solid #3d2d4a;
+    }
+
+    .strategy-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .strategy-theme-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #3d2d4a;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #b07dce;
+    }
+
+    .strategy-toggle {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .strategy-dialectic {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .dialectic-col {
+      padding: 8px;
+      background: #222;
+      border-radius: 4px;
+    }
+
+    .dialectic-label {
+      color: #666;
+      margin-bottom: 4px;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .dialectic-text {
+      color: #ccc;
+    }
+
+    .strategy-meta {
+      margin-top: 12px;
+      font-size: 11px;
+      color: #555;
+    }
+
+    /* Modal Styles */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-content h3 {
+      margin-bottom: 20px;
+      color: #fff;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      min-height: 60px;
+      resize: vertical;
+    }
+
+    .form-group input[type="range"] {
+      width: 100%;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Tolerance Dashboard</h1>
+      <div id="api-status-header" style="display: flex; align-items: center; gap: 8px;">
+        <span id="api-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #666;"></span>
+        <span id="api-status-text" style="color: #666; font-size: 13px;">No API Key</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Total Posts Seen</h2>
+        <div class="big-number" id="total-posts">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Sessions</h2>
+        <div class="big-number" id="total-sessions">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Posts Reordered</h2>
+        <div class="big-number" id="posts-reordered">0</div>
+      </div>
+
+      <div class="card">
+        <h2>API Usage</h2>
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <div class="big-number" id="api-cost">$0.00</div>
+          <span style="color: #666; font-size: 14px;">(<span id="api-calls">0</span> calls)</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Progressive Boredom</h2>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+          <div id="session-time" style="font-size: 28px; font-weight: 600; color: #fff;">0m</div>
+          <div>
+            <div id="phase-badge" class="phase-indicator phase-normal">Normal</div>
+            <div style="font-size: 11px; color: #666; margin-top: 4px;">Today's social media time</div>
+          </div>
+        </div>
+        <div class="session-progress">
+          <div class="session-progress-segment">
+            <div id="progress-normal" class="session-progress-fill" style="background: #4caf50; width: 0%"></div>
+          </div>
+          <div class="session-progress-segment">
+            <div id="progress-reduced" class="session-progress-fill" style="background: #ffc107; width: 0%"></div>
+          </div>
+          <div class="session-progress-segment">
+            <div id="progress-winddown" class="session-progress-fill" style="background: #ff9800; width: 0%"></div>
+          </div>
+          <div class="session-progress-segment">
+            <div id="progress-minimal" class="session-progress-fill" style="background: #f44336; width: 0%"></div>
+          </div>
+        </div>
+        <div class="session-time-labels">
+          <span>0</span>
+          <span id="threshold-normal">30m</span>
+          <span id="threshold-reduced">60m</span>
+          <span id="threshold-winddown">90m</span>
+          <span>120m+</span>
+        </div>
+        <div style="font-size: 11px; color: #666; margin-top: 8px;">
+          Ratio: <span id="effective-ratio" style="color: #888;">20%</span> high-engagement posts
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Engagement Distribution</h2>
+        <div class="distribution-bars">
+          <div class="bar-row">
+            <span class="bar-label">High</span>
+            <div class="bar-container">
+              <div class="bar bar-high" id="bar-high" style="width: 0%"></div>
+            </div>
+            <span class="bar-value" id="pct-high">0%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Medium</span>
+            <div class="bar-container">
+              <div class="bar bar-medium" id="bar-medium" style="width: 0%"></div>
+            </div>
+            <span class="bar-value" id="pct-medium">0%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Low</span>
+            <div class="bar-container">
+              <div class="bar bar-low" id="bar-low" style="width: 0%"></div>
+            </div>
+            <span class="bar-value" id="pct-low">0%</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card">
+      <h2>Recent Sessions</h2>
+      <div class="sessions-list" id="sessions-list">
+        <div class="empty-state">No sessions recorded yet</div>
+      </div>
+    </div>
+
+    <!-- Narrative Awareness Section -->
+    <div class="section-header" style="margin-top: 32px; margin-bottom: 16px;">
+      <h2 style="color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Narrative Awareness</h2>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Narrative Trends (Today)</h2>
+        <div id="narrative-alert" class="narrative-alert" style="display: none;"></div>
+        <div class="narrative-bars" id="narrative-bars">
+          <div class="empty-state" style="padding: 24px;">No narrative data yet. Browse Reddit to start tracking.</div>
+        </div>
+        <div class="time-selector" style="margin-top: 16px;">
+          <button class="time-btn active" data-days="1">Today</button>
+          <button class="time-btn" data-days="7">7 Days</button>
+          <button class="time-btn" data-days="30">30 Days</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Emerging Narratives <span id="emerging-badge" class="badge" style="display: none;">0</span></h2>
+        <div id="emerging-list" class="emerging-list">
+          <div class="empty-state" style="padding: 24px;">No emerging patterns detected yet.</div>
+        </div>
+        <button class="btn-secondary" id="trigger-discovery-btn" style="margin-top: 12px; width: 100%;">
+          Run Discovery (<span id="unclassified-count">0</span> unclassified posts)
+        </button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 24px;">
+      <h2>Counter-Strategies (Dialectical)</h2>
+      <div id="strategies-list" class="strategies-list">
+        <div class="empty-state" style="padding: 24px;">No counter-strategies configured. Add one to start.</div>
+      </div>
+      <button class="btn-primary" id="add-strategy-btn" style="margin-top: 12px;">+ Add Counter-Strategy</button>
+    </div>
+
+    <!-- Strategy Modal -->
+    <div id="strategy-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h3>Configure Counter-Strategy</h3>
+        <div class="form-group">
+          <label>Target Narrative</label>
+          <select id="strategy-theme"></select>
+        </div>
+        <div class="form-group">
+          <label>Thesis (The Narrative)</label>
+          <textarea id="strategy-thesis" placeholder="Auto-filled from theme description" readonly></textarea>
+        </div>
+        <div class="form-group">
+          <label>Antithesis (Direct Opposite)</label>
+          <textarea id="strategy-antithesis" placeholder="What is the direct opposite of this narrative?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Synthesis (Nuanced Counter)</label>
+          <textarea id="strategy-synthesis" placeholder="What is a more nuanced, balanced perspective?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Suppression Threshold: <span id="suppress-value">50</span>%</label>
+          <input type="range" id="strategy-suppress" min="0" max="100" value="50">
+          <div class="setting-description">Posts matching this theme above this threshold will be suppressed (0 = no suppression)</div>
+        </div>
+        <div class="form-group">
+          <label>Surface Keywords (boost counter-content)</label>
+          <input type="text" id="strategy-keywords" placeholder="hope, progress, nuance, both sides...">
+          <div class="setting-description">Comma-separated keywords for content to boost instead</div>
+        </div>
+        <div class="form-group">
+          <label>Notes (your reasoning)</label>
+          <textarea id="strategy-notes" placeholder="Why did you choose this counter? What helped you see past the narrative?"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="cancel-strategy-btn">Cancel</button>
+          <button class="btn-primary" id="save-strategy-btn">Save Strategy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="export-btn">Export Data (JSON)</button>
+      <button class="btn-secondary" id="clear-btn">Clear All Data</button>
+    </div>
+
+    <!-- Quick Reset Button - Always visible, no blur -->
+    <div style="margin-top: 32px; text-align: center;">
+      <button id="quick-reset-btn" style="padding: 12px 24px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #1a4a2a 0%, #2d5a3d 100%); color: #7dcea0; border: 1px solid #3d7a4d; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+        Reset to Calibrated Thresholds
+      </button>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Restore default blur thresholds and phase timing</div>
+    </div>
+
+    <!-- Setup Section - Always visible, prominent -->
+    <div class="settings-section" style="background: #1a1a1a; border: 2px solid #3d2d4a; border-radius: 12px; padding: 24px; margin-top: 24px;">
+      <h2 style="margin-bottom: 16px; color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">⚙️ Setup Required</h2>
+
+      <div class="setting-row" style="border-bottom: none; padding-bottom: 0;">
+        <div>
+          <div class="setting-label" style="font-size: 16px;">OpenRouter API Key</div>
+          <div class="setting-description">Required for scoring posts. Get your key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></div>
+        </div>
+        <input type="text" id="api-key" placeholder="sk-or-..." style="width: 280px;" />
+      </div>
+
+      <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
+    </div>
+
+    <!-- Platform Toggles - With blur protection -->
+    <div class="settings-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #222;">
+      <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Platforms</h2>
+      <div id="platform-controls-wrapper" style="position: relative; background: #141414; border-radius: 8px; padding: 16px;">
+        <!-- Blur overlay for platforms -->
+        <div id="platform-blur-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; backdrop-filter: blur(8px); background: rgba(0,0,0,0.5); border-radius: 8px; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: not-allowed;">
+          <div style="color: #888; font-size: 13px; margin-bottom: 6px;">Waiting to prevent impulsive changes...</div>
+          <div id="platform-countdown" style="color: #b07dce; font-size: 20px; font-weight: 600;">30</div>
+        </div>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+            <input type="checkbox" id="platform-reddit" checked style="width: 18px; height: 18px; cursor: pointer;" />
+            <span style="font-size: 14px;">Reddit</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+            <input type="checkbox" id="platform-twitter" checked style="width: 18px; height: 18px; cursor: pointer;" />
+            <span style="font-size: 14px;">Twitter/X</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+            <input type="checkbox" id="platform-youtube" checked style="width: 18px; height: 18px; cursor: pointer;" />
+            <span style="font-size: 14px;">YouTube</span>
+          </label>
+        </div>
+        <div style="margin-top: 8px; font-size: 12px; color: #666;">Disable platforms to turn off Tolerance scoring on that site.</div>
+      </div>
+    </div>
+
+    <!-- Advanced Settings Toggle -->
+    <div style="margin-top: 24px; padding: 12px 0;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #888; font-size: 14px;">
+        <input type="checkbox" id="show-advanced" style="width: 16px; height: 16px; cursor: pointer;" />
+        Show Advanced Settings
+      </label>
+    </div>
+
+    <!-- Advanced Settings Section - Hidden by default -->
+    <div id="advanced-settings" class="settings-section" style="display: none; border-top: 1px solid #222; padding-top: 24px;">
+      <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Advanced Settings</h2>
+
+      <!-- Baseline Mode -->
+      <div class="setting-row" id="baseline-row">
+        <div>
+          <div class="setting-label">Baseline Mode</div>
+          <div class="setting-description">Collect data without reordering posts (for analysis)</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span id="baseline-status" style="color: #888;">Active Mode</span>
+          <button id="toggle-baseline-btn" class="btn-small">Enter Baseline</button>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">API Sample Rate</div>
+          <div class="setting-description">% of posts sent to API for scoring (0-100)</div>
+        </div>
+        <input type="number" id="api-sample-rate" min="0" max="100" step="5" value="10" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">High Engagement Ratio</div>
+          <div class="setting-description">Fraction of feed that can be high-engagement (0.1 - 0.5)</div>
+        </div>
+        <input type="number" id="engagement-ratio" min="0.1" max="0.5" step="0.05" value="0.2" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Cooldown Posts</div>
+          <div class="setting-description">Minimum posts between high-engagement content</div>
+        </div>
+        <input type="number" id="cooldown-posts" min="1" max="20" value="4" />
+      </div>
+
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Blur Settings (Twitter/YouTube)</h2>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Hover Reveal Delay: <span id="hover-delay-value">3</span>s</div>
+          <div class="setting-description">Seconds to hover before revealing blurred content (1-10s)</div>
+        </div>
+        <input type="range" id="hover-delay" min="1" max="10" step="1" value="3" style="width: 200px;" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Blur Intensity: <span id="blur-intensity-value">8</span>px</div>
+          <div class="setting-description">Amount of blur applied to content (4-16px)</div>
+        </div>
+        <input type="range" id="blur-intensity" min="4" max="16" step="1" value="8" style="width: 200px;" />
+      </div>
+
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Testing</h2>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Simulate Session Time: <span id="test-boredom-value">0</span> min</div>
+          <div class="setting-description">Override session time for testing boredom phases (0 = use real time)</div>
+        </div>
+        <input type="range" id="test-boredom" min="0" max="120" step="5" value="0" style="width: 200px;" />
+      </div>
+
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Developer</h2>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Console Log Level</div>
+          <div class="setting-description">Control how much debug output appears in browser console</div>
+        </div>
+        <select id="log-level" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px;">
+          <option value="off">Off</option>
+          <option value="error" selected>Errors only</option>
+          <option value="warn">Warnings</option>
+          <option value="info">Info</option>
+          <option value="debug">Debug (verbose)</option>
+        </select>
+      </div>
+
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Threshold Controls</h2>
+
+      <!-- Threshold controls with blur overlay -->
+      <div id="threshold-controls-wrapper" style="position: relative; background: #1a1a1a; border-radius: 8px; padding: 20px; margin-bottom: 16px;">
+        <!-- Blur overlay -->
+        <div id="threshold-blur-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; backdrop-filter: blur(8px); background: rgba(0,0,0,0.5); border-radius: 8px; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: not-allowed;">
+          <div style="color: #888; font-size: 14px; margin-bottom: 8px;">Waiting to prevent impulsive changes...</div>
+          <div id="threshold-countdown" style="color: #b07dce; font-size: 24px; font-weight: 600;">30</div>
+          <div style="color: #666; font-size: 12px; margin-top: 8px;">Controls will unlock shortly</div>
+        </div>
+
+        <!-- Header and Reset button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #333;">
+          <div>
+            <div style="font-size: 14px; color: #ccc;">Custom Thresholds</div>
+            <div style="font-size: 12px; color: #666;">Adjust blur sensitivity and phase timing</div>
+            <span id="custom-thresholds-status" style="font-size: 11px; color: #666; margin-top: 4px; display: inline-block;">Using calibrated defaults</span>
+          </div>
+          <button id="reset-thresholds-btn" style="background: linear-gradient(135deg, #2d4a3e 0%, #1a3a2e 100%); border: 2px solid #4a7a5e; color: #7dcea0; font-size: 14px; font-weight: 600; padding: 12px 20px; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(125, 206, 160, 0.2);">
+            Reset to Calibrated
+          </button>
+        </div>
+
+        <!-- Blur Thresholds -->
+        <div style="margin-bottom: 20px;">
+          <div style="font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Blur Thresholds (score to blur)</div>
+
+          <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+            <div>
+              <div class="setting-label">Normal Phase: <span id="blur-normal-value">100</span></div>
+              <div class="setting-description">First 15 min - 100 = no blur</div>
+            </div>
+            <input type="range" id="blur-normal" min="20" max="100" step="5" value="100" style="width: 180px;" />
+          </div>
+
+          <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+            <div>
+              <div class="setting-label">Reduced Phase: <span id="blur-reduced-value">55</span></div>
+              <div class="setting-description">Score >= this gets blurred</div>
+            </div>
+            <input type="range" id="blur-reduced" min="20" max="100" step="5" value="55" style="width: 180px;" />
+          </div>
+
+          <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+            <div>
+              <div class="setting-label">Wind-down Phase: <span id="blur-winddown-value">45</span></div>
+              <div class="setting-description">More content blurred</div>
+            </div>
+            <input type="range" id="blur-winddown" min="20" max="100" step="5" value="45" style="width: 180px;" />
+          </div>
+
+          <div class="setting-row" style="padding: 12px 0;">
+            <div>
+              <div class="setting-label">Minimal Phase: <span id="blur-minimal-value">30</span></div>
+              <div class="setting-description">Almost everything blurred</div>
+            </div>
+            <input type="range" id="blur-minimal" min="20" max="100" step="5" value="30" style="width: 180px;" />
+          </div>
+        </div>
+
+        <!-- Phase Timing -->
+        <div>
+          <div style="font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Phase Timing (minutes)</div>
+
+          <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+            <div>
+              <div class="setting-label">Normal → Reduced: <span id="timing-normal-value">15</span> min</div>
+              <div class="setting-description">Time before blur kicks in</div>
+            </div>
+            <input type="range" id="timing-normal" min="5" max="60" step="5" value="15" style="width: 180px;" />
+          </div>
+
+          <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+            <div>
+              <div class="setting-label">Reduced → Wind-down: <span id="timing-reduced-value">45</span> min</div>
+              <div class="setting-description">Time before stricter blur</div>
+            </div>
+            <input type="range" id="timing-reduced" min="15" max="90" step="5" value="45" style="width: 180px;" />
+          </div>
+
+          <div class="setting-row" style="padding: 12px 0;">
+            <div>
+              <div class="setting-label">Wind-down → Minimal: <span id="timing-winddown-value">75</span> min</div>
+              <div class="setting-description">Time before maximum restriction</div>
+            </div>
+            <input type="range" id="timing-winddown" min="30" max="120" step="5" value="75" style="width: 180px;" />
+          </div>
+        </div>
+      </div>
+
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Productivity Card</h2>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Enable Productivity Card</div>
+          <div class="setting-description">Show a productivity reminder card in Reddit feed</div>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="productivity-card-enabled" style="width: 18px; height: 18px; cursor: pointer;" />
+          <span id="productivity-card-status" style="color: #888; font-size: 13px;">Disabled</span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">RescueTime API Key</div>
+          <div class="setting-description">Get from rescuetime.com/anapi/manage (optional)</div>
+        </div>
+        <input type="text" id="rescuetime-key" placeholder="Your API key..." />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Todoist URL</div>
+          <div class="setting-description">Link to your Todoist (default: today view)</div>
+        </div>
+        <input type="text" id="todoist-url" placeholder="https://todoist.com/app/today" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Job Search Link</div>
+          <div class="setting-description">Default link for job search action</div>
+        </div>
+        <input type="text" id="job-search-link" placeholder="https://www.linkedin.com/messaging/" />
+      </div>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

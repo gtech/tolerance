@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tolerance</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      width: 320px;
+      padding: 16px;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .api-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .api-dot.connected { background: #27ae60; }
+    .api-dot.disconnected { background: #e74c3c; }
+
+    .stats {
+      background: #252525;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .stats h2 {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #333;
+    }
+
+    .stat-row:last-child {
+      border-bottom: none;
+    }
+
+    .stat-label {
+      color: #888;
+      font-size: 13px;
+    }
+
+    .stat-value {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    .bucket-high { color: #e74c3c; }
+    .bucket-medium { color: #f39c12; }
+    .bucket-low { color: #27ae60; }
+
+    .boredom-section {
+      background: #252525;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .boredom-section h2 {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .boredom-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .boredom-time {
+      font-size: 24px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .phase-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .phase-normal { background: #1a472a; color: #4caf50; }
+    .phase-reduced { background: #3d3d1a; color: #ffc107; }
+    .phase-wind-down { background: #4a2d1a; color: #ff9800; }
+    .phase-minimal { background: #4a1a1a; color: #f44336; }
+
+    .dashboard-link {
+      display: block;
+      text-align: center;
+      padding: 10px;
+      background: #3d2d4a;
+      color: #b07dce;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .dashboard-link:hover {
+      background: #4d3d5a;
+    }
+
+    /* Quality Mode Toggle */
+    .quality-mode-section {
+      background: linear-gradient(135deg, #1a3a2d 0%, #1a2a1a 100%);
+      border: 1px solid #2d5a3d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .quality-mode-section.active {
+      background: linear-gradient(135deg, #2d5a3d 0%, #1a4a2a 100%);
+      border-color: #4a8a5d;
+    }
+
+    .quality-mode-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .quality-mode-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .quality-mode-icon {
+      font-size: 16px;
+    }
+
+    .quality-mode-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .quality-mode-desc {
+      font-size: 11px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    .quality-mode-section.active .quality-mode-desc {
+      color: #7dcea0;
+    }
+
+    /* Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #444;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #27ae60;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+
+    .api-warning {
+      background: #4a2d2d;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #ff9999;
+      text-align: center;
+    }
+
+    .api-warning a {
+      color: #ff9999;
+      text-decoration: underline;
+    }
+
+    /* Feedback Prompt */
+    .feedback-prompt {
+      background: linear-gradient(135deg, #2d3a4a 0%, #1a2a3a 100%);
+      border: 1px solid #3d5a7a;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .feedback-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .feedback-icon {
+      width: 20px;
+      height: 20px;
+      background: #4a7db0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .feedback-context {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+
+    .feedback-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .feedback-btn {
+      flex: 1;
+      padding: 8px 4px;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .feedback-btn.restricted {
+      background: #3d2d2d;
+      color: #e08080;
+    }
+
+    .feedback-btn.restricted:hover {
+      background: #4d3d3d;
+    }
+
+    .feedback-btn.balanced {
+      background: #2d4a3e;
+      color: #7dcea0;
+    }
+
+    .feedback-btn.balanced:hover {
+      background: #3d5a4e;
+    }
+
+    .feedback-btn.too-easy {
+      background: #4a4a2d;
+      color: #d0d080;
+    }
+
+    .feedback-btn.too-easy:hover {
+      background: #5a5a3d;
+    }
+
+    .feedback-thanks {
+      text-align: center;
+      color: #7dcea0;
+      font-size: 12px;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Tolerance</h1>
+    <div class="api-status">
+      <span id="api-dot" class="api-dot disconnected"></span>
+      <span id="api-status-text">No API Key</span>
+    </div>
+  </div>
+
+  <div id="api-warning" class="api-warning" style="display: none;">
+    API key required. <a href="#" id="setup-link">Open Dashboard</a> to configure.
+  </div>
+
+  <!-- Calibration Feedback Prompt -->
+  <div id="feedback-prompt" class="feedback-prompt" style="display: none;">
+    <div class="feedback-header">
+      <span class="feedback-icon">?</span>
+      <span>How was yesterday's browsing?</span>
+    </div>
+    <div class="feedback-context" id="feedback-context"></div>
+    <div class="feedback-buttons">
+      <button class="feedback-btn restricted" data-response="restricted">
+        Too restricted
+      </button>
+      <button class="feedback-btn balanced" data-response="balanced">
+        Balanced
+      </button>
+      <button class="feedback-btn too-easy" data-response="too_easy">
+        Scrolled too much
+      </button>
+    </div>
+  </div>
+
+  <!-- Quality Mode Toggle -->
+  <div id="quality-mode-section" class="quality-mode-section">
+    <div class="quality-mode-header">
+      <div class="quality-mode-info">
+        <span class="quality-mode-icon">&#9733;</span>
+        <span class="quality-mode-label">Quality Mode</span>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="quality-mode-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="quality-mode-desc">Blur all high-engagement content instantly</div>
+  </div>
+
+  <div class="boredom-section">
+    <h2>Today's Usage</h2>
+    <div class="boredom-info">
+      <span id="session-time" class="boredom-time">0m</span>
+      <span id="phase-badge" class="phase-badge phase-normal">Normal</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <h2>Posts Seen Today</h2>
+    <div class="stat-row">
+      <span class="stat-label">Total</span>
+      <span class="stat-value" id="posts-today">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">High engagement</span>
+      <span class="stat-value bucket-high" id="high-count">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Medium engagement</span>
+      <span class="stat-value bucket-medium" id="medium-count">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Low engagement</span>
+      <span class="stat-value bucket-low" id="low-count">0</span>
+    </div>
+  </div>
+
+  <a href="#" id="dashboard-link" class="dashboard-link">
+    Open Dashboard
+  </a>
+
+  <script src="popup.js"></script>
+</body>
+</html>
