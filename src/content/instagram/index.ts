@@ -328,20 +328,9 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   badge.className = `tolerance-score-badge ${score.bucket}`;
   badge.textContent = displayScore.toString();
 
-  // Find the media container to position the badge
-  // Look for the main media wrapper that spans the full width
-  const mediaContainer = element.querySelector('div[role="button"]') ||
-                         element.querySelector('video')?.parentElement?.parentElement ||
-                         element.querySelector('img:not([alt*="profile"])')?.parentElement?.parentElement;
-
-  if (mediaContainer && mediaContainer instanceof HTMLElement) {
-    mediaContainer.style.position = 'relative';
-    mediaContainer.appendChild(badge);
-  } else {
-    // Fallback: append to article element itself
-    element.style.position = 'relative';
-    element.appendChild(badge);
-  }
+  // Always append to the article element for consistent positioning
+  element.style.position = 'relative';
+  element.appendChild(badge);
 
   // Apply blur if score exceeds threshold
   if (shouldBlurScore(score)) {
