@@ -15,12 +15,23 @@ export function setupInstagramObserver(callback: () => void): void {
     return;
   }
 
+  // Don't setup if not on valid page
+  if (!isValidFeedPage()) {
+    log.debug(' Instagram: Not on valid feed page, skipping observer setup');
+    return;
+  }
+
   // Find the main content container
   const mainContainer = findMainContainer();
   if (!mainContainer) {
     log.warn(' Instagram: Could not find main container, will retry');
     // Retry after a short delay (Instagram may still be loading)
-    setTimeout(() => setupInstagramObserver(callback), 1000);
+    // But check if still on valid page first
+    setTimeout(() => {
+      if (isValidFeedPage()) {
+        setupInstagramObserver(callback);
+      }
+    }, 1000);
     return;
   }
 

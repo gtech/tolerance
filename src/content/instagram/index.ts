@@ -105,6 +105,8 @@ function startHeartbeat(): void {
   updateBlurThreshold();
 
   heartbeatIntervalId = setInterval(() => {
+    // Skip heartbeat on non-feed pages
+    if (!isValidFeedPage()) return;
     sendHeartbeat();
     updateBlurThreshold();
   }, HEARTBEAT_INTERVAL);
@@ -232,7 +234,12 @@ async function sendMessage(message: unknown): Promise<unknown> {
 
 async function processPosts(): Promise<void> {
   if (!isExtensionValid()) return;
-  if (!isValidFeedPage()) return;
+
+  // Extra safety: disconnect observer if we somehow end up on reels
+  if (!isValidFeedPage()) {
+    disconnectObserver();
+    return;
+  }
 
   if (isProcessing) {
     pendingProcess = true;
@@ -424,11 +431,12 @@ function applyBlur(element: HTMLElement): void {
 }
 
 async function init(): Promise<void> {
-  log.warn(' Instagram: init() called');
+  log.warn(' Instagram: init() called, pathname:', window.location.pathname);
 
-  // Check if we should run on this page
+  // Check if we should run on this page - do this first, before any DOM queries
   if (!isValidFeedPage()) {
-    log.warn(' Instagram: Not a valid feed page, skipping');
+    log.warn(' Instagram: Not a valid feed page, skipping entirely');
+    // Don't set up any observers or do anything
     return;
   }
   log.warn(' Instagram: Valid feed page, continuing init');
