@@ -128,10 +128,11 @@ function injectStyles(): void {
   style.textContent = `
     /* Score badge on posts */
     .tolerance-score-badge {
-      position: absolute;
-      top: 8px;
-      left: 50%;
-      transform: translateX(-50%);
+      position: absolute !important;
+      top: 8px !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
       background: rgba(0, 0, 0, 0.7);
       color: white;
       font-size: 12px;
@@ -328,17 +329,17 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   badge.textContent = displayScore.toString();
 
   // Find the media container to position the badge
+  // Look for the main media wrapper that spans the full width
   const mediaContainer = element.querySelector('div[role="button"]') ||
-                         element.querySelector('video')?.parentElement ||
-                         element.querySelector('img:not([alt*="profile"])');
+                         element.querySelector('video')?.parentElement?.parentElement ||
+                         element.querySelector('img:not([alt*="profile"])')?.parentElement?.parentElement;
 
-  if (mediaContainer) {
-    const container = mediaContainer.closest('div') || element;
-    if (container instanceof HTMLElement) {
-      container.style.position = 'relative';
-      container.appendChild(badge);
-    }
+  if (mediaContainer && mediaContainer instanceof HTMLElement) {
+    mediaContainer.style.position = 'relative';
+    mediaContainer.appendChild(badge);
   } else {
+    // Fallback: append to article element itself
+    element.style.position = 'relative';
     element.appendChild(badge);
   }
 
