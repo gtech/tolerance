@@ -112,7 +112,7 @@ function startHeartbeat(): void {
   }, HEARTBEAT_INTERVAL);
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && isValidFeedPage()) {
       sendHeartbeat();
       updateBlurThreshold();
     }

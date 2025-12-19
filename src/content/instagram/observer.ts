@@ -37,10 +37,9 @@ export function setupInstagramObserver(callback: () => void): void {
 
   log.debug(' Instagram: Setting up observer on main container');
 
-  observer = new MutationObserver((mutations) => {
-    // Immediately bail if not on valid page
+  observer = new MutationObserver(() => {
+    // Immediately bail if not on valid page - before ANY other work
     if (!isValidFeedPage()) {
-      log.debug(' Instagram: Observer triggered but not on valid page, disconnecting');
       if (observer) {
         observer.disconnect();
         observer = null;
@@ -48,46 +47,18 @@ export function setupInstagramObserver(callback: () => void): void {
       return;
     }
 
-    // Check if any articles were added
-    let hasNewArticles = false;
-
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement) {
-            // Check if an article was added or contains articles
-            if (node.tagName === 'ARTICLE' || node.querySelector('article')) {
-              hasNewArticles = true;
-              break;
-            }
-          }
-        }
+    // Debounce all processing
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      // Double-check still on valid page before callback
+      if (!isValidFeedPage()) {
+        disconnectObserver();
+        return;
       }
-      if (hasNewArticles) break;
-    }
-
-    // Also check if article count changed (handles virtual scroll replacement)
-    const currentArticleCount = document.querySelectorAll('article').length;
-    if (currentArticleCount !== lastArticleCount) {
-      hasNewArticles = true;
-      lastArticleCount = currentArticleCount;
-    }
-
-    if (hasNewArticles) {
-      // Debounce to batch rapid changes
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-      debounceTimer = setTimeout(() => {
-        // Double-check still on valid page before callback
-        if (!isValidFeedPage()) {
-          disconnectObserver();
-          return;
-        }
-        log.debug(' Instagram: New articles detected, triggering callback');
-        callback();
-      }, DEBOUNCE_MS);
-    }
+      callback();
+    }, DEBOUNCE_MS);
   });
 
   observer.observe(mainContainer, {
