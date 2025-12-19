@@ -61,15 +61,15 @@ export interface CounterStrategy {
 // Core Social Media Types
 // ==========================================
 
-// Base interface for any social media post (Reddit, Twitter, YouTube, etc.)
+// Base interface for any social media post (Reddit, Twitter, YouTube, Instagram, etc.)
 export interface SocialPost {
   id: string;
-  platform: 'reddit' | 'twitter' | 'youtube';
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram';
   author: string;
-  text: string;              // Post content (title for Reddit, tweet text for Twitter)
+  text: string;              // Post content (title for Reddit, tweet text for Twitter, caption for Instagram)
   score: number | null;      // Likes/upvotes
   numComments: number;       // Comments/replies
-  mediaType: 'text' | 'image' | 'video' | 'link' | 'gallery' | 'gif';
+  mediaType: 'text' | 'image' | 'video' | 'link' | 'gallery' | 'gif' | 'reel';
   permalink: string;
   createdUtc: number;
   thumbnailUrl?: string;
@@ -140,6 +140,24 @@ export interface YouTubeVideo {
   isShort?: boolean;             // YouTube Shorts
   isLive?: boolean;              // Live stream
   element: HTMLElement;          // Reference to DOM element
+}
+
+// ==========================================
+// Instagram Types
+// ==========================================
+
+export interface InstagramPost extends SocialPost {
+  platform: 'instagram';
+  caption: string;               // Post caption (same as text, explicit for clarity)
+  likeCount: number | null;      // Number of likes (may be hidden)
+  commentCount: number;          // Number of comments
+  isReel: boolean;               // Is this a Reel (video in feed)
+  isCarousel: boolean;           // Multiple images/videos
+  carouselCount?: number;        // Number of items in carousel
+  authorUsername: string;        // @username
+  authorProfilePic?: string;     // Profile picture URL
+  isSponsored?: boolean;         // Paid partnership / ad
+  hasAudio?: boolean;            // For reels - has audio
 }
 
 export interface EngagementScore {
@@ -278,6 +296,7 @@ export interface Settings {
     reddit: boolean;
     twitter: boolean;
     youtube: boolean;
+    instagram: boolean;
   };
   // Productivity card settings
   productivityCardEnabled?: boolean;  // Show productivity card in Reddit feed (default: false)
@@ -355,6 +374,7 @@ export type MessageType =
   | { type: 'SCORE_POSTS'; posts: Omit<RedditPost, 'element'>[] }
   | { type: 'SCORE_TWEETS'; tweets: Omit<Tweet, 'element'>[] }
   | { type: 'SCORE_VIDEOS'; videos: Omit<YouTubeVideo, 'element'>[] }
+  | { type: 'SCORE_INSTAGRAM_POSTS'; posts: Omit<InstagramPost, 'element'>[] }
   | { type: 'SCORES_RESULT'; scores: EngagementScore[] }
   | { type: 'LOG_IMPRESSIONS'; impressions: PostImpression[] }
   | { type: 'GET_STATE' }
@@ -412,6 +432,7 @@ export const DEFAULT_SETTINGS: Settings = {
     reddit: true,
     twitter: true,
     youtube: true,
+    instagram: true,
   },
   narrativeDetection: {
     enabled: true,

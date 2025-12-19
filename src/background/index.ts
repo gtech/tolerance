@@ -29,7 +29,7 @@ import {
   getEffectiveBlurThreshold,
   getEffectivePhaseThresholds,
 } from './storage';
-import { scorePosts, scoreTweets, scoreVideos } from './scorer';
+import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage } from './openrouter';
 import { getProductivityStats } from './rescuetime';
@@ -126,6 +126,11 @@ async function handleMessage(
 
     case 'SCORE_VIDEOS': {
       const scores = await scoreVideos(message.videos);
+      return { type: 'SCORES_RESULT', scores };
+    }
+
+    case 'SCORE_INSTAGRAM_POSTS': {
+      const scores = await scoreInstagramPosts(message.posts);
       return { type: 'SCORES_RESULT', scores };
     }
 
@@ -370,9 +375,15 @@ function isYouTubeUrl(url?: string): boolean {
   return url.includes('youtube.com');
 }
 
+// Helper to check if URL is Instagram
+function isInstagramUrl(url?: string): boolean {
+  if (!url) return false;
+  return url.includes('instagram.com');
+}
+
 // Helper to check if URL is any supported social media platform
 function isSocialMediaUrl(url?: string): boolean {
-  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url);
+  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url) || isInstagramUrl(url);
 }
 
 // Session lifecycle management
@@ -388,7 +399,9 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
       // On social media - create session if none exists, or if switching to a different tab
       if (!state.currentSessionId) {
         await createSession(state.mode, activeInfo.tabId);
-        const platform = isTwitterUrl(tab.url) ? 'Twitter' : 'Reddit';
+        const platform = isTwitterUrl(tab.url) ? 'Twitter' :
+                        isInstagramUrl(tab.url) ? 'Instagram' :
+                        isYouTubeUrl(tab.url) ? 'YouTube' : 'Reddit';
         log.debug(` Session created for ${platform} tab`, activeInfo.tabId);
       } else if (state.sessionTabId !== activeInfo.tabId) {
         // Switching to a different social media tab - update the tab association

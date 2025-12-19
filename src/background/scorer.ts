@@ -3,6 +3,7 @@ import {
   RedditPost,
   Tweet,
   YouTubeVideo,
+  InstagramPost,
   EngagementScore,
   ScoreFactors,
   NarrativeDetection,
@@ -1164,6 +1165,291 @@ function calculateVideoHeuristicScore(
     heuristicScore: score,
     heuristicConfidence: confidence,
     bucket: scoreToBucket(score, 'youtube'),
+    factors,
+    timestamp: Date.now(),
+  };
+}
+
+// Score Instagram posts - adapts Instagram content to the scoring system
+// Uses video model (Gemini) for reels/videos, similar to YouTube
+export async function scoreInstagramPosts(
+  posts: Omit<InstagramPost, 'element'>[]
+): Promise<EngagementScore[]> {
+  const t0 = performance.now();
+  const settings = await getSettings();
+  const postIds = posts.map(p => p.id);
+
+  // Fetch active narrative themes for detection
+  const narrativeEnabled = settings.narrativeDetection?.enabled !== false;
+  const themes = narrativeEnabled ? await getActiveThemes() : [];
+  const t1 = performance.now();
+
+  // Check cache first
+  const cached = await getCachedScores(postIds);
+  const uncached = posts.filter(p => !cached.has(p.id));
+  const t2 = performance.now();
+
+  // Score uncached posts with heuristics
+  const newScores: EngagementScore[] = [];
+
+  // Collect posts for API scoring
+  const postsForApi: { post: Omit<InstagramPost, 'element'>; score: EngagementScore }[] = [];
+
+  for (const post of uncached) {
+    const score = calculateInstagramHeuristicScore(post, themes);
+    newScores.push(score);
+
+    // API-first: send ALL posts to API when key is configured
+    if (settings.openRouterApiKey) {
+      postsForApi.push({ post, score });
+    }
+  }
+
+  // Separate posts by type for API scoring
+  const textPosts: { post: Omit<InstagramPost, 'element'>; score: EngagementScore }[] = [];
+  const mediaPosts: { post: Omit<InstagramPost, 'element'>; score: EngagementScore }[] = [];
+
+  for (const item of postsForApi) {
+    // Instagram is media-heavy - check for video/reel or image content
+    const hasMedia = item.post.isReel || item.post.mediaType === 'video' ||
+                     item.post.mediaType === 'image' || item.post.mediaType === 'gallery';
+    const hasImage = item.post.imageUrl || item.post.thumbnailUrl;
+
+    if (hasMedia && hasImage) {
+      mediaPosts.push(item);
+    } else {
+      // Caption-only posts (rare on Instagram)
+      textPosts.push(item);
+    }
+  }
+
+  log.debug(` Scoring ${textPosts.length} text Instagram posts, ${mediaPosts.length} media posts via API`);
+
+  // Process text posts (caption-only)
+  if (textPosts.length > 0) {
+    const textPromises = textPosts.map(async ({ post, score }) => {
+      try {
+        const apiResult = await scoreTextPost(
+          post.caption || post.text,
+          `@${post.author}`,
+          post.likeCount,
+          post.commentCount,
+          settings.openRouterApiKey!
+        );
+        if (apiResult) {
+          const apiScore = apiResult.score * 10;
+          score.apiScore = apiScore;
+          score.apiReason = apiResult.reason;
+          score.bucket = scoreToBucket(apiScore, 'instagram');
+        }
+      } catch (err) {
+        console.error('Instagram text API scoring failed:', err);
+      }
+    });
+    await Promise.all(textPromises);
+  }
+
+  // Process media posts (images/videos/reels)
+  if (mediaPosts.length > 0) {
+    const mediaPromises = mediaPosts.map(async ({ post, score }) => {
+      try {
+        const imageUrl = post.imageUrl || post.thumbnailUrl || '';
+        const content = post.caption || post.text;
+
+        // Use video scoring for reels/videos, image scoring for images
+        const apiResult = post.isReel || post.mediaType === 'video' || post.mediaType === 'reel'
+          ? await scoreVideoPost(
+              content,
+              `@${post.author}`,
+              imageUrl,
+              post.likeCount,
+              post.commentCount,
+              settings.openRouterApiKey!
+            )
+          : await scoreImagePost(
+              content,
+              `@${post.author}`,
+              imageUrl,
+              post.likeCount,
+              post.commentCount,
+              post.id,
+              undefined,
+              settings.openRouterApiKey!
+            );
+
+        if (apiResult) {
+          const apiScore = apiResult.score * 10;
+          score.apiScore = apiScore;
+          score.apiReason = apiResult.reason;
+          score.bucket = scoreToBucket(apiScore, 'instagram');
+        }
+      } catch (err) {
+        console.error('Instagram media API scoring failed:', err);
+      }
+    });
+    await Promise.all(mediaPromises);
+  }
+  const t3 = performance.now();
+
+  log.debug(` Instagram scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
+
+  // Cache new scores
+  if (newScores.length > 0) {
+    await cacheScores(newScores);
+  }
+
+  // Combine cached and new scores
+  const allScores: EngagementScore[] = [];
+  for (const post of posts) {
+    const cachedScore = cached.get(post.id);
+    if (cachedScore) {
+      allScores.push(cachedScore);
+    } else {
+      const newScore = newScores.find(s => s.postId === post.id);
+      if (newScore) allScores.push(newScore);
+    }
+  }
+
+  return allScores;
+}
+
+// Heuristic scoring for Instagram posts
+function calculateInstagramHeuristicScore(
+  post: Omit<InstagramPost, 'element'>,
+  themes: NarrativeTheme[]
+): EngagementScore {
+  const factors: ScoreFactors = {
+    engagementRatio: 0,
+    commentDensity: post.likeCount ? post.commentCount / post.likeCount : 0,
+    keywordFlags: [],
+    viralVelocity: 0,
+  };
+
+  let score = 30;
+  let confidencePoints = 0;
+
+  const caption = post.caption || post.text || '';
+
+  // Caption pattern heuristics
+  if (caption) {
+    const titlePatternScore = analyzeTitlePatterns(caption, post.likeCount || 0);
+    score += titlePatternScore.points;
+    confidencePoints += titlePatternScore.confidence;
+    factors.keywordFlags.push(...titlePatternScore.flags);
+  }
+
+  // Engagement ratio for Instagram: comment ratio relative to likes
+  if (post.likeCount && post.likeCount > 0) {
+    const commentRatio = post.commentCount / post.likeCount;
+    if (commentRatio > 0.1) score += 10; // High engagement
+    else if (commentRatio > 0.05) score += 5;
+    confidencePoints += 1;
+  }
+
+  // Keyword detection in caption
+  const captionLower = caption.toLowerCase();
+
+  // Outrage keywords
+  const outrageMatches = OUTRAGE_KEYWORDS.filter(kw => captionLower.includes(kw));
+  score += Math.min(outrageMatches.length * 8, 20);
+  factors.keywordFlags.push(...outrageMatches.map(k => `outrage:${k}`));
+  if (outrageMatches.length > 0) confidencePoints += 2;
+
+  // Curiosity gap keywords
+  const curiosityMatches = CURIOSITY_GAP_KEYWORDS.filter(kw => captionLower.includes(kw));
+  score += Math.min(curiosityMatches.length * 6, 15);
+  factors.keywordFlags.push(...curiosityMatches.map(k => `curiosity:${k}`));
+  if (curiosityMatches.length > 0) confidencePoints += 2;
+
+  // Tribal keywords
+  const tribalMatches = TRIBAL_KEYWORDS.filter(kw => captionLower.includes(kw));
+  score += Math.min(tribalMatches.length * 7, 15);
+  factors.keywordFlags.push(...tribalMatches.map(k => `tribal:${k}`));
+  if (tribalMatches.length > 0) confidencePoints += 1;
+
+  // Instagram-specific signals
+  if (post.isReel) {
+    score += 8; // Reels are designed for high engagement
+    factors.keywordFlags.push('instagram:reel');
+    confidencePoints += 1;
+  }
+
+  if (post.isCarousel) {
+    score += 5; // Carousels encourage swiping/engagement
+    factors.keywordFlags.push('instagram:carousel');
+  }
+
+  if (post.isSponsored) {
+    score += 10; // Sponsored content is inherently engagement-optimized
+    factors.keywordFlags.push('instagram:sponsored');
+    confidencePoints += 1;
+  }
+
+  // Hashtag detection in caption
+  const hashtagCount = (caption.match(/#\w+/g) || []).length;
+  if (hashtagCount >= 10) {
+    score += 10;
+    factors.keywordFlags.push('instagram:hashtag_heavy');
+  } else if (hashtagCount >= 5) {
+    score += 5;
+  }
+
+  // Instagram engagement hooks
+  const engagementHooks = [
+    /\b(link in bio|tap to shop|swipe up|double tap)\b/i,
+    /\b(giveaway|contest|tag a friend|share this)\b/i,
+    /\b(comment below|drop a|let me know)\b/i,
+    /\b(follow for more|follow me|new post)\b/i,
+  ];
+
+  for (const pattern of engagementHooks) {
+    if (pattern.test(caption)) {
+      score += 8;
+      factors.keywordFlags.push('instagram:engagement_hook');
+      confidencePoints += 1;
+      break;
+    }
+  }
+
+  // Very high like counts suggest viral/engagement-optimized content
+  if (post.likeCount) {
+    if (post.likeCount > 1000000) score += 15;
+    else if (post.likeCount > 100000) score += 10;
+    else if (post.likeCount > 10000) score += 5;
+    confidencePoints += 1;
+  }
+
+  // Narrative theme detection
+  if (themes.length > 0 && caption) {
+    const narrative = detectNarrative(caption, themes);
+    if (narrative) {
+      factors.narrative = narrative;
+      if (narrative.confidence === 'high') score += 10;
+      else if (narrative.confidence === 'medium') score += 5;
+      confidencePoints += 1;
+
+      factors.keywordFlags.push(
+        ...narrative.matchedKeywords.map(k => `narrative:${narrative.themeId}:${k}`)
+      );
+    } else {
+      trackUnclassifiedPost(post.id, caption);
+    }
+  }
+
+  // Clamp score
+  score = Math.max(0, Math.min(100, score));
+
+  // Determine confidence
+  let confidence: 'low' | 'medium' | 'high';
+  if (confidencePoints >= 5) confidence = 'high';
+  else if (confidencePoints >= 3) confidence = 'medium';
+  else confidence = 'low';
+
+  return {
+    postId: post.id,
+    heuristicScore: score,
+    heuristicConfidence: confidence,
+    bucket: scoreToBucket(score, 'instagram'),
     factors,
     timestamp: Date.now(),
   };

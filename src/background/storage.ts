@@ -218,7 +218,7 @@ export async function logCalibration(
     numComments?: number;
     upvoteRatio?: number;
     // Post metadata
-    mediaType?: 'text' | 'image' | 'video' | 'link' | 'gallery' | 'gif';
+    mediaType?: 'text' | 'image' | 'video' | 'link' | 'gallery' | 'gif' | 'reel';
     flair?: string;
     isNsfw?: boolean;
     domain?: string;

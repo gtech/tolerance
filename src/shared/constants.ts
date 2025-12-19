@@ -255,10 +255,16 @@ export const SCORE_THRESHOLDS = {
     HIGH: 55,
     MEDIUM: 40,
   },
+  instagram: {
+    // Instagram thresholds - similar to YouTube (video-heavy platform)
+    // Will need calibration once we have real data
+    HIGH: 55,
+    MEDIUM: 40,
+  },
 };
 
 // Bucket boundaries
-export function scoreToBucket(score: number, platform: 'reddit' | 'twitter' | 'youtube' = 'reddit'): 'low' | 'medium' | 'high' {
+export function scoreToBucket(score: number, platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' = 'reddit'): 'low' | 'medium' | 'high' {
   const thresholds = SCORE_THRESHOLDS[platform];
   if (score >= thresholds.HIGH) return 'high';
   if (score >= thresholds.MEDIUM) return 'medium';

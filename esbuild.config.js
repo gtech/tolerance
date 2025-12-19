@@ -77,6 +77,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/instagram/index.ts'],
+    outfile: 'dist/instagram.js',
+    format: 'iife', // Content scripts need IIFE (Instagram feed processing)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/background/index.ts'],
     outfile: 'dist/background.js',
     format: isFirefox ? 'iife' : 'esm', // Firefox background scripts need IIFE

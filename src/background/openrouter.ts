@@ -31,6 +31,9 @@ const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
 // Video model was too slow (10+ seconds), use image model with thumbnail instead
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
 
+const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
+// const DEFAULT_FULL_VIDEO_MODEL = 'z-ai/glm-4.6v';
+
 // Post data for batch scoring
 export interface PostForScoring {
   id: string;

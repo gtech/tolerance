@@ -4,3 +4,4 @@ dist/
 dist-chrome/
 dist-firefox/
 *.zip
+data/

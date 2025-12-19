@@ -54,11 +54,19 @@
     {
       "matches": [
         "*://www.facebook.com/*",
-        "*://www.instagram.com/*",
         "*://www.tiktok.com/*"
       ],
       "js": [
         "tracker.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://www.instagram.com/*"
+      ],
+      "js": [
+        "instagram.js"
       ],
       "run_at": "document_idle"
     },
