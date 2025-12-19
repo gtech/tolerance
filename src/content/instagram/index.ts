@@ -347,117 +347,48 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 }
 
 function applyBlur(element: HTMLElement): void {
-  // Find the main content image (not profile pic) to locate the media area
-  const contentImages = element.querySelectorAll('img');
-  let mediaContainer: HTMLElement | null = null;
+  // Mark element as blurred for CSS targeting
+  element.classList.add('tolerance-video-blocked');
 
-  for (const img of contentImages) {
-    const alt = img.alt || '';
-    // Skip profile pictures
-    if (alt.includes('profile picture')) continue;
-    // Skip small images (icons, etc)
-    if (img.width < 100 && img.height < 100) continue;
+  // Store the cleanup function for when blur is revealed
+  (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo = () => {
+    element.classList.remove('tolerance-video-blocked');
+  };
 
-    // Found a content image - get a parent that's likely the media container
-    // Go up a few levels to find a container that spans the content area
-    let parent = img.parentElement;
-    for (let i = 0; i < 5 && parent; i++) {
-      // Look for a container with significant width
-      if (parent.offsetWidth > 300) {
-        mediaContainer = parent;
-        break;
-      }
-      parent = parent.parentElement;
-    }
-    if (mediaContainer) break;
-  }
+  // Create blur overlay - append to article element for stability
+  element.style.position = 'relative';
 
-  // Fallback: look for video element's container
-  if (!mediaContainer) {
-    const video = element.querySelector('video');
-    if (video) {
-      let parent = video.parentElement;
-      for (let i = 0; i < 5 && parent; i++) {
-        if (parent.offsetWidth > 300) {
-          mediaContainer = parent;
-          break;
-        }
-        parent = parent.parentElement;
-      }
-    }
-  }
-
-  if (!mediaContainer) {
-    return;
-  }
-
-  // Ensure container has relative positioning
-  mediaContainer.style.position = 'relative';
-
-  // Find and pause any videos in this post
-  const video = element.querySelector('video');
-  let videoBlocked = true;
-  let userInteracted = false;
-
-  if (video) {
-    video.pause();
-    video.removeAttribute('autoplay');
-    video.preload = 'none';
-
-    // Block autoplay but allow user-initiated plays
-    const blockPlay = () => {
-      if (videoBlocked && !userInteracted) {
-        video.pause();
-      }
-    };
-
-    // Detect user interaction - any click in the element means user wants to play
-    const handleUserClick = () => {
-      userInteracted = true;
-      // Remove the block after user interaction
-      video.removeEventListener('play', blockPlay);
-      video.removeEventListener('playing', blockPlay);
-    };
-
-    video.addEventListener('play', blockPlay);
-    video.addEventListener('playing', blockPlay);
-    element.addEventListener('click', handleUserClick, { once: true });
-
-    // Store the cleanup function for when blur is revealed
-    (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo = () => {
-      videoBlocked = false;
-      userInteracted = true;
-      video.removeEventListener('play', blockPlay);
-      video.removeEventListener('playing', blockPlay);
-    };
-  }
-
-  // Create blur overlay
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
 
   // Add hover reveal functionality
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
+  let revealed = false;
+
+  const revealContent = () => {
+    revealed = true;
+    overlay.classList.add('revealed');
+    // Unblock video when revealed
+    const unblock = (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo;
+    if (unblock) {
+      unblock();
+    }
+  };
 
   overlay.addEventListener('mouseenter', () => {
+    if (revealed) return;
     overlay.classList.add('revealing');
     revealTimer = setTimeout(() => {
-      overlay.classList.add('revealed');
-      // Unblock and resume video when revealed
-      const unblock = (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo;
-      if (unblock) {
-        unblock();
-      }
+      revealContent();
       if (video) {
-        video.play().catch(() => {
-          // Ignore autoplay errors
-        });
+        video.play().catch(() => {});
       }
     }, hoverRevealDelay);
     hoverTimers.set(overlay, revealTimer);
   });
 
   overlay.addEventListener('mouseleave', () => {
+    if (revealed) return;
     overlay.classList.remove('revealing');
     if (revealTimer) {
       clearTimeout(revealTimer);
@@ -468,13 +399,36 @@ function applyBlur(element: HTMLElement): void {
       clearTimeout(timer);
       hoverTimers.delete(overlay);
     }
-    // Pause video again if not fully revealed
-    if (video && !overlay.classList.contains('revealed')) {
-      video.pause();
+  });
+
+  // Click on overlay reveals immediately
+  overlay.addEventListener('click', (e) => {
+    if (!revealed) {
+      e.stopPropagation();
+      revealContent();
     }
   });
 
-  mediaContainer.appendChild(overlay);
+  element.appendChild(overlay);
+
+  // Watch for Instagram removing our overlay and re-add it
+  const observer = new MutationObserver((mutations) => {
+    if (revealed) {
+      observer.disconnect();
+      return;
+    }
+
+    // Check if overlay was removed
+    if (!element.contains(overlay)) {
+      element.appendChild(overlay);
+      // Re-pause video if it started
+      if (video && videoBlocked) {
+        video.pause();
+      }
+    }
+  });
+
+  observer.observe(element, { childList: true, subtree: true });
 }
 
 async function init(): Promise<void> {
