@@ -195,6 +195,17 @@ function injectStyles(): void {
     article.tolerance-processed {
       position: relative;
     }
+
+    /* Block videos entirely when blurred - Instagram can't autoplay what doesn't exist */
+    article.tolerance-video-blocked video {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    /* Also mute any audio */
+    article.tolerance-video-blocked audio {
+      visibility: hidden !important;
+    }
   `;
   document.head.appendChild(style);
 }
