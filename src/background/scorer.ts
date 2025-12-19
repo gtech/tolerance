@@ -18,7 +18,7 @@ import {
   NARRATIVE_KEYWORDS,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
-import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages } from './openrouter';
+import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 
 // Main scoring function - API-first approach
@@ -1253,29 +1253,50 @@ export async function scoreInstagramPosts(
   if (mediaPosts.length > 0) {
     const mediaPromises = mediaPosts.map(async ({ post, score }) => {
       try {
-        const imageUrl = post.imageUrl || post.thumbnailUrl || '';
         const content = post.caption || post.text;
+        const isVideo = post.isReel || post.mediaType === 'video' || post.mediaType === 'reel';
 
-        // Use video scoring for reels/videos, image scoring for images
-        const apiResult = post.isReel || post.mediaType === 'video' || post.mediaType === 'reel'
-          ? await scoreVideoPost(
-              content,
-              `@${post.author}`,
-              imageUrl,
-              post.likeCount,
-              post.commentCount,
-              settings.openRouterApiKey!
-            )
-          : await scoreImagePost(
-              content,
-              `@${post.author}`,
-              imageUrl,
-              post.likeCount,
-              post.commentCount,
-              post.id,
-              undefined,
-              settings.openRouterApiKey!
-            );
+        let apiResult;
+
+        if (isVideo && post.videoUrl) {
+          // Use Gemini video model for reels/videos with actual video URL
+          log.debug(` Instagram: Scoring video with Gemini - post=${post.id}, videoUrl=${post.videoUrl}`);
+          apiResult = await scoreInstagramVideo(
+            content,
+            post.author,
+            post.videoUrl,
+            post.likeCount,
+            post.commentCount,
+            settings.openRouterApiKey!
+          );
+        } else if (isVideo) {
+          // Fallback to thumbnail scoring if no video URL available
+          const imageUrl = post.imageUrl || post.thumbnailUrl || '';
+          log.debug(` Instagram: No video URL, using thumbnail - post=${post.id}, imageUrl=${imageUrl}`);
+          apiResult = await scoreVideoPost(
+            content,
+            `@${post.author}`,
+            imageUrl,
+            post.likeCount,
+            post.commentCount,
+            settings.openRouterApiKey!,
+            'instagram'
+          );
+        } else {
+          // Image posts
+          const imageUrl = post.imageUrl || post.thumbnailUrl || '';
+          apiResult = await scoreImagePost(
+            content,
+            `@${post.author}`,
+            imageUrl,
+            post.likeCount,
+            post.commentCount,
+            post.id,
+            undefined,
+            settings.openRouterApiKey!,
+            'instagram'
+          );
+        }
 
         if (apiResult) {
           const apiScore = apiResult.score * 10;

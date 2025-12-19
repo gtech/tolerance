@@ -423,7 +423,8 @@ export async function describeImages(
 }
 
 // Score an image/visual post (two-step for galleries)
-// source can be "subredditName" for Reddit or "@username" for Twitter
+// source can be "subredditName" for Reddit or "@username" for Twitter/Instagram
+// platform parameter explicitly specifies the platform (defaults to detecting from source prefix)
 export async function scoreImagePost(
   title: string,
   source: string,
@@ -432,28 +433,33 @@ export async function scoreImagePost(
   numComments: number,
   postId?: string,
   bodyText?: string,
-  apiKey?: string
+  apiKey?: string,
+  platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
   const key = apiKey || (await getSettings()).openRouterApiKey;
   if (!key) {
     return null;
   }
 
-  const isTwitter = source.startsWith('@');
-  const scoreLabel = isTwitter ? 'Likes' : 'Upvotes';
+  // Determine platform - explicit parameter takes precedence
+  const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
+  const platformName = platform === 'instagram' ? 'Instagram' :
+                       platform === 'twitter' ? 'Twitter' :
+                       source.startsWith('@') ? 'Twitter' : 'Reddit';
+  const scoreLabel = isSocial ? 'Likes' : 'Upvotes';
   const scoreText = score !== null ? `${scoreLabel}: ${score}` : `${scoreLabel}: (not yet visible)`;
-  const sourceLabel = isTwitter ? `Author: ${source}` : `Subreddit: r/${source}`;
-  const contentLabel = isTwitter ? 'Tweet' : 'Title';
-  const platformName = isTwitter ? 'Twitter' : 'Reddit';
+  const sourceLabel = isSocial ? `Author: ${source}` : `Subreddit: r/${source}`;
+  const contentLabel = platform === 'instagram' ? 'Caption' :
+                       isSocial ? 'Tweet' : 'Title';
 
   // Log what we're scoring
-  log.debug(` scoreImagePost - platform=${platformName}, text="${title.slice(0, 50)}...", imageUrl=${imageUrl?.slice(0, 60)}...`);
+  log.debug(` scoreImagePost - platform=${platformName}, text="${title.slice(0, 50)}...", imageUrl=${imageUrl}`);
 
   // Check if this is a gallery - try to fetch all images (Reddit only)
   let imageDescriptions = '';
   let galleryImages: string[] = [];
 
-  if (postId && !isTwitter) {
+  if (postId && platformName === 'Reddit') {
     galleryImages = await fetchGalleryImages(postId);
   }
 
@@ -516,26 +522,32 @@ Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 }
 
 // Score a video/gif post using thumbnail
-// source can be "subredditName" for Reddit or "@username" for Twitter
+// source can be "subredditName" for Reddit or "@username" for Twitter/Instagram
+// platform parameter explicitly specifies the platform (defaults to detecting from source prefix)
 export async function scoreVideoPost(
   title: string,
   source: string,
   thumbnailUrl: string,
   score: number | null,
   numComments: number,
-  apiKey?: string
+  apiKey?: string,
+  platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
   const key = apiKey || (await getSettings()).openRouterApiKey;
   if (!key) {
     return null;
   }
 
-  const isTwitter = source.startsWith('@');
-  const scoreLabel = isTwitter ? 'Likes' : 'Upvotes';
+  // Determine platform - explicit parameter takes precedence
+  const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
+  const platformName = platform === 'instagram' ? 'Instagram' :
+                       platform === 'twitter' ? 'Twitter' :
+                       source.startsWith('@') ? 'Twitter' : 'Reddit';
+  const scoreLabel = isSocial ? 'Likes' : 'Upvotes';
   const scoreText = score !== null ? `${scoreLabel}: ${score}` : `${scoreLabel}: (not yet visible)`;
-  const sourceLabel = isTwitter ? `Author: ${source}` : `Subreddit: r/${source}`;
-  const contentLabel = isTwitter ? 'Tweet' : 'Title';
-  const platformName = isTwitter ? 'Twitter' : 'Reddit';
+  const sourceLabel = isSocial ? `Author: ${source}` : `Subreddit: r/${source}`;
+  const contentLabel = platform === 'instagram' ? 'Caption' :
+                       isSocial ? 'Tweet' : 'Title';
 
   // Use fast image model with thumbnail (video model was too slow at 10+ seconds)
   const model = DEFAULT_VIDEO_MODEL;
@@ -551,7 +563,7 @@ export async function scoreVideoPost(
   }
   // external-preview.redd.it URLs work directly, no transformation needed
 
-  log.debug(` scoreVideoPost - platform=${platformName}, text="${title.slice(0, 50)}...", thumbnail=${imageUrl?.slice(0, 60)}...`);
+  log.debug(` scoreVideoPost - platform=${platformName}, text="${title.slice(0, 50)}...", thumbnail=${imageUrl}`);
 
   // For video-only posts (common on Twitter), adjust the prompt
   const hasText = title && title.trim().length > 0;
@@ -575,6 +587,50 @@ Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
   return callOpenRouter(key, prompt, model, imageUrl || undefined);
+}
+
+// Score Instagram video/reel using Gemini video model
+// This sends the actual video URL for analysis (not just thumbnail)
+export async function scoreInstagramVideo(
+  caption: string,
+  author: string,
+  videoUrl: string,
+  likeCount: number | null,
+  commentCount: number,
+  apiKey?: string
+): Promise<ScoreResponse | null> {
+  const key = apiKey || (await getSettings()).openRouterApiKey;
+  if (!key) {
+    return null;
+  }
+
+  log.debug(` scoreInstagramVideo - author=@${author}, caption="${caption.slice(0, 50)}...", videoUrl=${videoUrl}`);
+
+  const scoreText = likeCount !== null ? `Likes: ${likeCount}` : `Likes: (not yet visible)`;
+
+  // For video-only posts (common on Instagram), adjust the prompt
+  const hasText = caption && caption.trim().length > 0;
+  const contentDescription = hasText
+    ? `Caption: "${caption}"`
+    : `(No caption - video only post)`;
+
+  const prompt = `Analyze this Instagram reel/video for engagement manipulation tactics.
+
+${contentDescription}
+Author: @${author}
+${scoreText}, Comments: ${commentCount}
+
+Rate from 1-10 how much this video uses psychological manipulation to drive engagement:
+- 1-3: Informative, neutral, genuinely interesting, educational, or wholesome
+- 4-6: Some engagement optimization (reaction-bait, emotional hook, trending audio)
+- 7-10: Heavy manipulation (outrage content, rage-bait, misleading edits, engagement farming, shock value)
+
+Consider: Does the video use attention-grabbing tactics? Quick cuts designed to hold attention? Controversial or divisive content? Engagement hooks ("wait for it", "comment if you agree")?
+
+Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
+
+  // Use the Gemini video model for full video analysis
+  return callOpenRouter(key, prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
 }
 
 // Convert image URL to base64 data URL via content script (bypasses CORS)
