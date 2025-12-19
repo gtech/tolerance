@@ -395,11 +395,29 @@ function applyBlur(element: HTMLElement): void {
 
   // Find and pause any videos in this post
   const video = element.querySelector('video');
+  let videoBlocked = true;
+
   if (video) {
     video.pause();
-    // Prevent autoplay by removing autoplay attribute and setting preload
     video.removeAttribute('autoplay');
     video.preload = 'none';
+
+    // Aggressively block play attempts while blurred
+    const blockPlay = () => {
+      if (videoBlocked) {
+        video.pause();
+      }
+    };
+
+    video.addEventListener('play', blockPlay);
+    video.addEventListener('playing', blockPlay);
+
+    // Store the cleanup function on the overlay for later
+    (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo = () => {
+      videoBlocked = false;
+      video.removeEventListener('play', blockPlay);
+      video.removeEventListener('playing', blockPlay);
+    };
   }
 
   // Create blur overlay
@@ -413,7 +431,11 @@ function applyBlur(element: HTMLElement): void {
     overlay.classList.add('revealing');
     revealTimer = setTimeout(() => {
       overlay.classList.add('revealed');
-      // Resume video when revealed
+      // Unblock and resume video when revealed
+      const unblock = (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo;
+      if (unblock) {
+        unblock();
+      }
       if (video) {
         video.play().catch(() => {
           // Ignore autoplay errors
