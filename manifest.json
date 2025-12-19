@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tolerance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Make social media boring again",
   "icons": {
     "16": "icons/icon16.png",
@@ -36,7 +36,9 @@
         "*://www.reddit.com/*",
         "*://reddit.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -44,7 +46,9 @@
         "*://twitter.com/*",
         "*://x.com/*"
       ],
-      "js": ["twitter.js"],
+      "js": [
+        "twitter.js"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -53,14 +57,18 @@
         "*://www.instagram.com/*",
         "*://www.tiktok.com/*"
       ],
-      "js": ["tracker.js"],
+      "js": [
+        "tracker.js"
+      ],
       "run_at": "document_idle"
     },
     {
       "matches": [
         "*://www.youtube.com/*"
       ],
-      "js": ["youtube.js"],
+      "js": [
+        "youtube.js"
+      ],
       "run_at": "document_idle"
     }
   ],
