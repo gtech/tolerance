@@ -208,8 +208,106 @@ function injectStyles(): void {
     article.tolerance-video-blocked audio {
       visibility: hidden !important;
     }
+
+    /* Blur overlay for navigation buttons (Explore, Reels) */
+    .tolerance-nav-blur {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      backdrop-filter: blur(4px) !important;
+      -webkit-backdrop-filter: blur(4px) !important;
+      background: rgba(0, 0, 0, 0.3) !important;
+      z-index: 9999 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      cursor: not-allowed !important;
+      border-radius: 8px;
+    }
+
+    .tolerance-nav-blur::after {
+      content: '10s';
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .tolerance-nav-blur.revealing::after {
+      content: attr(data-countdown);
+    }
+
+    .tolerance-nav-blur.revealed {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
   `;
   document.head.appendChild(style);
+}
+
+const NAV_BLUR_DELAY = 10000; // 10 seconds
+
+function blurNavigationButtons(): void {
+  // Find Explore and Reels links in the navigation
+  const navLinks = document.querySelectorAll('a[href="/explore/"], a[href="/reels/"]');
+
+  for (const link of navLinks) {
+    if (!(link instanceof HTMLElement)) continue;
+    if (link.querySelector('.tolerance-nav-blur')) continue; // Already blurred
+
+    // Make the link container relative for positioning
+    link.style.position = 'relative';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'tolerance-nav-blur';
+    overlay.setAttribute('data-countdown', '10s');
+
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let countdownInterval: ReturnType<typeof setInterval> | null = null;
+    let revealed = false;
+
+    overlay.addEventListener('mouseenter', () => {
+      if (revealed) return;
+
+      overlay.classList.add('revealing');
+      let remaining = 10;
+
+      // Update countdown
+      countdownInterval = setInterval(() => {
+        remaining--;
+        overlay.setAttribute('data-countdown', `${remaining}s`);
+        if (remaining <= 0 && countdownInterval) {
+          clearInterval(countdownInterval);
+        }
+      }, 1000);
+
+      revealTimer = setTimeout(() => {
+        revealed = true;
+        overlay.classList.add('revealed');
+        if (countdownInterval) clearInterval(countdownInterval);
+      }, NAV_BLUR_DELAY);
+    });
+
+    overlay.addEventListener('mouseleave', () => {
+      if (revealed) return;
+
+      overlay.classList.remove('revealing');
+      overlay.setAttribute('data-countdown', '10s');
+
+      if (revealTimer) {
+        clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    });
+
+    link.appendChild(overlay);
+  }
 }
 
 async function sendMessage(message: unknown): Promise<unknown> {
@@ -434,10 +532,17 @@ function applyBlur(element: HTMLElement): void {
 async function init(): Promise<void> {
   log.warn(' Instagram: init() called, pathname:', window.location.pathname);
 
-  // Check if we should run on this page - do this first, before any DOM queries
+  // Always inject styles first (needed for nav blur on any page)
+  injectStyles();
+
+  // Always blur navigation buttons (Explore, Reels) on any Instagram page
+  blurNavigationButtons();
+  // Re-check periodically in case Instagram recreates the nav
+  setInterval(blurNavigationButtons, 2000);
+
+  // Check if we should run feed processing on this page
   if (!isValidFeedPage()) {
-    log.warn(' Instagram: Not a valid feed page, skipping entirely');
-    // Don't set up any observers or do anything
+    log.warn(' Instagram: Not a valid feed page, skipping feed processing');
     return;
   }
   log.warn(' Instagram: Valid feed page, continuing init');
@@ -468,9 +573,6 @@ async function init(): Promise<void> {
   } catch (error) {
     log.error(' Instagram: Failed to get settings:', error);
   }
-
-  // Inject styles
-  injectStyles();
 
   // Start heartbeat for session tracking
   startHeartbeat();
