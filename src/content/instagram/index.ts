@@ -392,13 +392,14 @@ function applyBlur(element: HTMLElement): void {
 }
 
 async function init(): Promise<void> {
-  log.debug(' Instagram: Initializing Tolerance');
+  log.warn(' Instagram: init() called');
 
   // Check if we should run on this page
   if (!isValidFeedPage()) {
-    log.debug(' Instagram: Not a feed page, skipping');
+    log.warn(' Instagram: Not a valid feed page, skipping');
     return;
   }
+  log.warn(' Instagram: Valid feed page, continuing init');
 
   // Get settings
   try {
@@ -406,8 +407,8 @@ async function init(): Promise<void> {
     if (response) {
       const { settings } = response as { state: AppState; settings: Settings };
 
-      // Check if Instagram is enabled
-      if (!settings.platforms?.instagram) {
+      // Check if Instagram is enabled (default to true if not set)
+      if (settings.platforms?.instagram === false) {
         log.debug(' Instagram: Platform disabled in settings');
         return;
       }
@@ -450,7 +451,10 @@ async function init(): Promise<void> {
 // Instagram uses React SSR with hydration - modifying DOM too early causes React error #418
 const HYDRATION_DELAY = 2000; // Wait 2 seconds for React hydration
 
+log.warn(' Instagram: Content script loaded');
+
 function startWithDelay(): void {
+  log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
   setTimeout(init, HYDRATION_DELAY);
 }
 
