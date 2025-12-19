@@ -114,19 +114,22 @@ export function setupNavigationObserver(callback: () => void): void {
 }
 
 function handleNavigation(callback: () => void): void {
+  // Always disconnect observer first when navigating
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+    log.debug(' Instagram: Observer disconnected for navigation');
+  }
+
   // Only process on feed pages
   if (isValidFeedPage()) {
-    // Re-setup observer for new page content
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-
     // Wait for new content to load
     setTimeout(() => {
       setupInstagramObserver(callback);
       callback();
     }, 500);
+  } else {
+    log.debug(' Instagram: Not a valid feed page, staying disconnected');
   }
 }
 
@@ -167,18 +170,19 @@ function findMainContainer(): HTMLElement | null {
 export function isValidFeedPage(): boolean {
   const pathname = window.location.pathname;
 
-  // Feed pages: home feed or profile posts
-  // Home feed is at /
-  if (pathname === '/') return true;
-
-  // Skip explore, reels page, stories, direct messages
+  // Skip explore, reels page, stories, direct messages FIRST
   if (pathname.startsWith('/explore')) return false;
   if (pathname.startsWith('/reels')) return false;
+  if (pathname.startsWith('/reel/')) return false;  // Individual reel pages
   if (pathname.startsWith('/stories')) return false;
   if (pathname.startsWith('/direct')) return false;
   if (pathname.startsWith('/accounts')) return false;
+  if (pathname.startsWith('/p/')) return false;  // Individual post pages
 
-  // Individual post pages can show in modal, we process those in feed context
+  // Feed pages: home feed only
+  // Home feed is at /
+  if (pathname === '/') return true;
+
   // Profile pages with feed
   if (pathname.match(/^\/[a-zA-Z0-9._]+\/?$/)) return true;
 

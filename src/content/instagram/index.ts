@@ -421,25 +421,6 @@ function applyBlur(element: HTMLElement): void {
   });
 
   element.appendChild(overlay);
-
-  // Watch for Instagram removing our overlay and re-add it
-  const observer = new MutationObserver((mutations) => {
-    if (revealed) {
-      observer.disconnect();
-      return;
-    }
-
-    // Check if overlay was removed
-    if (!element.contains(overlay)) {
-      element.appendChild(overlay);
-      // Re-pause video if it started
-      if (video && videoBlocked) {
-        video.pause();
-      }
-    }
-  });
-
-  observer.observe(element, { childList: true, subtree: true });
 }
 
 async function init(): Promise<void> {
