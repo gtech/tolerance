@@ -38,6 +38,16 @@ export function setupInstagramObserver(callback: () => void): void {
   log.debug(' Instagram: Setting up observer on main container');
 
   observer = new MutationObserver((mutations) => {
+    // Immediately bail if not on valid page
+    if (!isValidFeedPage()) {
+      log.debug(' Instagram: Observer triggered but not on valid page, disconnecting');
+      if (observer) {
+        observer.disconnect();
+        observer = null;
+      }
+      return;
+    }
+
     // Check if any articles were added
     let hasNewArticles = false;
 
@@ -69,6 +79,11 @@ export function setupInstagramObserver(callback: () => void): void {
         clearTimeout(debounceTimer);
       }
       debounceTimer = setTimeout(() => {
+        // Double-check still on valid page before callback
+        if (!isValidFeedPage()) {
+          disconnectObserver();
+          return;
+        }
         log.debug(' Instagram: New articles detected, triggering callback');
         callback();
       }, DEBOUNCE_MS);

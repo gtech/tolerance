@@ -398,9 +398,6 @@ function applyBlur(element: HTMLElement): void {
     overlay.classList.add('revealing');
     revealTimer = setTimeout(() => {
       revealContent();
-      if (video) {
-        video.play().catch(() => {});
-      }
     }, hoverRevealDelay);
     hoverTimers.set(overlay, revealTimer);
   });
