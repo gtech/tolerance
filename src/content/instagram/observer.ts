@@ -1,16 +1,15 @@
 import { log } from '../../shared/constants';
 
 // Observe DOM changes for infinite scroll detection on Instagram
-// Instagram uses virtualized/lazy loading for feed content
+// Using interval-based polling instead of MutationObserver to avoid performance issues
 
-let observer: MutationObserver | null = null;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastArticleCount = 0;
 
-const DEBOUNCE_MS = 500; // Debounce processing to batch multiple DOM changes
+const POLL_INTERVAL_MS = 1000; // Check every second
 
 export function setupInstagramObserver(callback: () => void): void {
-  if (observer) {
+  if (pollIntervalId) {
     log.debug(' Instagram: Observer already set up');
     return;
   }
@@ -21,55 +20,28 @@ export function setupInstagramObserver(callback: () => void): void {
     return;
   }
 
-  // Find the main content container
-  const mainContainer = findMainContainer();
-  if (!mainContainer) {
-    log.warn(' Instagram: Could not find main container, will retry');
-    // Retry after a short delay (Instagram may still be loading)
-    // But check if still on valid page first
-    setTimeout(() => {
-      if (isValidFeedPage()) {
-        setupInstagramObserver(callback);
-      }
-    }, 1000);
-    return;
-  }
-
-  log.debug(' Instagram: Setting up observer on main container');
-
-  observer = new MutationObserver(() => {
-    // Immediately bail if not on valid page - before ANY other work
-    if (!isValidFeedPage()) {
-      if (observer) {
-        observer.disconnect();
-        observer = null;
-      }
-      return;
-    }
-
-    // Debounce all processing
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-    debounceTimer = setTimeout(() => {
-      // Double-check still on valid page before callback
-      if (!isValidFeedPage()) {
-        disconnectObserver();
-        return;
-      }
-      callback();
-    }, DEBOUNCE_MS);
-  });
-
-  observer.observe(mainContainer, {
-    childList: true,
-    subtree: true,
-  });
+  log.debug(' Instagram: Setting up polling observer');
 
   // Track initial article count
   lastArticleCount = document.querySelectorAll('article').length;
 
-  log.debug(' Instagram: Observer started, initial article count:', lastArticleCount);
+  pollIntervalId = setInterval(() => {
+    // Stop polling if not on valid page
+    if (!isValidFeedPage()) {
+      log.warn(' Instagram: Poll detected invalid page, stopping');
+      disconnectObserver();
+      return;
+    }
+
+    // Check if article count changed
+    const currentCount = document.querySelectorAll('article').length;
+    if (currentCount !== lastArticleCount) {
+      lastArticleCount = currentCount;
+      callback();
+    }
+  }, POLL_INTERVAL_MS);
+
+  log.debug(' Instagram: Polling started, initial article count:', lastArticleCount);
 }
 
 export function setupNavigationObserver(callback: () => void): void {
@@ -112,11 +84,8 @@ export function setupNavigationObserver(callback: () => void): void {
 
 function handleNavigation(callback: () => void): void {
   // Always disconnect observer first when navigating
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-    log.debug(' Instagram: Observer disconnected for navigation');
-  }
+  disconnectObserver();
+  log.debug(' Instagram: Observer disconnected for navigation');
 
   // Only process on feed pages
   if (isValidFeedPage()) {
@@ -199,13 +168,9 @@ export function isValidFeedPage(): boolean {
 }
 
 export function disconnectObserver(): void {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
-  }
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = null;
   }
   log.debug(' Instagram: Observer disconnected');
 }
