@@ -393,6 +393,15 @@ function applyBlur(element: HTMLElement): void {
   // Ensure container has relative positioning
   mediaContainer.style.position = 'relative';
 
+  // Find and pause any videos in this post
+  const video = element.querySelector('video');
+  if (video) {
+    video.pause();
+    // Prevent autoplay by removing autoplay attribute and setting preload
+    video.removeAttribute('autoplay');
+    video.preload = 'none';
+  }
+
   // Create blur overlay
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
@@ -404,6 +413,12 @@ function applyBlur(element: HTMLElement): void {
     overlay.classList.add('revealing');
     revealTimer = setTimeout(() => {
       overlay.classList.add('revealed');
+      // Resume video when revealed
+      if (video) {
+        video.play().catch(() => {
+          // Ignore autoplay errors
+        });
+      }
     }, hoverRevealDelay);
     hoverTimers.set(overlay, revealTimer);
   });
@@ -418,6 +433,10 @@ function applyBlur(element: HTMLElement): void {
     if (timer) {
       clearTimeout(timer);
       hoverTimers.delete(overlay);
+    }
+    // Pause video again if not fully revealed
+    if (video && !overlay.classList.contains('revealed')) {
+      video.pause();
     }
   });
 
