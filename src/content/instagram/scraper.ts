@@ -36,14 +36,14 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
     }
 
     if (!id) {
-      log.debug(' Instagram: Could not extract post ID');
+      log.debug('Instagram: Could not extract post ID');
       return null;
     }
 
     // Extract author info
     const { author, authorUsername, authorProfilePic, isVerified } = extractAuthorInfo(element);
     if (!author) {
-      log.debug(' Instagram: Could not extract author');
+      log.debug('Instagram: Could not extract author');
       return null;
     }
 
@@ -94,7 +94,7 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
       element,
     };
   } catch (error) {
-    log.error(' Instagram: Failed to parse post element:', error);
+    log.error('Instagram: Failed to parse post element:', error);
     return null;
   }
 }

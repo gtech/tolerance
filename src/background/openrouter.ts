@@ -32,7 +32,6 @@ const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
 
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
-// const DEFAULT_FULL_VIDEO_MODEL = 'z-ai/glm-4.6v';
 
 // Post data for batch scoring
 export interface PostForScoring {
@@ -46,7 +45,8 @@ export interface PostForScoring {
 
 // Batch score result
 export interface BatchScoreResult {
-  postId: string;
+  id?: string;
+  postId?: string;
   score: number;
   reason: string;
 }
@@ -631,63 +631,6 @@ Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
   // Use the Gemini video model for full video analysis
   return callOpenRouter(key, prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
-}
-
-// Convert image URL to base64 data URL via content script (bypasses CORS)
-async function imageUrlToBase64(url: string): Promise<string | null> {
-  const imgStart = performance.now();
-  log.debug(` imageUrlToBase64 START at t=${imgStart.toFixed(0)}`);
-  try {
-    // Find a Reddit tab to use for fetching
-    const tabs = await chrome.tabs.query({ url: '*://*.reddit.com/*' });
-    const redditTab = tabs.find(t => t.id !== undefined);
-
-    if (!redditTab?.id) {
-      console.error('No Reddit tab found for image fetching');
-      // Fallback: try direct fetch (might work for some URLs)
-      return await directFetchBase64(url);
-    }
-
-    // Ask content script to fetch the image
-    const response = await chrome.tabs.sendMessage(redditTab.id, {
-      type: 'FETCH_IMAGE_BASE64',
-      url,
-    });
-
-    if (response?.success && response?.base64) {
-      const imgEnd = performance.now();
-      log.debug(` Image fetched via content script (${response.base64.length} chars) in ${(imgEnd - imgStart).toFixed(0)}ms`);
-      return response.base64;
-    } else {
-      console.error('Content script image fetch failed:', response?.error);
-      return null;
-    }
-  } catch (error) {
-    console.error('Image to base64 conversion failed:', error, url);
-    return null;
-  }
-}
-
-// Direct fetch fallback (for non-Reddit URLs or when no tab available)
-async function directFetchBase64(url: string): Promise<string | null> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`Direct fetch failed: ${response.status} - ${url}`);
-      return null;
-    }
-
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Direct fetch failed:', error);
-    return null;
-  }
 }
 
 async function callOpenRouter(

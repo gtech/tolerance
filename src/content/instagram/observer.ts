@@ -10,17 +10,17 @@ const POLL_INTERVAL_MS = 1000; // Check every second
 
 export function setupInstagramObserver(callback: () => void): void {
   if (pollIntervalId) {
-    log.debug(' Instagram: Observer already set up');
+    log.debug('Instagram: Observer already set up');
     return;
   }
 
   // Don't setup if not on valid page
   if (!isValidFeedPage()) {
-    log.debug(' Instagram: Not on valid feed page, skipping observer setup');
+    log.debug('Instagram: Not on valid feed page, skipping observer setup');
     return;
   }
 
-  log.debug(' Instagram: Setting up polling observer');
+  log.debug('Instagram: Setting up polling observer');
 
   // Track initial article count
   lastArticleCount = document.querySelectorAll('article').length;
@@ -28,7 +28,7 @@ export function setupInstagramObserver(callback: () => void): void {
   pollIntervalId = setInterval(() => {
     // Stop polling if not on valid page
     if (!isValidFeedPage()) {
-      log.warn(' Instagram: Poll detected invalid page, stopping');
+      log.debug('Instagram: Poll detected invalid page, stopping');
       disconnectObserver();
       return;
     }
@@ -41,7 +41,7 @@ export function setupInstagramObserver(callback: () => void): void {
     }
   }, POLL_INTERVAL_MS);
 
-  log.debug(' Instagram: Polling started, initial article count:', lastArticleCount);
+  log.debug('Instagram: Polling started, initial article count:', lastArticleCount);
 }
 
 export function setupNavigationObserver(callback: () => void): void {
@@ -54,7 +54,7 @@ export function setupNavigationObserver(callback: () => void): void {
   window.addEventListener('popstate', () => {
     if (window.location.pathname !== lastPathname) {
       lastPathname = window.location.pathname;
-      log.debug(' Instagram: Navigation detected via popstate');
+      log.debug('Instagram: Navigation detected via popstate');
       handleNavigation(callback);
     }
   });
@@ -67,7 +67,7 @@ export function setupNavigationObserver(callback: () => void): void {
     originalPushState.apply(this, args);
     if (window.location.pathname !== lastPathname) {
       lastPathname = window.location.pathname;
-      log.debug(' Instagram: Navigation detected via pushState');
+      log.debug('Instagram: Navigation detected via pushState');
       handleNavigation(callback);
     }
   };
@@ -76,7 +76,7 @@ export function setupNavigationObserver(callback: () => void): void {
     originalReplaceState.apply(this, args);
     if (window.location.pathname !== lastPathname) {
       lastPathname = window.location.pathname;
-      log.debug(' Instagram: Navigation detected via replaceState');
+      log.debug('Instagram: Navigation detected via replaceState');
       handleNavigation(callback);
     }
   };
@@ -85,7 +85,7 @@ export function setupNavigationObserver(callback: () => void): void {
 function handleNavigation(callback: () => void): void {
   // Always disconnect observer first when navigating
   disconnectObserver();
-  log.debug(' Instagram: Observer disconnected for navigation');
+  log.debug('Instagram: Observer disconnected for navigation');
 
   // Only process on feed pages
   if (isValidFeedPage()) {
@@ -95,42 +95,8 @@ function handleNavigation(callback: () => void): void {
       callback();
     }, 500);
   } else {
-    log.debug(' Instagram: Not a valid feed page, staying disconnected');
+    log.debug('Instagram: Not a valid feed page, staying disconnected');
   }
-}
-
-function findMainContainer(): HTMLElement | null {
-  // Instagram's main content area - try several selectors
-  const selectors = [
-    'main',
-    '[role="main"]',
-    'section > main',
-    'div[style*="flex-direction: column"] > section',
-  ];
-
-  for (const selector of selectors) {
-    const element = document.querySelector<HTMLElement>(selector);
-    if (element && element.querySelector('article')) {
-      return element;
-    }
-  }
-
-  // Fallback: find container of first article
-  const firstArticle = document.querySelector('article');
-  if (firstArticle) {
-    // Go up a few levels to find a stable container
-    let container = firstArticle.parentElement;
-    for (let i = 0; i < 3 && container; i++) {
-      if (container.tagName === 'MAIN' || container.getAttribute('role') === 'main') {
-        return container;
-      }
-      container = container.parentElement;
-    }
-    // Use the parent of the first article if we can't find main
-    return firstArticle.parentElement;
-  }
-
-  return null;
 }
 
 export function isValidFeedPage(): boolean {
@@ -157,13 +123,13 @@ export function isValidFeedPage(): boolean {
     const reservedPaths = ['reels', 'explore', 'stories', 'direct', 'accounts', 'reel', 'p'];
     const pathSegment = pathname.split('/')[1];
     if (reservedPaths.includes(pathSegment)) {
-      log.warn(' Instagram: isValidFeedPage = false (reserved path):', pathname);
+      log.debug('Instagram: isValidFeedPage = false (reserved path):', pathname);
       return false;
     }
     return true;
   }
 
-  log.warn(' Instagram: isValidFeedPage = false:', pathname);
+  log.debug('Instagram: isValidFeedPage = false:', pathname);
   return false;
 }
 
@@ -172,5 +138,5 @@ export function disconnectObserver(): void {
     clearInterval(pollIntervalId);
     pollIntervalId = null;
   }
-  log.debug(' Instagram: Observer disconnected');
+  log.debug('Instagram: Observer disconnected');
 }

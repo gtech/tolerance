@@ -134,21 +134,6 @@ async function handleMessage(
       return { type: 'SCORES_RESULT', scores };
     }
 
-    case 'DISABLE_INSTAGRAM_TEMP': {
-      const duration = message.duration as number;
-      const disableUntil = Date.now() + duration;
-      await chrome.storage.local.set({ instagramDisabledUntil: disableUntil });
-      log.debug(': Instagram disabled until', new Date(disableUntil).toISOString());
-      return { success: true, disableUntil };
-    }
-
-    case 'CHECK_INSTAGRAM_DISABLED': {
-      const result = await chrome.storage.local.get('instagramDisabledUntil');
-      const disableUntil = result.instagramDisabledUntil as number | undefined;
-      const isDisabled = disableUntil ? Date.now() < disableUntil : false;
-      return { isDisabled, disableUntil };
-    }
-
     case 'GET_SCHEDULER_ORDER': {
       const scoreMap = new Map<string, EngagementScore>();
       for (const score of message.scores) {

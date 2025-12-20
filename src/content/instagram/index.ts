@@ -118,7 +118,7 @@ function startHeartbeat(): void {
     }
   });
 
-  log.debug(' Instagram: Heartbeat tracking started');
+  log.debug('Instagram: Heartbeat tracking started');
 }
 
 function injectStyles(): void {
@@ -330,11 +330,11 @@ async function processPosts(): Promise<void> {
   if (!isExtensionValid()) return;
 
   const pathname = window.location.pathname;
-  log.warn(' Instagram: processPosts called, pathname:', pathname);
+  log.debug('Instagram: processPosts called, pathname:', pathname);
 
   // Extra safety: disconnect observer if we somehow end up on reels
   if (!isValidFeedPage()) {
-    log.warn(' Instagram: processPosts bailing - not valid feed page');
+    log.debug('Instagram: processPosts bailing - not valid feed page');
     disconnectObserver();
     return;
   }
@@ -365,7 +365,7 @@ async function processPosts(): Promise<void> {
     }
 
     if (newPosts.length === 0) {
-      log.debug(' Instagram: No new posts to process');
+      log.debug('Instagram: No new posts to process');
       return;
     }
 
@@ -386,7 +386,7 @@ async function processPosts(): Promise<void> {
     });
 
     if (!response || !(response as { scores?: EngagementScore[] }).scores) {
-      log.warn(' Instagram: No scores returned');
+      log.debug('Instagram: No scores returned');
       return;
     }
 
@@ -408,7 +408,7 @@ async function processPosts(): Promise<void> {
       }
     }
   } catch (error) {
-    log.error(' Instagram: Error processing posts:', error);
+    log.error('Instagram: Error processing posts:', error);
   } finally {
     isProcessing = false;
 
@@ -526,18 +526,7 @@ function applyBlur(element: HTMLElement): void {
 }
 
 async function init(): Promise<void> {
-  log.warn(' Instagram: init() called, pathname:', window.location.pathname);
-
-  // Check if Instagram is temporarily disabled
-  try {
-    const result = await sendMessage({ type: 'CHECK_INSTAGRAM_DISABLED' });
-    if (result && (result as { isDisabled: boolean }).isDisabled) {
-      log.warn(' Instagram: Temporarily disabled, skipping all processing');
-      return;
-    }
-  } catch {
-    // Continue if check fails
-  }
+  log.debug('Instagram: init() called, pathname:', window.location.pathname);
 
   // Inject styles
   injectStyles();
@@ -549,10 +538,10 @@ async function init(): Promise<void> {
 
   // Check if we should run feed processing on this page
   if (!isValidFeedPage()) {
-    log.warn(' Instagram: Not a valid feed page, skipping feed processing');
+    log.debug('Instagram: Not a valid feed page, skipping feed processing');
     return;
   }
-  log.warn(' Instagram: Valid feed page, continuing init');
+  log.debug('Instagram: Valid feed page, continuing init');
 
   // Get settings
   try {
@@ -562,7 +551,7 @@ async function init(): Promise<void> {
 
       // Check if Instagram is enabled (default to true if not set)
       if (settings.platforms?.instagram === false) {
-        log.debug(' Instagram: Platform disabled in settings');
+        log.debug('Instagram: Platform disabled in settings');
         return;
       }
 
@@ -578,7 +567,7 @@ async function init(): Promise<void> {
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
     }
   } catch (error) {
-    log.error(' Instagram: Failed to get settings:', error);
+    log.error('Instagram: Failed to get settings:', error);
   }
 
   // Start heartbeat for session tracking
@@ -594,17 +583,17 @@ async function init(): Promise<void> {
     processPosts();
   });
 
-  log.debug(' Instagram: Initialization complete');
+  log.debug('Instagram: Initialization complete');
 }
 
 // Start when DOM is ready, with delay to let React hydrate first
 // Instagram uses React SSR with hydration - modifying DOM too early causes React error #418
 const HYDRATION_DELAY = 2000; // Wait 2 seconds for React hydration
 
-log.warn(' Instagram: Content script loaded');
+log.debug('Instagram: Content script loaded');
 
 function startWithDelay(): void {
-  log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
+  log.debug('Instagram: Starting init in', HYDRATION_DELAY, 'ms');
   setTimeout(init, HYDRATION_DELAY);
 }
 
