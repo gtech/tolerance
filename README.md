@@ -94,7 +94,7 @@ Daily feedback ("too restricted / balanced / too easy") adjusts thresholds autom
 - **No accounts** — Everything stored locally
 - **Open source** — Read the code
 
-Post titles are sent to OpenRouter for scoring. Nothing else leaves your browser.
+Post titles and content are sent to OpenRouter for scoring. Nothing else leaves your browser.
 
 ## Development
 
