@@ -330,7 +330,15 @@ function createReelsTooltip(): HTMLElement {
   return reelsTooltip;
 }
 
+let tooltipHideTimeout: ReturnType<typeof setTimeout> | null = null;
+
 function showReelsTooltip(anchorElement: HTMLElement): void {
+  // Cancel any pending hide
+  if (tooltipHideTimeout) {
+    clearTimeout(tooltipHideTimeout);
+    tooltipHideTimeout = null;
+  }
+
   const tooltip = createReelsTooltip();
   const rect = anchorElement.getBoundingClientRect();
 
@@ -339,12 +347,27 @@ function showReelsTooltip(anchorElement: HTMLElement): void {
   tooltip.style.top = `${rect.top}px`;
 
   tooltip.classList.add('visible');
+
+  // Add mouseleave handler to tooltip itself
+  tooltip.onmouseenter = () => {
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+      tooltipHideTimeout = null;
+    }
+  };
+
+  tooltip.onmouseleave = () => {
+    hideReelsTooltip();
+  };
 }
 
 function hideReelsTooltip(): void {
-  if (reelsTooltip) {
-    reelsTooltip.classList.remove('visible');
-  }
+  // Delay hide slightly to allow moving to tooltip
+  tooltipHideTimeout = setTimeout(() => {
+    if (reelsTooltip) {
+      reelsTooltip.classList.remove('visible');
+    }
+  }, 200);
 }
 
 function blurNavigationButtons(): void {
@@ -715,17 +738,23 @@ async function init(): Promise<void> {
 // Instagram uses React SSR with hydration - modifying DOM too early causes React error #418
 const HYDRATION_DELAY = 2000; // Wait 2 seconds for React hydration
 
-log.warn(' Instagram: Content script loaded');
-
-function startWithDelay(): void {
-  log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
-  setTimeout(init, HYDRATION_DELAY);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', startWithDelay);
+// EARLY BAIL: Don't run anything on reels pages to prevent lockup
+const pathname = window.location.pathname;
+if (pathname.startsWith('/reels') || pathname.startsWith('/reel/')) {
+  log.warn(' Instagram: On reels page, skipping ALL content script execution');
 } else {
-  startWithDelay();
+  log.warn(' Instagram: Content script loaded');
+
+  function startWithDelay(): void {
+    log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
+    setTimeout(init, HYDRATION_DELAY);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startWithDelay);
+  } else {
+    startWithDelay();
+  }
 }
 
 // Clean up on unload
