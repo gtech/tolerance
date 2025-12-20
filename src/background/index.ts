@@ -86,6 +86,13 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
     return true;
   }
 
+  // Handle TEST_ENDPOINT for dashboard connection testing
+  if (message.type === 'TEST_ENDPOINT') {
+    const { endpoint, model } = message as { type: string; endpoint: string; model?: string };
+    testEndpointConnection(endpoint, model).then(sendResponse);
+    return true;
+  }
+
   handleMessage(message as MessageType, sender).then(sendResponse);
   return true; // Indicates async response
 });
@@ -513,6 +520,72 @@ function calculateNarrativeTrends(sessions: SessionLog[], days: number): DailyNa
   }
 
   return result;
+}
+
+// Test endpoint connection for dashboard
+async function testEndpointConnection(
+  endpoint: string,
+  model?: string
+): Promise<{ success: boolean; message: string; model?: string; responseTime?: number }> {
+  const startTime = Date.now();
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model || 'test',
+        messages: [{ role: 'user', content: 'Hi' }],
+        max_tokens: 5,
+      }),
+    });
+
+    const responseTime = Date.now() - startTime;
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      return {
+        success: false,
+        message: `HTTP ${response.status}: ${errorText.slice(0, 100)}`,
+      };
+    }
+
+    const data = await response.json();
+
+    // Check if we got a valid response
+    if (data.choices && data.choices.length > 0) {
+      return {
+        success: true,
+        message: 'Connection successful',
+        model: data.model || model,
+        responseTime,
+      };
+    } else if (data.error) {
+      return {
+        success: false,
+        message: data.error.message || 'API returned an error',
+      };
+    } else {
+      return {
+        success: true,
+        message: 'Connected (unexpected response format)',
+        responseTime,
+      };
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      return {
+        success: false,
+        message: 'Connection refused - is the server running?',
+      };
+    }
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }
 
 log.debug(' background service worker loaded');

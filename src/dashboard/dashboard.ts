@@ -545,6 +545,12 @@ function setupEventListeners(): void {
     });
   }
 
+  // Test endpoint button
+  const testEndpointBtn = document.getElementById('test-endpoint-btn');
+  if (testEndpointBtn) {
+    testEndpointBtn.addEventListener('click', testEndpoint);
+  }
+
   // Productivity card toggle
   const productivityCardEnabled = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   if (productivityCardEnabled) {
@@ -1213,6 +1219,73 @@ function escapeHtml(str: string): string {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+async function testEndpoint(): Promise<void> {
+  const btn = document.getElementById('test-endpoint-btn') as HTMLButtonElement;
+  const statusEl = document.getElementById('test-endpoint-status');
+
+  if (!btn || !statusEl) return;
+
+  // Get current endpoint config from inputs
+  const endpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const textModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
+
+  const endpoint = endpointInput?.value?.trim();
+  const model = textModelInput?.value?.trim();
+
+  if (!endpoint) {
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#4a2d2d';
+    statusEl.style.color = '#ff9999';
+    statusEl.innerHTML = 'Please enter an endpoint URL first.';
+    return;
+  }
+
+  // Update button state
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+  statusEl.style.display = 'block';
+  statusEl.style.background = '#2d3a4a';
+  statusEl.style.color = '#99bbff';
+  statusEl.innerHTML = 'Connecting to endpoint...';
+
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: 'TEST_ENDPOINT',
+      endpoint,
+      model: model || undefined,
+    }) as {
+      success: boolean;
+      message: string;
+      model?: string;
+      responseTime?: number;
+    };
+
+    if (result.success) {
+      statusEl.style.background = '#1a472a';
+      statusEl.style.color = '#7dcea0';
+      let successMsg = `Connected successfully!`;
+      if (result.model) {
+        successMsg += ` Model: ${result.model}`;
+      }
+      if (result.responseTime) {
+        successMsg += ` (${result.responseTime}ms)`;
+      }
+      statusEl.innerHTML = successMsg;
+    } else {
+      statusEl.style.background = '#4a2d2d';
+      statusEl.style.color = '#ff9999';
+      statusEl.innerHTML = `Failed: ${result.message}`;
+    }
+  } catch (error) {
+    statusEl.style.background = '#4a2d2d';
+    statusEl.style.color = '#ff9999';
+    statusEl.innerHTML = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Test Connection';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
