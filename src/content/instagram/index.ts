@@ -225,6 +225,16 @@ function injectStyles(): void {
       justify-content: center !important;
       cursor: pointer !important;
       border-radius: 8px;
+      transition: opacity 0.3s ease !important;
+    }
+
+    .tolerance-nav-blur::after {
+      content: attr(data-countdown);
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     }
 
     .tolerance-nav-blur.revealed {
@@ -248,16 +258,34 @@ function blurNavigationButtons(): void {
 
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-nav-blur';
+    overlay.setAttribute('data-countdown', '10s');
 
     // 10-second hover reveal for both
     let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let countdownInterval: ReturnType<typeof setInterval> | null = null;
     let revealed = false;
 
     overlay.addEventListener('mouseenter', () => {
       if (revealed) return;
+
+      let remaining = 10;
+      overlay.setAttribute('data-countdown', `${remaining}s`);
+
+      // Update countdown every second
+      countdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining > 0) {
+          overlay.setAttribute('data-countdown', `${remaining}s`);
+        } else {
+          overlay.setAttribute('data-countdown', '');
+          if (countdownInterval) clearInterval(countdownInterval);
+        }
+      }, 1000);
+
       revealTimer = setTimeout(() => {
         revealed = true;
         overlay.classList.add('revealed');
+        if (countdownInterval) clearInterval(countdownInterval);
       }, 10000);
     });
 
@@ -267,6 +295,11 @@ function blurNavigationButtons(): void {
         clearTimeout(revealTimer);
         revealTimer = null;
       }
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      overlay.setAttribute('data-countdown', '10s');
     });
 
     link.appendChild(overlay);
