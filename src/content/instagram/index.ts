@@ -231,143 +231,8 @@ function injectStyles(): void {
       opacity: 0 !important;
       pointer-events: none !important;
     }
-
-    /* Tooltip for Reels button */
-    .tolerance-reels-tooltip {
-      position: fixed;
-      background: #1a1a1a;
-      color: white;
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      z-index: 10000;
-      width: 280px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      display: none;
-    }
-
-    .tolerance-reels-tooltip.visible {
-      display: block;
-    }
-
-    .tolerance-reels-tooltip p {
-      margin: 0 0 12px 0;
-    }
-
-    .tolerance-reels-tooltip .tolerance-btn {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: background 0.2s;
-    }
-
-    .tolerance-reels-tooltip .tolerance-btn-primary {
-      background: #0095f6;
-      color: white;
-    }
-
-    .tolerance-reels-tooltip .tolerance-btn-primary:hover {
-      background: #0086e0;
-    }
-
-    .tolerance-reels-tooltip .tolerance-btn-secondary {
-      background: #363636;
-      color: white;
-    }
-
-    .tolerance-reels-tooltip .tolerance-btn-secondary:hover {
-      background: #444;
-    }
   `;
   document.head.appendChild(style);
-}
-
-// Create tooltip element once
-let reelsTooltip: HTMLElement | null = null;
-
-function createReelsTooltip(): HTMLElement {
-  if (reelsTooltip) return reelsTooltip;
-
-  reelsTooltip = document.createElement('div');
-  reelsTooltip.className = 'tolerance-reels-tooltip';
-  reelsTooltip.innerHTML = `
-    <p><strong>Reels is currently broken.</strong></p>
-    <p>You can disable Tolerance on Instagram temporarily if you want to view Reels.</p>
-    <button class="tolerance-btn tolerance-btn-primary" data-action="disable-10">Disable for 10 minutes</button>
-    <button class="tolerance-btn tolerance-btn-secondary" data-action="disable-session">Disable for this session</button>
-  `;
-
-  reelsTooltip.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-    const action = target.getAttribute('data-action');
-
-    if (action === 'disable-10') {
-      try {
-        await sendMessage({ type: 'DISABLE_INSTAGRAM_TEMP', duration: 10 * 60 * 1000 });
-        window.location.reload();
-      } catch (err) {
-        log.error('Failed to disable Instagram:', err);
-      }
-    } else if (action === 'disable-session') {
-      try {
-        await sendMessage({ type: 'DISABLE_INSTAGRAM_TEMP', duration: 24 * 60 * 60 * 1000 });
-        window.location.reload();
-      } catch (err) {
-        log.error('Failed to disable Instagram:', err);
-      }
-    }
-  });
-
-  document.body.appendChild(reelsTooltip);
-  return reelsTooltip;
-}
-
-let tooltipHideTimeout: ReturnType<typeof setTimeout> | null = null;
-
-function showReelsTooltip(anchorElement: HTMLElement): void {
-  // Cancel any pending hide
-  if (tooltipHideTimeout) {
-    clearTimeout(tooltipHideTimeout);
-    tooltipHideTimeout = null;
-  }
-
-  const tooltip = createReelsTooltip();
-  const rect = anchorElement.getBoundingClientRect();
-
-  // Position to the right of the nav item
-  tooltip.style.left = `${rect.right + 10}px`;
-  tooltip.style.top = `${rect.top}px`;
-
-  tooltip.classList.add('visible');
-
-  // Add mouseleave handler to tooltip itself
-  tooltip.onmouseenter = () => {
-    if (tooltipHideTimeout) {
-      clearTimeout(tooltipHideTimeout);
-      tooltipHideTimeout = null;
-    }
-  };
-
-  tooltip.onmouseleave = () => {
-    hideReelsTooltip();
-  };
-}
-
-function hideReelsTooltip(): void {
-  // Delay hide slightly to allow moving to tooltip
-  tooltipHideTimeout = setTimeout(() => {
-    if (reelsTooltip) {
-      reelsTooltip.classList.remove('visible');
-    }
-  }, 200);
 }
 
 function blurNavigationButtons(): void {
@@ -378,68 +243,33 @@ function blurNavigationButtons(): void {
     if (!(link instanceof HTMLElement)) continue;
     if (link.querySelector('.tolerance-nav-blur')) continue; // Already blurred
 
-    const isReels = link.getAttribute('href') === '/reels/';
-
     // Make the link container relative for positioning
     link.style.position = 'relative';
 
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-nav-blur';
 
-    if (isReels) {
-      // Reels gets the tooltip
-      overlay.addEventListener('mouseenter', () => {
-        showReelsTooltip(link);
-      });
+    // 10-second hover reveal for both
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+    let revealed = false;
 
-      overlay.addEventListener('mouseleave', (e) => {
-        // Don't hide if moving to tooltip
-        const related = e.relatedTarget as HTMLElement;
-        if (related?.closest('.tolerance-reels-tooltip')) return;
-        hideReelsTooltip();
-      });
+    overlay.addEventListener('mouseenter', () => {
+      if (revealed) return;
+      revealTimer = setTimeout(() => {
+        revealed = true;
+        overlay.classList.add('revealed');
+      }, 10000);
+    });
 
-      overlay.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        showReelsTooltip(link);
-      });
-    } else {
-      // Explore gets the 10-second reveal
-      let revealTimer: ReturnType<typeof setTimeout> | null = null;
-      let revealed = false;
-
-      overlay.addEventListener('mouseenter', () => {
-        if (revealed) return;
-        revealTimer = setTimeout(() => {
-          revealed = true;
-          overlay.classList.add('revealed');
-        }, 10000);
-      });
-
-      overlay.addEventListener('mouseleave', () => {
-        if (revealed) return;
-        if (revealTimer) {
-          clearTimeout(revealTimer);
-          revealTimer = null;
-        }
-      });
-    }
+    overlay.addEventListener('mouseleave', () => {
+      if (revealed) return;
+      if (revealTimer) {
+        clearTimeout(revealTimer);
+        revealTimer = null;
+      }
+    });
 
     link.appendChild(overlay);
-  }
-
-  // Hide tooltip when clicking outside
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest('.tolerance-reels-tooltip') && !target.closest('.tolerance-nav-blur')) {
-      hideReelsTooltip();
-    }
-  }, { once: false });
-
-  // Hide tooltip when mouse leaves tooltip itself
-  if (reelsTooltip) {
-    reelsTooltip.addEventListener('mouseleave', hideReelsTooltip);
   }
 }
 
@@ -678,6 +508,11 @@ async function init(): Promise<void> {
 
   // Inject styles
   injectStyles();
+
+  // Blur navigation buttons (Explore, Reels) with 10-second hover reveal
+  blurNavigationButtons();
+  // Re-check periodically in case Instagram recreates the nav
+  setInterval(blurNavigationButtons, 2000);
 
   // Check if we should run feed processing on this page
   if (!isValidFeedPage()) {
