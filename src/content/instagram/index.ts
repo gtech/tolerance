@@ -676,13 +676,8 @@ async function init(): Promise<void> {
     // Continue if check fails
   }
 
-  // Always inject styles first (needed for nav blur on any page)
+  // Inject styles
   injectStyles();
-
-  // Always blur navigation buttons (Explore, Reels) on any Instagram page
-  blurNavigationButtons();
-  // Re-check periodically in case Instagram recreates the nav
-  setInterval(blurNavigationButtons, 2000);
 
   // Check if we should run feed processing on this page
   if (!isValidFeedPage()) {
@@ -738,23 +733,17 @@ async function init(): Promise<void> {
 // Instagram uses React SSR with hydration - modifying DOM too early causes React error #418
 const HYDRATION_DELAY = 2000; // Wait 2 seconds for React hydration
 
-// EARLY BAIL: Don't run anything on reels pages to prevent lockup
-const pathname = window.location.pathname;
-if (pathname.startsWith('/reels') || pathname.startsWith('/reel/')) {
-  log.warn(' Instagram: On reels page, skipping ALL content script execution');
+log.warn(' Instagram: Content script loaded');
+
+function startWithDelay(): void {
+  log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
+  setTimeout(init, HYDRATION_DELAY);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startWithDelay);
 } else {
-  log.warn(' Instagram: Content script loaded');
-
-  function startWithDelay(): void {
-    log.warn(' Instagram: Starting init in', HYDRATION_DELAY, 'ms');
-    setTimeout(init, HYDRATION_DELAY);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startWithDelay);
-  } else {
-    startWithDelay();
-  }
+  startWithDelay();
 }
 
 // Clean up on unload

@@ -65,10 +65,6 @@
       "matches": [
         "*://www.instagram.com/*"
       ],
-      "exclude_matches": [
-        "*://www.instagram.com/reels/*",
-        "*://www.instagram.com/reel/*"
-      ],
       "js": [
         "instagram.js"
       ],

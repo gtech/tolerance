@@ -153,10 +153,12 @@ function populateSettings(settings: Settings): void {
   const platformReddit = document.getElementById('platform-reddit') as HTMLInputElement;
   const platformTwitter = document.getElementById('platform-twitter') as HTMLInputElement;
   const platformYoutube = document.getElementById('platform-youtube') as HTMLInputElement;
+  const platformInstagram = document.getElementById('platform-instagram') as HTMLInputElement;
 
   if (platformReddit) platformReddit.checked = settings.platforms?.reddit ?? true;
   if (platformTwitter) platformTwitter.checked = settings.platforms?.twitter ?? true;
   if (platformYoutube) platformYoutube.checked = settings.platforms?.youtube ?? true;
+  if (platformInstagram) platformInstagram.checked = settings.platforms?.instagram ?? true;
 
   // Productivity card toggle
   const productivityCardEnabled = document.getElementById('productivity-card-enabled') as HTMLInputElement;
@@ -470,10 +472,12 @@ function setupEventListeners(): void {
   const platformReddit = document.getElementById('platform-reddit');
   const platformTwitter = document.getElementById('platform-twitter');
   const platformYoutube = document.getElementById('platform-youtube');
+  const platformInstagram = document.getElementById('platform-instagram');
 
   if (platformReddit) platformReddit.addEventListener('change', saveSettings);
   if (platformTwitter) platformTwitter.addEventListener('change', saveSettings);
   if (platformYoutube) platformYoutube.addEventListener('change', saveSettings);
+  if (platformInstagram) platformInstagram.addEventListener('change', saveSettings);
 
   // Productivity card toggle
   const productivityCardEnabled = document.getElementById('productivity-card-enabled') as HTMLInputElement;
@@ -552,6 +556,7 @@ async function saveSettings(): Promise<void> {
   const platformRedditInput = document.getElementById('platform-reddit') as HTMLInputElement;
   const platformTwitterInput = document.getElementById('platform-twitter') as HTMLInputElement;
   const platformYoutubeInput = document.getElementById('platform-youtube') as HTMLInputElement;
+  const platformInstagramInput = document.getElementById('platform-instagram') as HTMLInputElement;
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
 
@@ -570,6 +575,7 @@ async function saveSettings(): Promise<void> {
       reddit: platformRedditInput?.checked ?? true,
       twitter: platformTwitterInput?.checked ?? true,
       youtube: platformYoutubeInput?.checked ?? true,
+      instagram: platformInstagramInput?.checked ?? true,
     },
     scheduler: {
       ...existing.scheduler, // Preserve progressive boredom settings
