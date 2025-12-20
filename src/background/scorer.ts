@@ -349,151 +349,23 @@ export async function scoreTweets(
   return allScores;
 }
 
-// Heuristic scoring for tweets
+// Heuristic scoring for tweets - DISABLED, API-only mode
 function calculateTweetHeuristicScore(
   tweet: Omit<Tweet, 'element'>,
-  themes: NarrativeTheme[]
+  _themes: NarrativeTheme[]
 ): EngagementScore {
-  const factors: ScoreFactors = {
-    engagementRatio: 0,
-    commentDensity: tweet.likeCount > 0 ? tweet.numComments / tweet.likeCount : 0,
-    keywordFlags: [],
-    viralVelocity: 0,
-  };
-
-  let score = 30;
-  let confidencePoints = 0;
-
-  // Title pattern heuristics (use tweet text)
-  const titlePatternScore = analyzeTitlePatterns(tweet.text, tweet.likeCount);
-  score += titlePatternScore.points;
-  confidencePoints += titlePatternScore.confidence;
-  factors.keywordFlags.push(...titlePatternScore.flags);
-
-  // Engagement ratio for tweets: reply ratio relative to likes
-  // High replies relative to likes = controversial
-  if (tweet.likeCount > 0) {
-    const replyRatio = tweet.numComments / tweet.likeCount;
-    if (replyRatio > 0.5) score += 15; // Highly controversial
-    else if (replyRatio > 0.2) score += 8;
-    confidencePoints += 1;
-
-    // Retweet ratio - high RT ratio = viral/shareable
-    const rtRatio = tweet.retweetCount / tweet.likeCount;
-    if (rtRatio > 0.3) {
-      score += 10;
-      factors.keywordFlags.push('twitter:high_rt_ratio');
-    }
-  }
-
-  // Keyword detection
-  const textLower = tweet.text.toLowerCase();
-
-  // Outrage keywords
-  const outrageMatches = OUTRAGE_KEYWORDS.filter(kw => textLower.includes(kw));
-  score += Math.min(outrageMatches.length * 8, 20);
-  factors.keywordFlags.push(...outrageMatches.map(k => `outrage:${k}`));
-  if (outrageMatches.length > 0) confidencePoints += 2;
-
-  // Curiosity gap keywords
-  const curiosityMatches = CURIOSITY_GAP_KEYWORDS.filter(kw => textLower.includes(kw));
-  score += Math.min(curiosityMatches.length * 6, 15);
-  factors.keywordFlags.push(...curiosityMatches.map(k => `curiosity:${k}`));
-  if (curiosityMatches.length > 0) confidencePoints += 2;
-
-  // Tribal keywords
-  const tribalMatches = TRIBAL_KEYWORDS.filter(kw => textLower.includes(kw));
-  score += Math.min(tribalMatches.length * 7, 15);
-  factors.keywordFlags.push(...tribalMatches.map(k => `tribal:${k}`));
-  if (tribalMatches.length > 0) confidencePoints += 1;
-
-  // Twitter-specific signals
-  if (tweet.isRetweet) {
-    score += 5; // Retweets are often engagement-optimized
-    factors.keywordFlags.push('twitter:retweet');
-  }
-
-  if (tweet.isQuoteTweet) {
-    score += 8; // Quote tweets often add commentary/opinion
-    factors.keywordFlags.push('twitter:quote_tweet');
-  }
-
-  if (tweet.isThread) {
-    score += 5; // Threads are designed for engagement
-    factors.keywordFlags.push('twitter:thread');
-  }
-
-  // Verified accounts often post more engagement-optimized content
-  if (tweet.isVerified) {
-    score += 3;
-    factors.keywordFlags.push('twitter:verified');
-  }
-
-  // Hashtag density - many hashtags = engagement farming
-  if (tweet.hashtags.length >= 3) {
-    score += 8;
-    factors.keywordFlags.push('twitter:hashtag_heavy');
-  }
-
-  // Viral velocity for tweets
-  const ageHours = (Date.now() / 1000 - tweet.createdUtc) / 3600;
-  if (ageHours > 0 && ageHours < 24) {
-    const velocity = tweet.likeCount / ageHours;
-    factors.viralVelocity = velocity;
-
-    if (velocity > 1000) score += 15;
-    else if (velocity > 300) score += 10;
-    else if (velocity > 100) score += 5;
-
-    confidencePoints += 1;
-  }
-
-  // Media type adjustment
-  if (tweet.mediaType === 'image' || tweet.mediaType === 'video') {
-    score += 5;
-  }
-
-  // View count analysis (if available)
-  if (tweet.viewCount && tweet.likeCount > 0) {
-    const engagementRate = tweet.likeCount / tweet.viewCount;
-    if (engagementRate > 0.05) {
-      score += 5; // Highly engaging content
-      factors.keywordFlags.push('twitter:high_engagement_rate');
-    }
-  }
-
-  // Narrative theme detection
-  if (themes.length > 0) {
-    const narrative = detectNarrative(tweet.text, themes);
-    if (narrative) {
-      factors.narrative = narrative;
-      if (narrative.confidence === 'high') score += 10;
-      else if (narrative.confidence === 'medium') score += 5;
-      confidencePoints += 1;
-
-      factors.keywordFlags.push(
-        ...narrative.matchedKeywords.map(k => `narrative:${narrative.themeId}:${k}`)
-      );
-    } else {
-      trackUnclassifiedPost(tweet.id, tweet.text);
-    }
-  }
-
-  // Clamp score
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine confidence
-  let confidence: 'low' | 'medium' | 'high';
-  if (confidencePoints >= 5) confidence = 'high';
-  else if (confidencePoints >= 3) confidence = 'medium';
-  else confidence = 'low';
-
+  // Return neutral score - API will provide the real score
   return {
     postId: tweet.id,
-    heuristicScore: score,
-    heuristicConfidence: confidence,
-    bucket: scoreToBucket(score, 'twitter'),
-    factors,
+    heuristicScore: 50,
+    heuristicConfidence: 'low',
+    bucket: 'medium',
+    factors: {
+      engagementRatio: 0,
+      commentDensity: tweet.likeCount > 0 ? tweet.numComments / tweet.likeCount : 0,
+      keywordFlags: [],
+      viralVelocity: 0,
+    },
     timestamp: Date.now(),
   };
 }
@@ -778,134 +650,24 @@ function analyzeTitlePatterns(
   return { points, confidence, flags };
 }
 
-// Heuristic scoring - runs locally, instant
+// Heuristic scoring - DISABLED, API-only mode
+// Returns neutral score, all real scoring happens via API
 function calculateHeuristicScore(
   post: Omit<RedditPost, 'element'>,
-  themes: NarrativeTheme[]
+  _themes: NarrativeTheme[]
 ): EngagementScore {
-  const factors = calculateFactors(post);
-  // Start with baseline score - most content has some engagement optimization
-  let score = 30;
-  let confidencePoints = 0;
-
-  // Title pattern heuristics
-  const titlePatternScore = analyzeTitlePatterns(post.title, post.score);
-  score += titlePatternScore.points;
-  confidencePoints += titlePatternScore.confidence;
-  factors.keywordFlags.push(...titlePatternScore.flags);
-
-  // Engagement ratio factor (0-20 points)
-  // High ratio with lots of votes = confirmed good content
-  // Low ratio = controversial
-  if (post.upvoteRatio !== undefined) {
-    if (post.upvoteRatio < 0.7) {
-      score += 15; // Controversial
-    } else if (post.upvoteRatio > 0.95) {
-      score += 5; // Universally liked, less manipulative
-    }
-    confidencePoints += 2;
-  }
-
-  // Comment density (0-15 points)
-  // High comments relative to score = engaging/argumentative
-  if (post.score > 0) {
-    const density = post.numComments / post.score;
-    if (density > 0.5) score += 15;
-    else if (density > 0.2) score += 8;
-    confidencePoints += 1;
-  }
-
-  // Keyword detection (0-30 points)
-  const titleLower = post.title.toLowerCase();
-
-  // Outrage keywords
-  const outrageMatches = OUTRAGE_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(outrageMatches.length * 8, 20);
-  factors.keywordFlags.push(...outrageMatches.map(k => `outrage:${k}`));
-  if (outrageMatches.length > 0) confidencePoints += 2;
-
-  // Curiosity gap keywords
-  const curiosityMatches = CURIOSITY_GAP_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(curiosityMatches.length * 6, 15);
-  factors.keywordFlags.push(...curiosityMatches.map(k => `curiosity:${k}`));
-  if (curiosityMatches.length > 0) confidencePoints += 2;
-
-  // Tribal keywords
-  const tribalMatches = TRIBAL_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(tribalMatches.length * 7, 15);
-  factors.keywordFlags.push(...tribalMatches.map(k => `tribal:${k}`));
-  if (tribalMatches.length > 0) confidencePoints += 1;
-
-  // Subreddit category (0-20 points)
-  const subredditLower = post.subreddit.toLowerCase();
-  const category = SUBREDDIT_CATEGORIES[subredditLower];
-  factors.subredditCategory = category;
-
-  if (category === 'outrage') score += 20;
-  else if (category === 'drama') score += 15;
-  else if (category === 'political') score += 15;
-  else if (category === 'news') score += 10;
-  else if (category === 'educational') score += 0;
-  else if (category === 'wholesome') score -= 5;
-
-  if (category) confidencePoints += 1;
-
-  // Viral velocity (0-15 points)
-  // High score in short time = viral, likely manipulative
-  const ageHours = (Date.now() / 1000 - post.createdUtc) / 3600;
-  if (ageHours > 0 && ageHours < 24) {
-    const velocity = post.score / ageHours;
-    factors.viralVelocity = velocity;
-
-    if (velocity > 500) score += 15;
-    else if (velocity > 200) score += 10;
-    else if (velocity > 50) score += 5;
-
-    confidencePoints += 1;
-  }
-
-  // Media type adjustment
-  if (post.mediaType === 'image' || post.mediaType === 'video') {
-    score += 5; // Visual content tends to be more engaging/less informative
-  }
-
-  // Narrative theme detection
-  if (themes.length > 0) {
-    const narrative = detectNarrative(post.title, themes);
-    if (narrative) {
-      factors.narrative = narrative;
-      // Narrative themes also contribute to engagement score
-      if (narrative.confidence === 'high') score += 10;
-      else if (narrative.confidence === 'medium') score += 5;
-      confidencePoints += 1;
-
-      factors.keywordFlags.push(
-        ...narrative.matchedKeywords.map(k => `narrative:${narrative.themeId}:${k}`)
-      );
-      log.debug(` Narrative detected - ${narrative.themeId} (${narrative.confidence}) for "${post.title.slice(0, 50)}..."`);
-    } else {
-      // Track unclassified posts for theme discovery
-      trackUnclassifiedPost(post.id, post.title);
-    }
-  } else {
-    log.debug('Tolerance: No active themes for narrative detection');
-  }
-
-  // Clamp score to 0-100
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine confidence
-  let confidence: 'low' | 'medium' | 'high';
-  if (confidencePoints >= 5) confidence = 'high';
-  else if (confidencePoints >= 3) confidence = 'medium';
-  else confidence = 'low';
-
+  // Return neutral score - API will provide the real score
   return {
     postId: post.id,
-    heuristicScore: score,
-    heuristicConfidence: confidence,
-    bucket: scoreToBucket(score),
-    factors,
+    heuristicScore: 50, // Neutral - will be replaced by API
+    heuristicConfidence: 'low',
+    bucket: 'medium',
+    factors: {
+      engagementRatio: post.upvoteRatio || 0,
+      commentDensity: post.numComments / Math.max(1, post.score ?? 1),
+      keywordFlags: [],
+      viralVelocity: 0,
+    },
     timestamp: Date.now(),
   };
 }
@@ -1058,114 +820,23 @@ export async function scoreVideos(
   return allScores;
 }
 
-// Heuristic scoring for YouTube videos
+// Heuristic scoring for YouTube videos - DISABLED, API-only mode
 function calculateVideoHeuristicScore(
   video: Omit<YouTubeVideo, 'element'>,
-  themes: NarrativeTheme[]
+  _themes: NarrativeTheme[]
 ): EngagementScore {
-  const factors: ScoreFactors = {
-    engagementRatio: 0,
-    commentDensity: 0,
-    keywordFlags: [],
-    viralVelocity: 0,
-  };
-
-  let score = 30;
-  let confidencePoints = 0;
-
-  // Title pattern heuristics
-  const titlePatternScore = analyzeTitlePatterns(video.title, video.viewCount || 0);
-  score += titlePatternScore.points;
-  confidencePoints += titlePatternScore.confidence;
-  factors.keywordFlags.push(...titlePatternScore.flags);
-
-  // Keyword detection in title
-  const titleLower = video.title.toLowerCase();
-
-  // Outrage keywords
-  const outrageMatches = OUTRAGE_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(outrageMatches.length * 8, 20);
-  factors.keywordFlags.push(...outrageMatches.map(k => `outrage:${k}`));
-  if (outrageMatches.length > 0) confidencePoints += 2;
-
-  // Curiosity gap keywords (very common in YouTube clickbait)
-  const curiosityMatches = CURIOSITY_GAP_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(curiosityMatches.length * 8, 20); // Higher weight for YouTube
-  factors.keywordFlags.push(...curiosityMatches.map(k => `curiosity:${k}`));
-  if (curiosityMatches.length > 0) confidencePoints += 2;
-
-  // Tribal keywords
-  const tribalMatches = TRIBAL_KEYWORDS.filter(kw => titleLower.includes(kw));
-  score += Math.min(tribalMatches.length * 7, 15);
-  factors.keywordFlags.push(...tribalMatches.map(k => `tribal:${k}`));
-  if (tribalMatches.length > 0) confidencePoints += 1;
-
-  // YouTube-specific clickbait patterns
-  const youtubeClickbait = [
-    /\b(gone wrong|gone sexual|not clickbait|watch till end)\b/i,
-    /\b(exposed|leaked|secrets?|truth about)\b/i,
-    /\b(you won'?t believe|what happens next|shocking)\b/i,
-    /\b(\d+\s*(reasons?|ways?|things?|secrets?|hacks?|tricks?))\b/i,
-    /\b(challenge|prank|reaction|mukbang)\b/i,
-    /\b(tier list|ranking|rating)\b/i,
-    /^[A-Z\s!?]+$/, // ALL CAPS TITLES
-  ];
-
-  for (const pattern of youtubeClickbait) {
-    if (pattern.test(video.title)) {
-      score += 8;
-      factors.keywordFlags.push('youtube:clickbait_pattern');
-      confidencePoints += 1;
-      break;
-    }
-  }
-
-  // Shorts are often more engagement-optimized
-  if (video.isShort) {
-    score += 5;
-    factors.keywordFlags.push('youtube:short');
-  }
-
-  // Very high view counts suggest viral/engagement-optimized content
-  if (video.viewCount) {
-    if (video.viewCount > 10000000) score += 10;
-    else if (video.viewCount > 1000000) score += 5;
-    else if (video.viewCount > 100000) score += 3;
-    confidencePoints += 1;
-  }
-
-  // Narrative theme detection
-  if (themes.length > 0) {
-    const narrative = detectNarrative(video.title, themes);
-    if (narrative) {
-      factors.narrative = narrative;
-      if (narrative.confidence === 'high') score += 10;
-      else if (narrative.confidence === 'medium') score += 5;
-      confidencePoints += 1;
-
-      factors.keywordFlags.push(
-        ...narrative.matchedKeywords.map(k => `narrative:${narrative.themeId}:${k}`)
-      );
-    } else {
-      trackUnclassifiedPost(video.id, video.title);
-    }
-  }
-
-  // Clamp score
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine confidence
-  let confidence: 'low' | 'medium' | 'high';
-  if (confidencePoints >= 5) confidence = 'high';
-  else if (confidencePoints >= 3) confidence = 'medium';
-  else confidence = 'low';
-
+  // Return neutral score - API will provide the real score
   return {
     postId: video.id,
-    heuristicScore: score,
-    heuristicConfidence: confidence,
-    bucket: scoreToBucket(score, 'youtube'),
-    factors,
+    heuristicScore: 50,
+    heuristicConfidence: 'low',
+    bucket: 'medium',
+    factors: {
+      engagementRatio: 0,
+      commentDensity: 0,
+      keywordFlags: [],
+      viralVelocity: 0,
+    },
     timestamp: Date.now(),
   };
 }
@@ -1334,144 +1005,23 @@ export async function scoreInstagramPosts(
   return allScores;
 }
 
-// Heuristic scoring for Instagram posts
+// Heuristic scoring for Instagram posts - DISABLED, API-only mode
 function calculateInstagramHeuristicScore(
   post: Omit<InstagramPost, 'element'>,
-  themes: NarrativeTheme[]
+  _themes: NarrativeTheme[]
 ): EngagementScore {
-  const factors: ScoreFactors = {
-    engagementRatio: 0,
-    commentDensity: post.likeCount ? post.commentCount / post.likeCount : 0,
-    keywordFlags: [],
-    viralVelocity: 0,
-  };
-
-  let score = 30;
-  let confidencePoints = 0;
-
-  const caption = post.caption || post.text || '';
-
-  // Caption pattern heuristics
-  if (caption) {
-    const titlePatternScore = analyzeTitlePatterns(caption, post.likeCount || 0);
-    score += titlePatternScore.points;
-    confidencePoints += titlePatternScore.confidence;
-    factors.keywordFlags.push(...titlePatternScore.flags);
-  }
-
-  // Engagement ratio for Instagram: comment ratio relative to likes
-  if (post.likeCount && post.likeCount > 0) {
-    const commentRatio = post.commentCount / post.likeCount;
-    if (commentRatio > 0.1) score += 10; // High engagement
-    else if (commentRatio > 0.05) score += 5;
-    confidencePoints += 1;
-  }
-
-  // Keyword detection in caption
-  const captionLower = caption.toLowerCase();
-
-  // Outrage keywords
-  const outrageMatches = OUTRAGE_KEYWORDS.filter(kw => captionLower.includes(kw));
-  score += Math.min(outrageMatches.length * 8, 20);
-  factors.keywordFlags.push(...outrageMatches.map(k => `outrage:${k}`));
-  if (outrageMatches.length > 0) confidencePoints += 2;
-
-  // Curiosity gap keywords
-  const curiosityMatches = CURIOSITY_GAP_KEYWORDS.filter(kw => captionLower.includes(kw));
-  score += Math.min(curiosityMatches.length * 6, 15);
-  factors.keywordFlags.push(...curiosityMatches.map(k => `curiosity:${k}`));
-  if (curiosityMatches.length > 0) confidencePoints += 2;
-
-  // Tribal keywords
-  const tribalMatches = TRIBAL_KEYWORDS.filter(kw => captionLower.includes(kw));
-  score += Math.min(tribalMatches.length * 7, 15);
-  factors.keywordFlags.push(...tribalMatches.map(k => `tribal:${k}`));
-  if (tribalMatches.length > 0) confidencePoints += 1;
-
-  // Instagram-specific signals
-  if (post.isReel) {
-    score += 8; // Reels are designed for high engagement
-    factors.keywordFlags.push('instagram:reel');
-    confidencePoints += 1;
-  }
-
-  if (post.isCarousel) {
-    score += 5; // Carousels encourage swiping/engagement
-    factors.keywordFlags.push('instagram:carousel');
-  }
-
-  if (post.isSponsored) {
-    score += 10; // Sponsored content is inherently engagement-optimized
-    factors.keywordFlags.push('instagram:sponsored');
-    confidencePoints += 1;
-  }
-
-  // Hashtag detection in caption
-  const hashtagCount = (caption.match(/#\w+/g) || []).length;
-  if (hashtagCount >= 10) {
-    score += 10;
-    factors.keywordFlags.push('instagram:hashtag_heavy');
-  } else if (hashtagCount >= 5) {
-    score += 5;
-  }
-
-  // Instagram engagement hooks
-  const engagementHooks = [
-    /\b(link in bio|tap to shop|swipe up|double tap)\b/i,
-    /\b(giveaway|contest|tag a friend|share this)\b/i,
-    /\b(comment below|drop a|let me know)\b/i,
-    /\b(follow for more|follow me|new post)\b/i,
-  ];
-
-  for (const pattern of engagementHooks) {
-    if (pattern.test(caption)) {
-      score += 8;
-      factors.keywordFlags.push('instagram:engagement_hook');
-      confidencePoints += 1;
-      break;
-    }
-  }
-
-  // Very high like counts suggest viral/engagement-optimized content
-  if (post.likeCount) {
-    if (post.likeCount > 1000000) score += 15;
-    else if (post.likeCount > 100000) score += 10;
-    else if (post.likeCount > 10000) score += 5;
-    confidencePoints += 1;
-  }
-
-  // Narrative theme detection
-  if (themes.length > 0 && caption) {
-    const narrative = detectNarrative(caption, themes);
-    if (narrative) {
-      factors.narrative = narrative;
-      if (narrative.confidence === 'high') score += 10;
-      else if (narrative.confidence === 'medium') score += 5;
-      confidencePoints += 1;
-
-      factors.keywordFlags.push(
-        ...narrative.matchedKeywords.map(k => `narrative:${narrative.themeId}:${k}`)
-      );
-    } else {
-      trackUnclassifiedPost(post.id, caption);
-    }
-  }
-
-  // Clamp score
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine confidence
-  let confidence: 'low' | 'medium' | 'high';
-  if (confidencePoints >= 5) confidence = 'high';
-  else if (confidencePoints >= 3) confidence = 'medium';
-  else confidence = 'low';
-
+  // Return neutral score - API will provide the real score
   return {
     postId: post.id,
-    heuristicScore: score,
-    heuristicConfidence: confidence,
-    bucket: scoreToBucket(score, 'instagram'),
-    factors,
+    heuristicScore: 50,
+    heuristicConfidence: 'low',
+    bucket: 'medium',
+    factors: {
+      engagementRatio: 0,
+      commentDensity: post.likeCount ? post.commentCount / post.likeCount : 0,
+      keywordFlags: [],
+      viralVelocity: 0,
+    },
     timestamp: Date.now(),
   };
 }
