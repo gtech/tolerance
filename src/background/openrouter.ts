@@ -1,8 +1,9 @@
 import { log } from '../shared/constants';
-// OpenRouter API client for engagement scoring
-// Handles both text and image analysis
+// API client for engagement scoring
+// Supports OpenRouter and any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, etc.)
 
-import { getSettings, setSettings } from './storage';
+import { getSettings } from './storage';
+import { ApiProviderConfig } from '../shared/types';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -17,7 +18,7 @@ export interface ApiUsage {
   lastReset: number;
 }
 
-// Model pricing (per 1M tokens, approximate)
+// Model pricing (per 1M tokens, approximate) - OpenRouter only
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'anthropic/claude-haiku-4.5': { input: 1, output: 5 },
   'anthropic/claude-sonnet-4.5': { input: 3, output: 15 },
@@ -26,12 +27,56 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'meta-llama/llama-4-scout': { input: 0.11, output: 0.34},
 };
 
+// Default models for OpenRouter
 const DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b';
 const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
-// Video model was too slow (10+ seconds), use image model with thumbnail instead
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
-
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
+
+// Provider configuration built from settings
+interface ProviderConfig {
+  type: 'openrouter' | 'openai-compatible';
+  endpoint: string;
+  apiKey: string;
+  textModel: string;
+  imageModel: string;
+  videoModel: string;
+  supportsVision: boolean;
+  trackCosts: boolean;
+}
+
+// Build provider config from settings
+async function getProviderConfig(): Promise<ProviderConfig> {
+  const settings = await getSettings();
+  const provider: ApiProviderConfig = settings.apiProvider || { type: 'openrouter' };
+  const apiKey = settings.openRouterApiKey || '';
+
+  const isOpenRouter = provider.type !== 'openai-compatible';
+
+  return {
+    type: provider.type || 'openrouter',
+    endpoint: isOpenRouter
+      ? 'https://openrouter.ai/api/v1/chat/completions'
+      : (provider.endpoint || 'http://localhost:11434/v1/chat/completions'),
+    apiKey,
+    textModel: provider.textModel || DEFAULT_TEXT_MODEL,
+    imageModel: provider.imageModel || DEFAULT_IMAGE_MODEL,
+    videoModel: provider.imageModel || DEFAULT_FULL_VIDEO_MODEL,
+    supportsVision: provider.visionMode !== 'disabled',
+    trackCosts: provider.trackCosts !== false && isOpenRouter,
+  };
+}
+
+// Check if API is configured (has key or is local endpoint)
+export async function isApiConfigured(): Promise<boolean> {
+  const config = await getProviderConfig();
+  // OpenRouter requires API key, local endpoints may not
+  if (config.type === 'openrouter') {
+    return Boolean(config.apiKey);
+  }
+  // For local endpoints, just check if endpoint is set
+  return Boolean(config.endpoint);
+}
 
 // Post data for batch scoring
 export interface PostForScoring {
@@ -363,6 +408,13 @@ export async function describeImages(
 ): Promise<string> {
   log.debug(` describeImages called with ${imageUrls.length} URLs:`, imageUrls);
 
+  const config = await getProviderConfig();
+
+  // If vision not supported, return placeholder
+  if (!config.supportsVision) {
+    return 'Vision model not available - images not analyzed.';
+  }
+
   const prompt = `Briefly describe each image in 1-2 sentences. Focus on: subject matter, emotional tone, any text visible, and whether it seems designed to provoke reactions.`;
 
   // Send URLs directly (vision models can fetch them)
@@ -372,7 +424,6 @@ export async function describeImages(
 
   for (const url of imageUrls.slice(0, 4)) { // Limit to 4 images
     // Transform preview.redd.it to i.redd.it for better accessibility
-    // But NOT external-preview.redd.it - those work directly
     let imageUrl = url;
     if (url.includes('preview.redd.it') && !url.includes('external-preview.redd.it')) {
       const match = url.match(/preview\.redd\.it\/([^?]+)/);
@@ -389,24 +440,36 @@ export async function describeImages(
   }
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
+    }
+    if (config.type === 'openrouter') {
+      headers['HTTP-Referer'] = 'chrome-extension://tolerance';
+      headers['X-Title'] = 'Tolerance';
+    }
+
+    // Build request body
+    const requestBody: Record<string, unknown> = {
+      model: config.imageModel,
+      messages: [{ role: 'user', content: imageContents }],
+      max_tokens: 500,
+      temperature: 0.3,
+    };
+    if (config.type === 'openrouter') {
+      requestBody.provider = {
+        order: ['Groq', 'Cerebras'],
+        allow_fallbacks: true,
+      };
+    }
+
+    const response = await fetch(config.endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'chrome-extension://tolerance',
-        'X-Title': 'Tolerance',
-      },
-      body: JSON.stringify({
-        model: DEFAULT_IMAGE_MODEL,
-        messages: [{ role: 'user', content: imageContents }],
-        max_tokens: 500,
-        temperature: 0.3,
-        provider: {
-          order: ['Groq', 'Cerebras'],
-          allow_fallbacks: true,
-        },
-      }),
+      headers,
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -633,53 +696,59 @@ Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
   return callOpenRouter(key, prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
 }
 
-async function callOpenRouter(
-  apiKey: string,
+// Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
+async function callApi(
+  config: ProviderConfig,
   prompt: string,
-  model: string = DEFAULT_TEXT_MODEL,
+  model: string,
   imageUrl?: string
 ): Promise<ScoreResponse | null> {
   const callStart = performance.now();
-  log.debug(` callOpenRouter START at t=${callStart.toFixed(0)}, model=${model}`);
+  log.debug(` callApi START at t=${callStart.toFixed(0)}, model=${model}, endpoint=${config.endpoint}`);
+
+  // If vision requested but not supported, skip the image
+  const effectiveImageUrl = (imageUrl && config.supportsVision) ? imageUrl : undefined;
+  if (imageUrl && !config.supportsVision) {
+    log.debug(' Vision not supported, falling back to text-only scoring');
+  }
+
   try {
     const messages: Array<{
       role: string;
       content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
     }> = [];
 
-    if (imageUrl) {
+    if (effectiveImageUrl) {
       // Transform image URLs for better API accessibility
-      let effectiveImageUrl = imageUrl;
+      let transformedImageUrl = effectiveImageUrl;
 
       // Reddit: preview.redd.it to i.redd.it (but NOT external-preview.redd.it)
-      if (imageUrl.includes('preview.redd.it') && !imageUrl.includes('external-preview.redd.it')) {
-        const match = imageUrl.match(/preview\.redd\.it\/([^?]+)/);
+      if (effectiveImageUrl.includes('preview.redd.it') && !effectiveImageUrl.includes('external-preview.redd.it')) {
+        const match = effectiveImageUrl.match(/preview\.redd\.it\/([^?]+)/);
         if (match) {
-          effectiveImageUrl = `https://i.redd.it/${match[1]}`;
+          transformedImageUrl = `https://i.redd.it/${match[1]}`;
         }
       }
 
       // Twitter: Convert query-param format to direct URL format
-      // From: https://pbs.twimg.com/media/XXXXX?format=jpg&name=medium
-      // To:   https://pbs.twimg.com/media/XXXXX.jpg
-      if (imageUrl.includes('pbs.twimg.com/media/') && imageUrl.includes('?format=')) {
-        const mediaMatch = imageUrl.match(/pbs\.twimg\.com\/media\/([^?]+)\?format=(\w+)/);
+      if (effectiveImageUrl.includes('pbs.twimg.com/media/') && effectiveImageUrl.includes('?format=')) {
+        const mediaMatch = effectiveImageUrl.match(/pbs\.twimg\.com\/media\/([^?]+)\?format=(\w+)/);
         if (mediaMatch) {
           const mediaId = mediaMatch[1];
           const format = mediaMatch[2];
-          effectiveImageUrl = `https://pbs.twimg.com/media/${mediaId}.${format}`;
-          log.debug(` Transformed Twitter URL: ${imageUrl.slice(0, 50)}... -> ${effectiveImageUrl}`);
+          transformedImageUrl = `https://pbs.twimg.com/media/${mediaId}.${format}`;
+          log.debug(` Transformed Twitter URL: ${effectiveImageUrl.slice(0, 50)}... -> ${transformedImageUrl}`);
         }
       }
 
-      log.debug(` Sending to ${model}, imageUrl=${effectiveImageUrl.slice(0, 80)}...`);
+      log.debug(` Sending to ${model}, imageUrl=${transformedImageUrl.slice(0, 80)}...`);
 
-      // Multimodal message with image URL (API fetches it)
+      // Multimodal message with image URL
       messages.push({
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: effectiveImageUrl } },
+          { type: 'image_url', image_url: { url: transformedImageUrl } },
         ],
       });
     } else {
@@ -689,67 +758,58 @@ async function callOpenRouter(
       });
     }
 
-    // Build request body - only use JSON mode for text models (not vision)
-    // Note: max_tokens includes reasoning tokens, so we need extra room
+    // Build request body
     const requestBody: Record<string, unknown> = {
       model,
       messages,
       max_tokens: 2000,
       temperature: 0.3,
-      // Optimize for throughput - prefer fast providers like Groq and Cerebras
-      provider: {
-        order: ['Groq', 'Cerebras'],
-        allow_fallbacks: true,
-      },
     };
 
+    // Only add OpenRouter-specific options
+    if (config.type === 'openrouter') {
+      requestBody.provider = {
+        order: ['Groq', 'Cerebras'],
+        allow_fallbacks: true,
+      };
+    }
+
     // Only add JSON mode for non-vision requests
-    if (!imageUrl) {
+    if (!effectiveImageUrl) {
       requestBody.response_format = { type: 'json_object' };
     }
 
-    // Log request details (truncate base64 for readability)
-    const logMessages = messages.map(m => {
-      if (Array.isArray(m.content)) {
-        return {
-          role: m.role,
-          content: m.content.map(c => {
-            if (c.type === 'image_url' && c.image_url?.url?.startsWith('data:')) {
-              return { type: 'image_url', image_url: { url: `${c.image_url.url.slice(0, 50)}...[${c.image_url.url.length} chars]` } };
-            }
-            return c;
-          }),
-        };
-      }
-      return m;
-    });
-    // Log full prompt and image URL for debugging
-    const textContent = messages[0]?.content;
-    if (Array.isArray(textContent)) {
-      const textPart = textContent.find(c => c.type === 'text');
-      const imagePart = textContent.find(c => c.type === 'image_url');
-      log.debug(` FULL PROMPT:\n${textPart?.text || '(no text)'}`);
-      log.debug(` IMAGE URL: ${imagePart?.image_url?.url || '(no image)'}`);
+    // Build headers - OpenRouter needs specific headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add auth header if API key is provided
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
     }
-    log.debug(` OpenRouter request - model=${model}, messages=`, JSON.stringify(logMessages, null, 2).slice(0, 1500));
+
+    // OpenRouter-specific headers
+    if (config.type === 'openrouter') {
+      headers['HTTP-Referer'] = 'chrome-extension://tolerance';
+      headers['X-Title'] = 'Tolerance';
+    }
+
+    // Log request details
+    log.debug(` API request - endpoint=${config.endpoint}, model=${model}`);
 
     const fetchStart = performance.now();
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch(config.endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'chrome-extension://tolerance',
-        'X-Title': 'Tolerance',
-      },
+      headers,
       body: JSON.stringify(requestBody),
     });
     const fetchEnd = performance.now();
-    log.debug(` fetch completed in ${(fetchEnd - fetchStart).toFixed(0)}ms, total call time so far: ${(fetchEnd - callStart).toFixed(0)}ms`);
+    log.debug(` fetch completed in ${(fetchEnd - fetchStart).toFixed(0)}ms`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`OpenRouter API error: ${response.status} for model=${model}`, errorText);
+      console.error(`API error: ${response.status} for model=${model}`, errorText);
       return null;
     }
 
@@ -760,13 +820,16 @@ async function callOpenRouter(
     const inputTokens = usage.prompt_tokens || 0;
     const outputTokens = usage.completion_tokens || 0;
 
-    const modelCosts = MODEL_COSTS[model] || MODEL_COSTS[DEFAULT_TEXT_MODEL];
-    const cost =
-      (inputTokens / 1_000_000) * modelCosts.input +
-      (outputTokens / 1_000_000) * modelCosts.output;
+    // Calculate cost only for OpenRouter (local models are free)
+    let cost = 0;
+    if (config.trackCosts) {
+      const modelCosts = MODEL_COSTS[model] || { input: 0, output: 0 };
+      cost = (inputTokens / 1_000_000) * modelCosts.input +
+             (outputTokens / 1_000_000) * modelCosts.output;
+    }
 
     // Track usage
-    await trackUsage(cost);
+    await trackUsage(cost, config.trackCosts);
 
     // Parse response - check content first, then reasoning field
     const message = data.choices?.[0]?.message;
@@ -778,15 +841,13 @@ async function callOpenRouter(
     }
 
     if (!content) {
-      console.error('OpenRouter: No content in response');
+      console.error('API: No content in response');
       return null;
     }
 
     // Try to parse JSON from response
-    // First: try parsing the entire content as JSON
     try {
       const parsed = JSON.parse(content);
-      // Handle both single object {"score":X} and batch {"data":[...]} formats
       if (typeof parsed.score === 'number') {
         return {
           score: Math.min(10, Math.max(1, parsed.score)),
@@ -795,9 +856,8 @@ async function callOpenRouter(
           fullResponse: data,
         };
       }
-      // For batch responses, return with fullResponse for caller to parse
       return {
-        score: 5, // Placeholder, caller will use fullResponse
+        score: 5,
         reason: '',
         cost,
         fullResponse: data,
@@ -806,12 +866,10 @@ async function callOpenRouter(
       // Content isn't pure JSON, try to extract it
     }
 
-    // Second: try to find JSON in markdown code blocks or mixed content
-    // Use greedy regex to get the largest JSON object
+    // Try to find JSON in markdown code blocks or mixed content
     const jsonObjectMatch = content.match(/\{[\s\S]*\}/);
     const jsonArrayMatch = content.match(/\[[\s\S]*\]/);
 
-    // Try the longer match first (more likely to be complete)
     const candidates = [jsonObjectMatch?.[0], jsonArrayMatch?.[0]].filter(Boolean).sort((a, b) => (b?.length || 0) - (a?.length || 0));
 
     for (const candidate of candidates) {
@@ -826,7 +884,6 @@ async function callOpenRouter(
             fullResponse: data,
           };
         }
-        // Batch format - return for caller to parse
         return {
           score: 5,
           reason: '',
@@ -838,14 +895,14 @@ async function callOpenRouter(
       }
     }
 
-    console.error('OpenRouter: Could not parse JSON from content:', content.slice(0, 300));
+    console.error('API: Could not parse JSON from content:', content.slice(0, 300));
 
-    // Fallback: try to extract score from text like "Score: 7" or just a number
+    // Fallback: try to extract score from text
     const scoreMatch = content.match(/(?:score[:\s]*)?(\d+)/i);
     if (scoreMatch) {
       const score = parseInt(scoreMatch[1], 10);
       if (score >= 1 && score <= 10) {
-        log.debug('OpenRouter: Extracted score from fallback pattern:', score);
+        log.debug('API: Extracted score from fallback pattern:', score);
         return {
           score,
           reason: 'Extracted from non-JSON response',
@@ -855,16 +912,33 @@ async function callOpenRouter(
       }
     }
 
-    console.error('OpenRouter: Could not extract score from:', content);
+    console.error('API: Could not extract score from:', content);
     return null;
   } catch (error) {
-    console.error('OpenRouter call failed:', error);
+    console.error('API call failed:', error);
     return null;
   }
 }
 
+// Legacy wrapper for backward compatibility - calls callApi with loaded config
+async function callOpenRouter(
+  apiKey: string,
+  prompt: string,
+  model: string = DEFAULT_TEXT_MODEL,
+  imageUrl?: string
+): Promise<ScoreResponse | null> {
+  const config = await getProviderConfig();
+  // Override with provided apiKey if given (for batch calls that pass key explicitly)
+  if (apiKey) {
+    config.apiKey = apiKey;
+  }
+  // Use provided model or fall back to config default
+  const effectiveModel = model || config.textModel;
+  return callApi(config, prompt, effectiveModel, imageUrl);
+}
+
 // Track API usage
-async function trackUsage(cost: number): Promise<void> {
+async function trackUsage(cost: number, trackCosts: boolean = true): Promise<void> {
   const result = await chrome.storage.local.get('apiUsage');
   const usage = result.apiUsage as ApiUsage || {
     totalCalls: 0,
@@ -872,8 +946,12 @@ async function trackUsage(cost: number): Promise<void> {
     lastReset: Date.now(),
   };
 
+  // Always increment call count
   usage.totalCalls++;
-  usage.totalCost += cost;
+  // Only add cost if tracking is enabled (OpenRouter)
+  if (trackCosts) {
+    usage.totalCost += cost;
+  }
 
   await chrome.storage.local.set({ apiUsage: usage });
 }

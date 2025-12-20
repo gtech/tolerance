@@ -801,6 +801,56 @@
       </div>
 
       <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
+
+      <!-- Provider Type Selection -->
+      <div class="setting-row" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
+        <div>
+          <div class="setting-label">Provider Type</div>
+          <div class="setting-description">Use OpenRouter or a custom OpenAI-compatible endpoint</div>
+        </div>
+        <select id="provider-type" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px; cursor: pointer;">
+          <option value="openrouter">OpenRouter (Recommended)</option>
+          <option value="openai-compatible">Custom Endpoint (Ollama, vLLM, etc.)</option>
+        </select>
+      </div>
+
+      <!-- Custom Endpoint Settings - hidden by default -->
+      <div id="custom-endpoint-section" style="display: none; margin-top: 16px; padding: 16px; background: #141414; border-radius: 8px; border: 1px solid #333;">
+        <div class="setting-row" style="border-bottom: 1px solid #222;">
+          <div>
+            <div class="setting-label">Endpoint URL</div>
+            <div class="setting-description">Full URL to chat completions endpoint</div>
+          </div>
+          <input type="text" id="custom-endpoint" placeholder="http://localhost:11434/v1/chat/completions" style="width: 320px;" />
+        </div>
+
+        <div class="setting-row" style="border-bottom: 1px solid #222;">
+          <div>
+            <div class="setting-label">Text Model</div>
+            <div class="setting-description">Model name for text scoring (leave empty for default)</div>
+          </div>
+          <input type="text" id="custom-text-model" placeholder="llama3.2" style="width: 200px;" />
+        </div>
+
+        <div class="setting-row" style="border-bottom: 1px solid #222;">
+          <div>
+            <div class="setting-label">Vision Model</div>
+            <div class="setting-description">Model for image scoring (leave empty to disable vision)</div>
+          </div>
+          <input type="text" id="custom-vision-model" placeholder="llava" style="width: 200px;" />
+        </div>
+
+        <div class="setting-row" style="border-bottom: none;">
+          <div>
+            <div class="setting-label">Track Costs</div>
+            <div class="setting-description">Disable for local/free models</div>
+          </div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" id="track-costs" style="width: 18px; height: 18px; cursor: pointer;" />
+            <span id="track-costs-status" style="color: #888; font-size: 13px;">Disabled</span>
+          </label>
+        </div>
+      </div>
     </div>
 
     <!-- Platform Toggles - With blur protection -->

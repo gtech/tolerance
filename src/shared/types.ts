@@ -283,9 +283,20 @@ export const DEFAULT_ADAPTIVE_SETTINGS: AdaptiveSettings = {
 // Log level for console output
 export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 
+// API Provider configuration for custom endpoints
+export interface ApiProviderConfig {
+  type: 'openrouter' | 'openai-compatible';
+  endpoint?: string;           // Custom endpoint URL (for openai-compatible)
+  textModel?: string;          // Override default text model
+  imageModel?: string;         // Override default vision model
+  visionMode?: 'auto' | 'enabled' | 'disabled';  // Vision capability
+  trackCosts?: boolean;        // Track API costs (default true for OpenRouter)
+}
+
 export interface Settings {
   scheduler: SchedulerConfig;
   openRouterApiKey?: string;
+  apiProvider?: ApiProviderConfig;  // Custom API endpoint configuration
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
   // Quality Mode - blur everything above 20 (show only genuine content)
   qualityMode?: boolean;

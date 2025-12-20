@@ -220,6 +220,41 @@ function populateSettings(settings: Settings): void {
     logLevelSelect.value = settings.logLevel ?? 'error';
   }
 
+  // Provider configuration
+  const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
+  const customEndpointSection = document.getElementById('custom-endpoint-section');
+  const customEndpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const customTextModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
+  const customVisionModelInput = document.getElementById('custom-vision-model') as HTMLInputElement;
+  const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
+  const trackCostsStatus = document.getElementById('track-costs-status');
+
+  const provider = settings.apiProvider || { type: 'openrouter' };
+
+  if (providerTypeSelect) {
+    providerTypeSelect.value = provider.type || 'openrouter';
+  }
+  if (customEndpointSection) {
+    customEndpointSection.style.display = provider.type === 'openai-compatible' ? 'block' : 'none';
+  }
+  if (customEndpointInput) {
+    customEndpointInput.value = provider.endpoint || '';
+  }
+  if (customTextModelInput) {
+    customTextModelInput.value = provider.textModel || '';
+  }
+  if (customVisionModelInput) {
+    customVisionModelInput.value = provider.imageModel || '';
+  }
+  if (trackCostsInput) {
+    const trackCosts = provider.trackCosts !== false;
+    trackCostsInput.checked = trackCosts;
+    if (trackCostsStatus) {
+      trackCostsStatus.textContent = trackCosts ? 'Enabled' : 'Disabled';
+      trackCostsStatus.style.color = trackCosts ? '#7dcea0' : '#888';
+    }
+  }
+
   // Custom threshold sliders
   populateCustomThresholds(settings);
 }
@@ -479,6 +514,37 @@ function setupEventListeners(): void {
   if (platformYoutube) platformYoutube.addEventListener('change', saveSettings);
   if (platformInstagram) platformInstagram.addEventListener('change', saveSettings);
 
+  // Provider type toggle
+  const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
+  const customEndpointSection = document.getElementById('custom-endpoint-section');
+  if (providerTypeSelect && customEndpointSection) {
+    providerTypeSelect.addEventListener('change', () => {
+      const isCustom = providerTypeSelect.value === 'openai-compatible';
+      customEndpointSection.style.display = isCustom ? 'block' : 'none';
+      saveSettings();
+    });
+  }
+
+  // Custom endpoint inputs
+  const customEndpointInput = document.getElementById('custom-endpoint');
+  const customTextModelInput = document.getElementById('custom-text-model');
+  const customVisionModelInput = document.getElementById('custom-vision-model');
+  const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
+  const trackCostsStatus = document.getElementById('track-costs-status');
+
+  if (customEndpointInput) customEndpointInput.addEventListener('change', saveSettings);
+  if (customTextModelInput) customTextModelInput.addEventListener('change', saveSettings);
+  if (customVisionModelInput) customVisionModelInput.addEventListener('change', saveSettings);
+  if (trackCostsInput) {
+    trackCostsInput.addEventListener('change', () => {
+      if (trackCostsStatus) {
+        trackCostsStatus.textContent = trackCostsInput.checked ? 'Enabled' : 'Disabled';
+        trackCostsStatus.style.color = trackCostsInput.checked ? '#7dcea0' : '#888';
+      }
+      saveSettings();
+    });
+  }
+
   // Productivity card toggle
   const productivityCardEnabled = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   if (productivityCardEnabled) {
@@ -560,6 +626,13 @@ async function saveSettings(): Promise<void> {
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
 
+  // Provider configuration inputs
+  const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
+  const customEndpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const customTextModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
+  const customVisionModelInput = document.getElementById('custom-vision-model') as HTMLInputElement;
+  const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
+
   // Get existing settings to merge
   const existing = await getSettings();
 
@@ -567,9 +640,21 @@ async function saveSettings(): Promise<void> {
   const sampleRatePercent = parseInt(apiSampleRateInput?.value || '10', 10);
   const apiSampleRate = Math.max(0, Math.min(100, sampleRatePercent)) / 100;
 
+  // Build provider config
+  const providerType = (providerTypeSelect?.value || 'openrouter') as 'openrouter' | 'openai-compatible';
+  const visionModel = customVisionModelInput?.value?.trim();
+
   const settings: Settings = {
     ...existing,
     openRouterApiKey: apiKeyInput?.value || undefined,
+    apiProvider: {
+      type: providerType,
+      endpoint: providerType === 'openai-compatible' ? (customEndpointInput?.value?.trim() || undefined) : undefined,
+      textModel: customTextModelInput?.value?.trim() || undefined,
+      imageModel: visionModel || undefined,
+      visionMode: visionModel ? 'enabled' : 'disabled',
+      trackCosts: trackCostsInput?.checked ?? true,
+    },
     apiSampleRate,
     platforms: {
       reddit: platformRedditInput?.checked ?? true,
