@@ -157,6 +157,9 @@ src/
 **YouTube:** For best results, disable video previews:
 Settings → Playback and performance → uncheck "Video previews"
 
+ETH: 0x000047da31d416b657a1c415467cdd57bc4ed9a7
+Ko-fi: https://ko-fi.com/tolerance
+
 ## License
 
 AGPL-3.0
