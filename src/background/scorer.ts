@@ -18,7 +18,7 @@ import {
   NARRATIVE_KEYWORDS,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
-import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages } from './openrouter';
+import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 
 // Main scoring function - API-first approach
@@ -28,6 +28,10 @@ export async function scorePosts(
   const t0 = performance.now();
   const settings = await getSettings();
   const postIds = posts.map(p => p.id);
+
+  // Check if API is configured (OpenRouter with key, or local endpoint)
+  const apiEnabled = await isApiConfigured();
+  log.debug(` API enabled: ${apiEnabled}`);
 
   // Fetch active narrative themes for detection
   const narrativeEnabled = settings.narrativeDetection?.enabled !== false; // Default to enabled
@@ -56,9 +60,9 @@ export async function scorePosts(
     newScores.push(score);
     scoreMap.set(post.id, score);
 
-    // API-first: send ALL posts to API when key is configured
-    // Heuristic is only used as fallback when no API key
-    if (settings.openRouterApiKey) {
+    // API-first: send ALL posts to API when configured
+    // Heuristic is only used as fallback when no API configured
+    if (apiEnabled) {
       const isMediaPost = (
         (post.mediaType === 'video' || post.mediaType === 'gif') ||
         (post.mediaType === 'image' || post.mediaType === 'gallery')
@@ -185,6 +189,9 @@ export async function scoreTweets(
   const settings = await getSettings();
   const tweetIds = tweets.map(t => t.id);
 
+  // Check if API is configured (OpenRouter with key, or local endpoint)
+  const apiEnabled = await isApiConfigured();
+
   // Fetch active narrative themes for detection
   const narrativeEnabled = settings.narrativeDetection?.enabled !== false;
   const themes = narrativeEnabled ? await getActiveThemes() : [];
@@ -205,8 +212,8 @@ export async function scoreTweets(
     const score = calculateTweetHeuristicScore(tweet, themes);
     newScores.push(score);
 
-    // API-first: send ALL tweets to API when key is configured
-    if (settings.openRouterApiKey) {
+    // API-first: send ALL tweets to API when configured
+    if (apiEnabled) {
       tweetsForApi.push({ tweet, score });
     }
   }
@@ -744,6 +751,9 @@ export async function scoreVideos(
   const settings = await getSettings();
   const videoIds = videos.map(v => v.id);
 
+  // Check if API is configured (OpenRouter with key, or local endpoint)
+  const apiEnabled = await isApiConfigured();
+
   // Fetch active narrative themes for detection
   const narrativeEnabled = settings.narrativeDetection?.enabled !== false;
   const themes = narrativeEnabled ? await getActiveThemes() : [];
@@ -764,8 +774,8 @@ export async function scoreVideos(
     const score = calculateVideoHeuristicScore(video, themes);
     newScores.push(score);
 
-    // API-first: send ALL videos to API when key is configured
-    if (settings.openRouterApiKey) {
+    // API-first: send ALL videos to API when configured
+    if (apiEnabled) {
       videosForApi.push({ video, score });
     }
   }
@@ -850,6 +860,9 @@ export async function scoreInstagramPosts(
   const settings = await getSettings();
   const postIds = posts.map(p => p.id);
 
+  // Check if API is configured (OpenRouter with key, or local endpoint)
+  const apiEnabled = await isApiConfigured();
+
   // Fetch active narrative themes for detection
   const narrativeEnabled = settings.narrativeDetection?.enabled !== false;
   const themes = narrativeEnabled ? await getActiveThemes() : [];
@@ -870,8 +883,8 @@ export async function scoreInstagramPosts(
     const score = calculateInstagramHeuristicScore(post, themes);
     newScores.push(score);
 
-    // API-first: send ALL posts to API when key is configured
-    if (settings.openRouterApiKey) {
+    // API-first: send ALL posts to API when configured
+    if (apiEnabled) {
       postsForApi.push({ post, score });
     }
   }
