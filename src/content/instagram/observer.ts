@@ -4,9 +4,29 @@ import { log } from '../../shared/constants';
 // Using interval-based polling instead of MutationObserver to avoid performance issues
 
 let pollIntervalId: ReturnType<typeof setInterval> | null = null;
-let lastArticleCount = 0;
+let lastSeenArticles = new Set<string>();
 
 const POLL_INTERVAL_MS = 500; // Check every 500ms for more responsive scrolling
+
+// Get a unique identifier for an article element
+function getArticleId(article: Element): string | null {
+  // Try __igdl_id attribute first
+  const igdlId = article.getAttribute('__igdl_id');
+  if (igdlId) return igdlId;
+
+  // Try to find shortcode from permalink
+  const link = article.querySelector<HTMLAnchorElement>('a[href*="/p/"], a[href*="/reel/"]');
+  if (link) {
+    const href = link.getAttribute('href') || '';
+    const match = href.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
+    if (match) return match[2];
+  }
+
+  // Fallback: use a hash of the article's position and content
+  const rect = article.getBoundingClientRect();
+  const author = article.querySelector('a[href^="/"]')?.getAttribute('href') || '';
+  return `pos-${Math.round(rect.top)}-${author}`;
+}
 
 export function setupInstagramObserver(callback: () => void): void {
   if (pollIntervalId) {
@@ -22,8 +42,13 @@ export function setupInstagramObserver(callback: () => void): void {
 
   log.debug('Instagram: Setting up polling observer');
 
-  // Track initial article count
-  lastArticleCount = document.querySelectorAll('article').length;
+  // Track initial articles by ID (not just count)
+  const initialArticles = document.querySelectorAll('article');
+  lastSeenArticles.clear();
+  for (const article of initialArticles) {
+    const id = getArticleId(article);
+    if (id) lastSeenArticles.add(id);
+  }
 
   pollIntervalId = setInterval(() => {
     // Stop polling if not on valid page
@@ -33,15 +58,32 @@ export function setupInstagramObserver(callback: () => void): void {
       return;
     }
 
-    // Check if article count changed
-    const currentCount = document.querySelectorAll('article').length;
-    if (currentCount !== lastArticleCount) {
-      lastArticleCount = currentCount;
+    // Check for new articles by ID, not just count
+    // Instagram virtualizes DOM - count stays same but articles swap out
+    const currentArticles = document.querySelectorAll('article');
+    let hasNewArticles = false;
+
+    for (const article of currentArticles) {
+      const id = getArticleId(article);
+      if (id && !lastSeenArticles.has(id)) {
+        hasNewArticles = true;
+        lastSeenArticles.add(id);
+      }
+    }
+
+    // Limit set size to prevent memory growth
+    if (lastSeenArticles.size > 200) {
+      const arr = Array.from(lastSeenArticles);
+      lastSeenArticles = new Set(arr.slice(-100));
+    }
+
+    if (hasNewArticles) {
+      log.debug('Instagram: New articles detected via ID tracking');
       callback();
     }
   }, POLL_INTERVAL_MS);
 
-  log.debug('Instagram: Polling started, initial article count:', lastArticleCount);
+  log.debug('Instagram: Polling started, tracking', lastSeenArticles.size, 'initial articles');
 }
 
 export function setupNavigationObserver(callback: () => void): void {
@@ -85,6 +127,7 @@ export function setupNavigationObserver(callback: () => void): void {
 function handleNavigation(callback: () => void): void {
   // Always disconnect observer first when navigating
   disconnectObserver();
+  lastSeenArticles.clear(); // Clear tracking on navigation
   log.debug('Instagram: Observer disconnected for navigation');
 
   // Only process on feed pages
@@ -138,5 +181,6 @@ export function disconnectObserver(): void {
     clearInterval(pollIntervalId);
     pollIntervalId = null;
   }
+  lastSeenArticles.clear();
   log.debug('Instagram: Observer disconnected');
 }
