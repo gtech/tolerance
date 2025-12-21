@@ -169,6 +169,7 @@ export interface EngagementScore {
   bucket: 'low' | 'medium' | 'high';
   factors: ScoreFactors;
   timestamp: number;
+  whitelisted?: boolean; // Pre-filter: source is in user's trusted whitelist
 }
 
 export interface ScoreFactors {
@@ -283,6 +284,28 @@ export const DEFAULT_ADAPTIVE_SETTINGS: AdaptiveSettings = {
 // Log level for console output
 export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 
+// Pre-filter whitelist entry - trusted sources that bypass blur transform
+export interface WhitelistEntry {
+  sourceId: string;           // @username, u/username, or channel name
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube';
+  createdAt: number;
+  reason?: string;            // User's note about why they trust this source
+}
+
+// Check if a source is in the whitelist (case-insensitive)
+export function isWhitelisted(
+  sourceId: string,
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube',
+  whitelist: WhitelistEntry[] | undefined
+): boolean {
+  if (!whitelist || whitelist.length === 0) return false;
+  const normalizedSource = sourceId.toLowerCase().replace(/^[@u/]+/, '');
+  return whitelist.some(entry =>
+    entry.platform === platform &&
+    entry.sourceId.toLowerCase().replace(/^[@u/]+/, '') === normalizedSource
+  );
+}
+
 // API Provider configuration for custom endpoints
 export interface ApiProviderConfig {
   type: 'openrouter' | 'openai-compatible';
@@ -342,6 +365,8 @@ export interface Settings {
     blurIntensity: number;         // Blur amount in pixels (default: 8)
     hoverRevealDelay: number;      // Seconds to hover before revealing (default: 3)
   };
+  // Pre-filter whitelist - trusted sources that bypass blur transform
+  whitelist?: WhitelistEntry[];
   // Custom threshold overrides (user-adjustable, resets to calibrated defaults)
   customThresholds?: {
     // Blur thresholds per phase (score at which content gets blurred)

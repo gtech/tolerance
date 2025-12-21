@@ -1,4 +1,4 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats } from '../shared/types';
+import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
 
 interface CalibrationEntry {
   postId: string;
@@ -34,6 +34,9 @@ async function init(): Promise<void> {
   const settings = await getSettings();
   populateSettings(settings);
   updateApiStatus(settings);
+
+  // Load and render whitelist
+  renderWhitelist(settings.whitelist || []);
 
   // Restore advanced settings visibility
   const showAdvanced = localStorage.getItem('tolerance-show-advanced') === 'true';
@@ -597,6 +600,27 @@ function setupEventListeners(): void {
         statusEl.style.color = productivityCardEnabled.checked ? '#7dcea0' : '#888';
       }
       saveSettings();
+    });
+  }
+
+  // Whitelist management
+  const addWhitelistBtn = document.getElementById('add-whitelist-btn');
+  if (addWhitelistBtn) {
+    addWhitelistBtn.addEventListener('click', addWhitelistEntry);
+  }
+
+  // Whitelist delete buttons (delegated)
+  const whitelistList = document.getElementById('whitelist-list');
+  if (whitelistList) {
+    whitelistList.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('remove-whitelist-btn')) {
+        const sourceId = target.dataset.source;
+        const platform = target.dataset.platform as WhitelistEntry['platform'];
+        if (sourceId && platform) {
+          await removeWhitelistEntry(sourceId, platform);
+        }
+      }
     });
   }
 
@@ -1605,4 +1629,116 @@ async function resetThresholdsToCalibrated(): Promise<void> {
     statusEl.textContent = 'Using calibrated defaults';
     statusEl.style.color = '#666';
   }
+}
+
+// ==========================================
+// Whitelist Management Functions
+// ==========================================
+
+function renderWhitelist(whitelist: WhitelistEntry[]): void {
+  const container = document.getElementById('whitelist-list');
+  if (!container) return;
+
+  if (whitelist.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>';
+    return;
+  }
+
+  const platformLabels: Record<string, string> = {
+    twitter: 'Twitter/X',
+    reddit: 'Reddit',
+    instagram: 'Instagram',
+    youtube: 'YouTube',
+  };
+
+  const platformColors: Record<string, string> = {
+    twitter: '#1da1f2',
+    reddit: '#ff4500',
+    instagram: '#e1306c',
+    youtube: '#ff0000',
+  };
+
+  container.innerHTML = whitelist.map(entry => {
+    const date = new Date(entry.createdAt).toLocaleDateString();
+    return `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #222;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="padding: 3px 8px; border-radius: 4px; font-size: 11px; background: ${platformColors[entry.platform]}22; color: ${platformColors[entry.platform]}; font-weight: 500;">${platformLabels[entry.platform]}</span>
+          <span style="font-weight: 500; color: #fff;">${escapeHtml(entry.sourceId)}</span>
+          ${entry.reason ? `<span style="color: #666; font-size: 12px;">"${escapeHtml(entry.reason)}"</span>` : ''}
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="color: #555; font-size: 11px;">Added ${date}</span>
+          <button class="remove-whitelist-btn" data-source="${escapeHtml(entry.sourceId)}" data-platform="${entry.platform}" style="padding: 4px 8px; background: #4a2d2d; color: #ff9999; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;">Remove</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function addWhitelistEntry(): Promise<void> {
+  const sourceInput = document.getElementById('whitelist-source') as HTMLInputElement;
+  const platformSelect = document.getElementById('whitelist-platform') as HTMLSelectElement;
+  const reasonInput = document.getElementById('whitelist-reason') as HTMLInputElement;
+
+  const sourceId = sourceInput?.value?.trim();
+  const platform = platformSelect?.value as WhitelistEntry['platform'];
+  const reason = reasonInput?.value?.trim();
+
+  if (!sourceId) {
+    alert('Please enter a username or source ID.');
+    return;
+  }
+
+  // Get current settings
+  const settings = await getSettings();
+  const whitelist = settings.whitelist || [];
+
+  // Check for duplicates
+  const exists = whitelist.some(e =>
+    e.sourceId.toLowerCase() === sourceId.toLowerCase() && e.platform === platform
+  );
+
+  if (exists) {
+    alert('This source is already in your whitelist.');
+    return;
+  }
+
+  // Add new entry
+  const newEntry: WhitelistEntry = {
+    sourceId,
+    platform,
+    createdAt: Date.now(),
+    reason: reason || undefined,
+  };
+
+  settings.whitelist = [...whitelist, newEntry];
+
+  // Save settings
+  await chrome.storage.local.set({ settings });
+  console.log('Added to whitelist:', newEntry);
+
+  // Clear inputs
+  if (sourceInput) sourceInput.value = '';
+  if (reasonInput) reasonInput.value = '';
+
+  // Re-render list
+  renderWhitelist(settings.whitelist);
+}
+
+async function removeWhitelistEntry(sourceId: string, platform: WhitelistEntry['platform']): Promise<void> {
+  const settings = await getSettings();
+  const whitelist = settings.whitelist || [];
+
+  // Remove the entry
+  settings.whitelist = whitelist.filter(e =>
+    !(e.sourceId.toLowerCase() === sourceId.toLowerCase() && e.platform === platform)
+  );
+
+  // Save settings
+  await chrome.storage.local.set({ settings });
+  console.log('Removed from whitelist:', sourceId, platform);
+
+  // Re-render list
+  renderWhitelist(settings.whitelist);
 }

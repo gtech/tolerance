@@ -93,6 +93,9 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
+  // Pre-filter: whitelisted sources bypass blur transform
+  if (score.whitelisted) return false;
+
   const displayScore = score.apiScore ?? score.heuristicScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;

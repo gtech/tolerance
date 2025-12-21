@@ -8,6 +8,7 @@ import {
   ScoreFactors,
   NarrativeDetection,
   NarrativeTheme,
+  isWhitelisted,
 } from '../shared/types';
 import {
   OUTRAGE_KEYWORDS,
@@ -59,6 +60,8 @@ export async function scorePosts(
 
   for (const post of uncached) {
     const score = calculateHeuristicScore(post, themes);
+    // Check pre-filter whitelist - trusted sources bypass blur but still get scored
+    score.whitelisted = isWhitelisted(post.author, 'reddit', settings.whitelist);
     newScores.push(score);
     scoreMap.set(post.id, score);
 
@@ -226,6 +229,8 @@ export async function scoreTweets(
 
   for (const tweet of uncached) {
     const score = calculateTweetHeuristicScore(tweet, themes);
+    // Check pre-filter whitelist - trusted sources bypass blur but still get scored
+    score.whitelisted = isWhitelisted(tweet.author, 'twitter', settings.whitelist);
     newScores.push(score);
 
     // API-first: send ALL tweets to API when configured
@@ -787,6 +792,8 @@ export async function scoreVideos(
 
   for (const video of uncached) {
     const score = calculateVideoHeuristicScore(video, themes);
+    // Check pre-filter whitelist - trusted sources bypass blur but still get scored
+    score.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
     newScores.push(score);
 
     // API-first: send ALL videos to API when configured
@@ -896,6 +903,8 @@ export async function scoreInstagramPosts(
 
   for (const post of uncached) {
     const score = calculateInstagramHeuristicScore(post, themes);
+    // Check pre-filter whitelist - trusted sources bypass blur but still get scored
+    score.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
     newScores.push(score);
 
     // API-first: send ALL posts to API when configured

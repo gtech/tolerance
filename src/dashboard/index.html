@@ -899,6 +899,30 @@
       </div>
     </div>
 
+    <!-- Trusted Sources (Whitelist) Section -->
+    <div class="settings-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #222;">
+      <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Trusted Sources (Pre-Filter)</h2>
+      <p style="color: #666; font-size: 13px; margin-bottom: 16px;">Posts from these sources will never be blurred, but still get scored for reputation tracking.</p>
+
+      <!-- Add new entry form -->
+      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <input type="text" id="whitelist-source" placeholder="@username or u/username" style="flex: 1; min-width: 180px;" />
+        <select id="whitelist-platform" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px;">
+          <option value="twitter">Twitter/X</option>
+          <option value="reddit">Reddit</option>
+          <option value="instagram">Instagram</option>
+          <option value="youtube">YouTube</option>
+        </select>
+        <input type="text" id="whitelist-reason" placeholder="Reason (optional)" style="width: 200px;" />
+        <button id="add-whitelist-btn" class="btn-primary" style="padding: 8px 16px;">Add</button>
+      </div>
+
+      <!-- Whitelist entries -->
+      <div id="whitelist-list" style="background: #141414; border-radius: 8px; padding: 12px;">
+        <div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>
+      </div>
+    </div>
+
     <!-- Advanced Settings Toggle -->
     <div style="margin-top: 24px; padding: 12px 0;">
       <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #888; font-size: 14px;">
