@@ -1,5 +1,7 @@
 # Upcoming Features
 
+## New Reddit
+
 ## Never blur posts from certain posters
 
 ## Prompt to create arbitrary cognitive filters
