@@ -12,6 +12,8 @@ const scoreCache = new Map<string, { score: EngagementScore; originalPosition: n
 // Processing lock to prevent concurrent processPosts calls
 let isProcessing = false;
 let pendingProcess = false;
+let processingStartTime = 0;
+const MAX_PROCESSING_TIME = 15000; // 15 second timeout to prevent stuck processing
 
 // Heartbeat tracking for progressive boredom
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
@@ -397,12 +399,20 @@ async function processPosts(): Promise<void> {
     return;
   }
 
+  // Check if previous processing got stuck (timeout protection)
   if (isProcessing) {
-    pendingProcess = true;
-    return;
+    const elapsed = Date.now() - processingStartTime;
+    if (elapsed > MAX_PROCESSING_TIME) {
+      log.debug(`Instagram: Processing stuck for ${elapsed}ms, forcing unlock`);
+      isProcessing = false;
+    } else {
+      pendingProcess = true;
+      return;
+    }
   }
 
   isProcessing = true;
+  processingStartTime = Date.now();
 
   try {
     // Scrape visible posts
@@ -438,11 +448,28 @@ async function processPosts(): Promise<void> {
     // Serialize for messaging
     const serializedPosts = newPosts.map(p => serializePost(p));
 
-    // Send to background for scoring
-    const response = await sendMessage({
+    // Send to background for scoring (with timeout to prevent hanging)
+    const scorePromise = sendMessage({
       type: 'SCORE_INSTAGRAM_POSTS',
       posts: serializedPosts,
     });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Scoring timeout')), 10000)
+    );
+
+    let response;
+    try {
+      response = await Promise.race([scorePromise, timeoutPromise]);
+    } catch (timeoutError) {
+      log.debug('Instagram: Scoring timed out, will retry on next scroll');
+      // Remove pending blur from posts that timed out so they're visible
+      for (const post of newPosts) {
+        removePendingBlur(post);
+        processedPostIds.delete(post.id); // Allow retry
+      }
+      return;
+    }
 
     if (!response || !(response as { scores?: EngagementScore[] }).scores) {
       log.debug('Instagram: No scores returned');

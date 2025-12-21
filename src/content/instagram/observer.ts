@@ -6,7 +6,7 @@ import { log } from '../../shared/constants';
 let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 let lastArticleCount = 0;
 
-const POLL_INTERVAL_MS = 1000; // Check every second
+const POLL_INTERVAL_MS = 500; // Check every 500ms for more responsive scrolling
 
 export function setupInstagramObserver(callback: () => void): void {
   if (pollIntervalId) {
