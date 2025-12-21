@@ -47,6 +47,8 @@ export async function scorePosts(
   const uncached = posts.filter(p => !cached.has(p.id));
   const t2 = performance.now();
 
+  log.debug(` Reddit posts: ${posts.length} total, ${cached.size} cached, ${uncached.length} uncached`);
+
   // Score uncached posts with heuristics
   const newScores: EngagementScore[] = [];
   const scoreMap = new Map<string, EngagementScore>();
