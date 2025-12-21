@@ -402,6 +402,8 @@ function calculateTweetHeuristicScore(
 async function enrichTextPostsBatch(
   posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[]
 ): Promise<void> {
+  log.debug(` enrichTextPostsBatch called with ${posts.length} posts, types: ${posts.map(p => p.post.mediaType).join(', ')}`);
+
   const postsForScoring: PostForScoring[] = posts.map(({ post }) => ({
     id: post.id,
     title: post.title,
@@ -411,10 +413,12 @@ async function enrichTextPostsBatch(
   }));
 
   const results = await scoreTextPostsBatch(postsForScoring);
+  log.debug(` enrichTextPostsBatch got ${results.size} results for ${posts.length} posts`);
 
   // Apply results to scores
   for (const { post, score } of posts) {
     const apiResult = results.get(post.id);
+    log.debug(` Post ${post.id} (${post.mediaType}): apiResult=${apiResult ? 'found' : 'missing'}`);
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
       score.apiScore = apiScore;
