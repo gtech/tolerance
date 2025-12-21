@@ -100,67 +100,81 @@ export async function scorePosts(
 
   log.debug(` Scoring ${textPostsForApi.length} text, ${galleries.length} galleries, ${singleMedia.length} single media`);
 
-  // Step 1: Fetch all gallery images in parallel
-  const galleryImagesMap = new Map<string, string[]>();
-  if (galleries.length > 0) {
-    const galleryFetches = galleries.map(async ({ post }) => {
-      const images = await fetchGalleryImages(post.id);
-      return { postId: post.id, images };
-    });
-    const galleryResults = await Promise.all(galleryFetches);
-    for (const { postId, images } of galleryResults) {
-      galleryImagesMap.set(postId, images);
-    }
-    log.debug(` Fetched gallery images for ${galleryResults.length} galleries`);
-  }
+  // Run all three scoring tracks in parallel:
+  // Track 1: Text-only posts (batch immediately, no dependencies)
+  // Track 2: Single media posts (score individually in parallel, no dependencies)
+  // Track 3: Galleries (fetch -> describe -> score pipeline, runs as one parallel track)
 
-  // Step 2: Get all image descriptions in parallel
-  const galleryDescriptions = new Map<string, string>();
-  if (galleries.length > 0) {
-    const descriptionPromises = galleries.map(async ({ post }) => {
-      const images = galleryImagesMap.get(post.id) || [];
-      if (images.length > 1) {
-        const description = await describeImages(settings.openRouterApiKey!, images);
-        return { postId: post.id, description };
-      }
-      return { postId: post.id, description: '' };
-    });
-    const descResults = await Promise.all(descriptionPromises);
-    for (const { postId, description } of descResults) {
-      if (description) {
-        galleryDescriptions.set(postId, description);
-      }
-    }
-    log.debug(` Got descriptions for ${galleryDescriptions.size} galleries`);
-  }
+  const scoringTracks: Promise<void>[] = [];
 
-  // Step 3: Batch all text scoring (text posts + galleries with descriptions)
-  const allTextForBatch: { post: Omit<RedditPost, 'element'>; score: EngagementScore; galleryDescription?: string }[] = [
-    ...textPostsForApi,
-    ...galleries.map(g => ({
-      ...g,
-      galleryDescription: galleryDescriptions.get(g.post.id),
-    })),
-  ];
-
-  if (allTextForBatch.length > 0) {
-    await enrichTextPostsBatchWithGalleries(allTextForBatch, settings.openRouterApiKey!).catch(err => {
-      console.error('Batch API enrichment failed:', err);
-    });
-  }
-
-  // Step 4: Score single images/videos in parallel
-  if (singleMedia.length > 0) {
-    const mediaPromises = singleMedia.map(({ post, score }) =>
-      enrichWithApiScore(post, score, settings.openRouterApiKey!).catch(err => {
-        console.error('API enrichment failed:', err);
+  // Track 1: Text-only posts - batch immediately
+  if (textPostsForApi.length > 0) {
+    scoringTracks.push(
+      enrichTextPostsBatch(textPostsForApi, '').catch(err => {
+        console.error('Text batch API enrichment failed:', err);
       })
     );
-    await Promise.all(mediaPromises);
   }
+
+  // Track 2: Single media posts - score in parallel immediately
+  if (singleMedia.length > 0) {
+    const mediaPromises = singleMedia.map(({ post, score }) =>
+      enrichWithApiScore(post, score, '').catch(err => {
+        console.error('Single media API enrichment failed:', err);
+      })
+    );
+    scoringTracks.push(Promise.all(mediaPromises).then(() => {}));
+  }
+
+  // Track 3: Galleries - sequential pipeline (fetch -> describe -> score) as one parallel track
+  if (galleries.length > 0) {
+    scoringTracks.push((async () => {
+      // Step 3a: Fetch all gallery images in parallel
+      const galleryFetches = galleries.map(async ({ post }) => {
+        const images = await fetchGalleryImages(post.id);
+        return { postId: post.id, images };
+      });
+      const galleryResults = await Promise.all(galleryFetches);
+      const galleryImagesMap = new Map<string, string[]>();
+      for (const { postId, images } of galleryResults) {
+        galleryImagesMap.set(postId, images);
+      }
+      log.debug(` Fetched gallery images for ${galleryResults.length} galleries`);
+
+      // Step 3b: Get all image descriptions in parallel
+      const descriptionPromises = galleries.map(async ({ post }) => {
+        const images = galleryImagesMap.get(post.id) || [];
+        if (images.length > 1) {
+          const description = await describeImages('', images);
+          return { postId: post.id, description };
+        }
+        return { postId: post.id, description: '' };
+      });
+      const descResults = await Promise.all(descriptionPromises);
+      const galleryDescriptions = new Map<string, string>();
+      for (const { postId, description } of descResults) {
+        if (description) {
+          galleryDescriptions.set(postId, description);
+        }
+      }
+      log.debug(` Got descriptions for ${galleryDescriptions.size} galleries`);
+
+      // Step 3c: Batch score galleries with their descriptions
+      const galleriesForScoring = galleries.map(g => ({
+        ...g,
+        galleryDescription: galleryDescriptions.get(g.post.id),
+      }));
+      await enrichTextPostsBatchWithGalleries(galleriesForScoring, '').catch(err => {
+        console.error('Gallery batch API enrichment failed:', err);
+      });
+    })());
+  }
+
+  // Wait for all tracks to complete
+  await Promise.all(scoringTracks);
   const t4 = performance.now();
 
-  const totalApiCalls = allTextForBatch.length > 0 ? 1 : 0 + singleMedia.length + galleries.length;
+  const totalApiCalls = (textPostsForApi.length > 0 ? 1 : 0) + singleMedia.length + (galleries.length > 0 ? 1 : 0);
   log.debug(` Scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, heuristics: ${(t3-t2).toFixed(0)}ms, API: ${(t4-t3).toFixed(0)}ms, total: ${(t4-t0).toFixed(0)}ms (${uncached.length} uncached, ${totalApiCalls} API batches)`);
 
   // Cache new scores (now potentially enriched with API scores)
@@ -382,7 +396,7 @@ function calculateTweetHeuristicScore(
 // Batch enrich text posts with API scores
 async function enrichTextPostsBatch(
   posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[],
-  apiKey: string
+  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
 ): Promise<void> {
   const postsForScoring: PostForScoring[] = posts.map(({ post }) => ({
     id: post.id,
@@ -392,7 +406,7 @@ async function enrichTextPostsBatch(
     numComments: post.numComments,
   }));
 
-  const results = await scoreTextPostsBatch(postsForScoring, apiKey);
+  const results = await scoreTextPostsBatch(postsForScoring, '');
 
   // Apply results to scores
   for (const { post, score } of posts) {
@@ -436,7 +450,7 @@ async function enrichTextPostsBatch(
 // Batch enrich text posts AND galleries (with pre-fetched descriptions) in a single API call
 async function enrichTextPostsBatchWithGalleries(
   posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore; galleryDescription?: string }[],
-  apiKey: string
+  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
 ): Promise<void> {
   if (posts.length === 0) return;
 
@@ -450,7 +464,7 @@ async function enrichTextPostsBatchWithGalleries(
     galleryDescription,
   }));
 
-  const results = await scoreTextPostsBatchWithGalleries(postsForScoring, apiKey);
+  const results = await scoreTextPostsBatchWithGalleries(postsForScoring, '');
 
   log.debug(` Batch results: ${results.size} scores returned for ${posts.length} posts`);
   if (results.size === 0) {
@@ -496,7 +510,7 @@ async function enrichTextPostsBatchWithGalleries(
 async function enrichWithApiScore(
   post: Omit<RedditPost, 'element'>,
   score: EngagementScore,
-  apiKey: string
+  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
 ): Promise<void> {
   const startTime = performance.now();
   log.debug(` API call STARTED for post=${post.id} at t=${startTime.toFixed(0)}`);
@@ -526,8 +540,7 @@ async function enrichWithApiScore(
         post.subreddit,
         post.thumbnailUrl,
         post.score,
-        post.numComments,
-        apiKey
+        post.numComments
       );
     } else if (
       (post.mediaType === 'image' || post.mediaType === 'gallery') &&
@@ -540,9 +553,7 @@ async function enrichWithApiScore(
         effectiveImageUrl || '',
         post.score,
         post.numComments,
-        post.id, // Pass postId for gallery image fetching
-        undefined, // bodyText
-        apiKey
+        post.id // Pass postId for gallery image fetching
       );
     } else {
       // Text/link posts use text model
@@ -550,8 +561,7 @@ async function enrichWithApiScore(
         post.title,
         post.subreddit,
         post.score,
-        post.numComments,
-        apiKey
+        post.numComments
       );
     }
 
