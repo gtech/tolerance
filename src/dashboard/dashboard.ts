@@ -56,6 +56,11 @@ async function init(): Promise<void> {
   // Start blur overlay countdowns
   startBlurOverlayCountdowns();
 
+  // Scroll to API setup section if hash is present
+  if (window.location.hash === '#api-setup') {
+    scrollToApiSetup();
+  }
+
   // Refresh global session every 30 seconds
   setInterval(loadGlobalSession, 30000);
 }
@@ -451,7 +456,27 @@ function updateSessionsList(sessions: SessionLog[]): void {
   }).join('');
 }
 
+function scrollToApiSetup(): void {
+  const apiSetup = document.getElementById('api-setup');
+  if (apiSetup) {
+    apiSetup.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Focus the API key input after scrolling
+    setTimeout(() => {
+      const apiKeyInput = document.getElementById('api-key') as HTMLInputElement;
+      if (apiKeyInput) {
+        apiKeyInput.focus();
+      }
+    }, 500);
+  }
+}
+
 function setupEventListeners(): void {
+  // API status header click - scroll to setup section
+  const apiStatusHeader = document.getElementById('api-status-header');
+  if (apiStatusHeader) {
+    apiStatusHeader.addEventListener('click', scrollToApiSetup);
+  }
+
   // Export button
   const exportBtn = document.getElementById('export-btn');
   if (exportBtn) {

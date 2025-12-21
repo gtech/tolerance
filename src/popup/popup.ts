@@ -58,7 +58,7 @@ async function init(): Promise<void> {
 
   const setupLink = document.getElementById('setup-link');
   if (setupLink) {
-    setupLink.addEventListener('click', openDashboard);
+    setupLink.addEventListener('click', openDashboardToApiSection);
   }
 
   // Set up feedback buttons
@@ -71,6 +71,11 @@ async function init(): Promise<void> {
 function openDashboard(e: Event): void {
   e.preventDefault();
   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html') });
+}
+
+function openDashboardToApiSection(e: Event): void {
+  e.preventDefault();
+  chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html#api-setup') });
 }
 
 function updateApiStatus(settings: Settings): void {
