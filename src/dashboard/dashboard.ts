@@ -1252,6 +1252,14 @@ async function testEndpoint(): Promise<void> {
     return;
   }
 
+  if (!model) {
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#4a2d2d';
+    statusEl.style.color = '#ff9999';
+    statusEl.textContent = 'Please enter a model name first.';
+    return;
+  }
+
   // Update button state
   btn.disabled = true;
   btn.textContent = 'Testing...';
