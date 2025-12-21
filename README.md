@@ -19,6 +19,7 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 - Reddit (old.reddit.com)
 - Twitter/X
 - YouTube
+- Instagram
 
 ## Installation
 
@@ -93,7 +94,7 @@ Daily feedback ("too restricted / balanced / too easy") adjusts thresholds autom
 - **No accounts** — Everything stored locally
 - **Open source** — Read the code
 
-Post titles are sent to OpenRouter for scoring. Nothing else leaves your browser.
+Post titles and content are sent to OpenRouter for scoring. Nothing else leaves your browser.
 
 ## Development
 
@@ -155,6 +156,9 @@ src/
 
 **YouTube:** For best results, disable video previews:
 Settings → Playback and performance → uncheck "Video previews"
+
+ETH: 0x000047da31d416b657a1c415467cdd57bc4ed9a7
+Ko-fi: https://ko-fi.com/tolerance
 
 ## License
 
