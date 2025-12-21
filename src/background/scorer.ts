@@ -418,6 +418,7 @@ async function enrichTextPostsBatch(
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
       score.apiScore = apiScore;
+      score.apiReason = apiResult.reason;
       score.bucket = scoreToBucket(apiScore);
 
       // Log calibration data (with full post info for fine-tuning)
