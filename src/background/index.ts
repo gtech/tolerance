@@ -547,6 +547,7 @@ async function testEndpointConnection(
         model: model || 'test',
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 5,
+        stream: false,
       }),
     });
 

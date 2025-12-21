@@ -792,6 +792,7 @@ async function callApi(
       model,
       messages,
       max_tokens: 2000,
+      stream: false,
     };
 
     // Only add OpenRouter-specific options
