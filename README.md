@@ -54,7 +54,7 @@ Load the `dist/` folder as an unpacked extension.
 
 ## Setup
 
-Tolerance uses AI to score content. You need an API key from [OpenRouter](https://openrouter.ai/).
+Tolerance uses AI to score content. You need an API key from [OpenRouter](https://openrouter.ai/) (or any other OpenAI compatible endpoint).
 
 1. Create an account at [openrouter.ai](https://openrouter.ai/)
 2. Go to Keys → Create Key
