@@ -53,16 +53,22 @@ async function getProviderConfig(): Promise<ProviderConfig> {
 
   const isOpenRouter = provider.type !== 'openai-compatible';
 
+  // Use custom models if specified (non-empty), otherwise use defaults
+  // This works for both OpenRouter and custom endpoints
+  const textModel = (provider.textModel && provider.textModel.trim()) || DEFAULT_TEXT_MODEL;
+  const imageModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_IMAGE_MODEL;
+  const videoModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_FULL_VIDEO_MODEL;
+
   return {
     type: provider.type || 'openrouter',
     endpoint: isOpenRouter
       ? 'https://openrouter.ai/api/v1/chat/completions'
       : (provider.endpoint || 'http://localhost:11434/v1/chat/completions'),
     apiKey,
-    textModel: provider.textModel || DEFAULT_TEXT_MODEL,
-    imageModel: provider.imageModel || DEFAULT_IMAGE_MODEL,
-    videoModel: provider.imageModel || DEFAULT_FULL_VIDEO_MODEL,
-    supportsVision: provider.visionMode !== 'disabled',
+    textModel,
+    imageModel,
+    videoModel,
+    supportsVision: isOpenRouter ? true : (provider.visionMode !== 'disabled'),
     trackCosts: provider.trackCosts !== false && isOpenRouter,
   };
 }
@@ -553,11 +559,11 @@ Consider: Do the images match the ${contentLabel.toLowerCase()}? Are they design
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-    return callOpenRouter(key, prompt, DEFAULT_TEXT_MODEL);
+    return callOpenRouter(key, prompt);  // Uses config.textModel
   }
 
-  // Single image: use vision model directly
-  const model = DEFAULT_IMAGE_MODEL;
+  // Single image: use vision model from config
+  const config = await getProviderConfig();
 
   // For image-only posts (common on Twitter), adjust the prompt
   const hasText = title && title.trim().length > 0;
@@ -581,7 +587,7 @@ Consider: ${hasText ? `Does the image match the ${contentLabel.toLowerCase()}? `
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(key, prompt, model, imageUrl);
+  return callOpenRouter(key, prompt, config.imageModel, imageUrl);
 }
 
 // Score a video/gif post using thumbnail
@@ -612,8 +618,8 @@ export async function scoreVideoPost(
   const contentLabel = platform === 'instagram' ? 'Caption' :
                        isSocial ? 'Tweet' : 'Title';
 
-  // Use fast image model with thumbnail (video model was too slow at 10+ seconds)
-  const model = DEFAULT_VIDEO_MODEL;
+  // Use image model from config for thumbnail-based scoring
+  const config = await getProviderConfig();
 
   // Use thumbnail URL directly - external-preview URLs work as-is
   // Only transform regular preview.redd.it (not external-preview.redd.it)
@@ -649,7 +655,7 @@ Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(key, prompt, model, imageUrl || undefined);
+  return callOpenRouter(key, prompt, config.imageModel, imageUrl || undefined);
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -924,7 +930,7 @@ async function callApi(
 async function callOpenRouter(
   apiKey: string,
   prompt: string,
-  model: string = DEFAULT_TEXT_MODEL,
+  model?: string,
   imageUrl?: string
 ): Promise<ScoreResponse | null> {
   const config = await getProviderConfig();
@@ -934,6 +940,7 @@ async function callOpenRouter(
   }
   // Use provided model or fall back to config default
   const effectiveModel = model || config.textModel;
+  log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
   return callApi(config, prompt, effectiveModel, imageUrl);
 }
 
