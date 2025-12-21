@@ -50,6 +50,8 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSettings();
   const provider: ApiProviderConfig = settings.apiProvider || { type: 'openrouter' };
 
+  log.debug(` Raw provider settings:`, JSON.stringify(provider));
+
   const isOpenRouter = provider.type !== 'openai-compatible';
 
   // Use appropriate API key based on provider type
@@ -63,7 +65,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   const imageModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_IMAGE_MODEL;
   const videoModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_FULL_VIDEO_MODEL;
 
-  log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, model=${textModel}`);
+  log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, textModel=${textModel}, imageModel=${imageModel}, supportsVision=${!isOpenRouter ? (provider.visionMode !== 'disabled') : true}`);
 
   return {
     type: provider.type || 'openrouter',
@@ -358,10 +360,11 @@ export async function scoreTextPost(
   subreddit: string,
   score: number | null,
   numComments: number,
-  apiKey?: string
+  _apiKey?: string  // Kept for backward compatibility, but we use config.apiKey now
 ): Promise<ScoreResponse | null> {
-  const key = apiKey || (await getSettings()).openRouterApiKey;
-  if (!key) {
+  // Check if API is configured (OpenRouter key OR custom endpoint)
+  const apiConfigured = await isApiConfigured();
+  if (!apiConfigured) {
     return null;
   }
 
@@ -386,7 +389,7 @@ Consider: clickbait patterns, emotional manipulation, us-vs-them framing, manufa
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(key, prompt);
+  return callOpenRouter('', prompt);  // Empty string - callOpenRouter will use config.apiKey
 }
 
 // Fetch all images from a Reddit gallery
@@ -432,7 +435,7 @@ export async function fetchGalleryImages(postId: string): Promise<string[]> {
 
 // Get image descriptions from vision model
 export async function describeImages(
-  apiKey: string,
+  _apiKey: string,  // Kept for backward compatibility, but we use config.apiKey now
   imageUrls: string[]
 ): Promise<string> {
   log.debug(` describeImages called with ${imageUrls.length} URLs:`, imageUrls);
@@ -525,11 +528,12 @@ export async function scoreImagePost(
   numComments: number,
   postId?: string,
   bodyText?: string,
-  apiKey?: string,
+  _apiKey?: string,  // Kept for backward compatibility, but we use config.apiKey now
   platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
-  const key = apiKey || (await getSettings()).openRouterApiKey;
-  if (!key) {
+  // Check if API is configured (OpenRouter key OR custom endpoint)
+  const apiConfigured = await isApiConfigured();
+  if (!apiConfigured) {
     return null;
   }
 
@@ -559,7 +563,7 @@ export async function scoreImagePost(
     // Multi-image: get descriptions then score with text model
     log.debug(` Gallery detected with ${galleryImages.length} images, using two-step scoring`);
 
-    imageDescriptions = await describeImages(key, galleryImages);
+    imageDescriptions = await describeImages('', galleryImages);  // Empty string - describeImages uses config.apiKey
     log.debug(` Image descriptions: ${imageDescriptions.slice(0, 200)}...`);
 
     // Now score with text model using descriptions
@@ -582,11 +586,12 @@ Consider: Do the images match the ${contentLabel.toLowerCase()}? Are they design
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-    return callOpenRouter(key, prompt);  // Uses config.textModel
+    return callOpenRouter('', prompt);  // Empty string - callOpenRouter will use config.apiKey
   }
 
   // Single image: use vision model from config
   const config = await getProviderConfig();
+  log.debug(` scoreImagePost single image - config.type=${config.type}, config.imageModel=${config.imageModel}, imageUrl=${imageUrl}`);
 
   // For image-only posts (common on Twitter), adjust the prompt
   const hasText = title && title.trim().length > 0;
@@ -610,7 +615,7 @@ Consider: ${hasText ? `Does the image match the ${contentLabel.toLowerCase()}? `
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(key, prompt, config.imageModel, imageUrl);
+  return callOpenRouter('', prompt, config.imageModel, imageUrl);  // Empty string - callOpenRouter will use config.apiKey
 }
 
 // Score a video/gif post using thumbnail
@@ -622,11 +627,12 @@ export async function scoreVideoPost(
   thumbnailUrl: string,
   score: number | null,
   numComments: number,
-  apiKey?: string,
+  _apiKey?: string,  // Kept for backward compatibility, but we use config.apiKey now
   platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
-  const key = apiKey || (await getSettings()).openRouterApiKey;
-  if (!key) {
+  // Check if API is configured (OpenRouter key OR custom endpoint)
+  const apiConfigured = await isApiConfigured();
+  if (!apiConfigured) {
     return null;
   }
 
@@ -643,6 +649,7 @@ export async function scoreVideoPost(
 
   // Use image model from config for thumbnail-based scoring
   const config = await getProviderConfig();
+
 
   // Use thumbnail URL directly - external-preview URLs work as-is
   // Only transform regular preview.redd.it (not external-preview.redd.it)
@@ -678,7 +685,7 @@ Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(key, prompt, config.imageModel, imageUrl || undefined);
+  return callOpenRouter('', prompt, config.imageModel, imageUrl || undefined);  // Empty string - callOpenRouter will use config.apiKey
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -689,10 +696,11 @@ export async function scoreInstagramVideo(
   videoUrl: string,
   likeCount: number | null,
   commentCount: number,
-  apiKey?: string
+  _apiKey?: string  // Kept for backward compatibility, but we use config.apiKey now
 ): Promise<ScoreResponse | null> {
-  const key = apiKey || (await getSettings()).openRouterApiKey;
-  if (!key) {
+  // Check if API is configured (OpenRouter key OR custom endpoint)
+  const apiConfigured = await isApiConfigured();
+  if (!apiConfigured) {
     return null;
   }
 
@@ -722,7 +730,7 @@ Consider: Does the video use attention-grabbing tactics? Quick cuts designed to 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
   // Use the Gemini video model for full video analysis
-  return callOpenRouter(key, prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
+  return callOpenRouter('', prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);  // Empty string - callOpenRouter will use config.apiKey
 }
 
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
