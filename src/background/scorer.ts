@@ -110,7 +110,7 @@ export async function scorePosts(
   // Track 1: Text-only posts - batch immediately
   if (textPostsForApi.length > 0) {
     scoringTracks.push(
-      enrichTextPostsBatch(textPostsForApi, '').catch(err => {
+      enrichTextPostsBatch(textPostsForApi).catch(err => {
         console.error('Text batch API enrichment failed:', err);
       })
     );
@@ -119,7 +119,7 @@ export async function scorePosts(
   // Track 2: Single media posts - score in parallel immediately
   if (singleMedia.length > 0) {
     const mediaPromises = singleMedia.map(({ post, score }) =>
-      enrichWithApiScore(post, score, '').catch(err => {
+      enrichWithApiScore(post, score).catch(err => {
         console.error('Single media API enrichment failed:', err);
       })
     );
@@ -145,7 +145,7 @@ export async function scorePosts(
       const descriptionPromises = galleries.map(async ({ post }) => {
         const images = galleryImagesMap.get(post.id) || [];
         if (images.length > 1) {
-          const description = await describeImages('', images);
+          const description = await describeImages(images);
           return { postId: post.id, description };
         }
         return { postId: post.id, description: '' };
@@ -164,7 +164,7 @@ export async function scorePosts(
         ...g,
         galleryDescription: galleryDescriptions.get(g.post.id),
       }));
-      await enrichTextPostsBatchWithGalleries(galleriesForScoring, '').catch(err => {
+      await enrichTextPostsBatchWithGalleries(galleriesForScoring).catch(err => {
         console.error('Gallery batch API enrichment failed:', err);
       });
     })());
@@ -395,8 +395,7 @@ function calculateTweetHeuristicScore(
 
 // Batch enrich text posts with API scores
 async function enrichTextPostsBatch(
-  posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[],
-  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
+  posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[]
 ): Promise<void> {
   const postsForScoring: PostForScoring[] = posts.map(({ post }) => ({
     id: post.id,
@@ -406,7 +405,7 @@ async function enrichTextPostsBatch(
     numComments: post.numComments,
   }));
 
-  const results = await scoreTextPostsBatch(postsForScoring, '');
+  const results = await scoreTextPostsBatch(postsForScoring);
 
   // Apply results to scores
   for (const { post, score } of posts) {
@@ -449,8 +448,7 @@ async function enrichTextPostsBatch(
 
 // Batch enrich text posts AND galleries (with pre-fetched descriptions) in a single API call
 async function enrichTextPostsBatchWithGalleries(
-  posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore; galleryDescription?: string }[],
-  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
+  posts: { post: Omit<RedditPost, 'element'>; score: EngagementScore; galleryDescription?: string }[]
 ): Promise<void> {
   if (posts.length === 0) return;
 
@@ -464,7 +462,7 @@ async function enrichTextPostsBatchWithGalleries(
     galleryDescription,
   }));
 
-  const results = await scoreTextPostsBatchWithGalleries(postsForScoring, '');
+  const results = await scoreTextPostsBatchWithGalleries(postsForScoring);
 
   log.debug(` Batch results: ${results.size} scores returned for ${posts.length} posts`);
   if (results.size === 0) {
@@ -509,8 +507,7 @@ async function enrichTextPostsBatchWithGalleries(
 // Enrich an uncertain score with API result (for media posts)
 async function enrichWithApiScore(
   post: Omit<RedditPost, 'element'>,
-  score: EngagementScore,
-  _apiKey: string  // Kept for backward compatibility, scoring functions use config.apiKey now
+  score: EngagementScore
 ): Promise<void> {
   const startTime = performance.now();
   log.debug(` API call STARTED for post=${post.id} at t=${startTime.toFixed(0)}`);

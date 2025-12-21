@@ -112,8 +112,7 @@ export interface BatchScoreResult {
 
 // Score multiple text posts in a single API call
 export async function scoreTextPostsBatch(
-  posts: PostForScoring[],
-  apiKey: string
+  posts: PostForScoring[]
 ): Promise<Map<string, ScoreResponse>> {
   const batchStart = performance.now();
   log.debug(` scoreTextPostsBatch START for ${posts.length} posts at t=${batchStart.toFixed(0)}`);
@@ -239,8 +238,7 @@ Respond with ONLY a JSON array, one object per post in order:
 
 // Score text posts AND galleries (with pre-fetched descriptions) in a single batch
 export async function scoreTextPostsBatchWithGalleries(
-  posts: (PostForScoring & { galleryDescription?: string })[],
-  apiKey: string
+  posts: (PostForScoring & { galleryDescription?: string })[]
 ): Promise<Map<string, ScoreResponse>> {
   const batchStart = performance.now();
   log.debug(` scoreTextPostsBatchWithGalleries START for ${posts.length} posts`);
@@ -359,8 +357,7 @@ export async function scoreTextPost(
   title: string,
   subreddit: string,
   score: number | null,
-  numComments: number,
-  _apiKey?: string  // Kept for backward compatibility, but we use config.apiKey now
+  numComments: number
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
   const apiConfigured = await isApiConfigured();
@@ -389,7 +386,7 @@ Consider: clickbait patterns, emotional manipulation, us-vs-them framing, manufa
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter('', prompt);  // Empty string - callOpenRouter will use config.apiKey
+  return callOpenRouter(prompt);
 }
 
 // Fetch all images from a Reddit gallery
@@ -435,7 +432,6 @@ export async function fetchGalleryImages(postId: string): Promise<string[]> {
 
 // Get image descriptions from vision model
 export async function describeImages(
-  _apiKey: string,  // Kept for backward compatibility, but we use config.apiKey now
   imageUrls: string[]
 ): Promise<string> {
   log.debug(` describeImages called with ${imageUrls.length} URLs:`, imageUrls);
@@ -528,7 +524,6 @@ export async function scoreImagePost(
   numComments: number,
   postId?: string,
   bodyText?: string,
-  _apiKey?: string,  // Kept for backward compatibility, but we use config.apiKey now
   platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
@@ -563,7 +558,7 @@ export async function scoreImagePost(
     // Multi-image: get descriptions then score with text model
     log.debug(` Gallery detected with ${galleryImages.length} images, using two-step scoring`);
 
-    imageDescriptions = await describeImages('', galleryImages);  // Empty string - describeImages uses config.apiKey
+    imageDescriptions = await describeImages(galleryImages);
     log.debug(` Image descriptions: ${imageDescriptions.slice(0, 200)}...`);
 
     // Now score with text model using descriptions
@@ -586,7 +581,7 @@ Consider: Do the images match the ${contentLabel.toLowerCase()}? Are they design
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-    return callOpenRouter('', prompt);  // Empty string - callOpenRouter will use config.apiKey
+    return callOpenRouter(prompt);
   }
 
   // Single image: use vision model from config
@@ -615,7 +610,7 @@ Consider: ${hasText ? `Does the image match the ${contentLabel.toLowerCase()}? `
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter('', prompt, config.imageModel, imageUrl);  // Empty string - callOpenRouter will use config.apiKey
+  return callOpenRouter(prompt, config.imageModel, imageUrl);
 }
 
 // Score a video/gif post using thumbnail
@@ -627,7 +622,6 @@ export async function scoreVideoPost(
   thumbnailUrl: string,
   score: number | null,
   numComments: number,
-  _apiKey?: string,  // Kept for backward compatibility, but we use config.apiKey now
   platform?: 'reddit' | 'twitter' | 'instagram'
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
@@ -685,7 +679,7 @@ Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter('', prompt, config.imageModel, imageUrl || undefined);  // Empty string - callOpenRouter will use config.apiKey
+  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined);
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -695,8 +689,7 @@ export async function scoreInstagramVideo(
   author: string,
   videoUrl: string,
   likeCount: number | null,
-  commentCount: number,
-  _apiKey?: string  // Kept for backward compatibility, but we use config.apiKey now
+  commentCount: number
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
   const apiConfigured = await isApiConfigured();
@@ -730,7 +723,7 @@ Consider: Does the video use attention-grabbing tactics? Quick cuts designed to 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
   // Use the Gemini video model for full video analysis
-  return callOpenRouter('', prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);  // Empty string - callOpenRouter will use config.apiKey
+  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
 }
 
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
@@ -963,19 +956,13 @@ async function callApi(
   }
 }
 
-// Legacy wrapper for backward compatibility - calls callApi with loaded config
+// Internal wrapper - calls callApi with loaded config
 async function callOpenRouter(
-  apiKey: string,
   prompt: string,
   model?: string,
   imageUrl?: string
 ): Promise<ScoreResponse | null> {
   const config = await getProviderConfig();
-  // Override with provided apiKey if given (for batch calls that pass key explicitly)
-  if (apiKey) {
-    config.apiKey = apiKey;
-  }
-  // Use provided model or fall back to config default
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
   return callApi(config, prompt, effectiveModel, imageUrl);
