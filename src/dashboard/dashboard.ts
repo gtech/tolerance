@@ -1238,7 +1238,7 @@ async function testEndpoint(): Promise<void> {
     statusEl.style.display = 'block';
     statusEl.style.background = '#4a2d2d';
     statusEl.style.color = '#ff9999';
-    statusEl.innerHTML = 'Please enter an endpoint URL first.';
+    statusEl.textContent = 'Please enter an endpoint URL first.';
     return;
   }
 
@@ -1248,7 +1248,7 @@ async function testEndpoint(): Promise<void> {
   statusEl.style.display = 'block';
   statusEl.style.background = '#2d3a4a';
   statusEl.style.color = '#99bbff';
-  statusEl.innerHTML = 'Connecting to endpoint...';
+  statusEl.textContent = 'Connecting to endpoint...';
 
   try {
     const result = await chrome.runtime.sendMessage({
@@ -1272,16 +1272,16 @@ async function testEndpoint(): Promise<void> {
       if (result.responseTime) {
         successMsg += ` (${result.responseTime}ms)`;
       }
-      statusEl.innerHTML = successMsg;
+      statusEl.textContent = successMsg;
     } else {
       statusEl.style.background = '#4a2d2d';
       statusEl.style.color = '#ff9999';
-      statusEl.innerHTML = `Failed: ${result.message}`;
+      statusEl.textContent = `Failed: ${result.message}`;
     }
   } catch (error) {
     statusEl.style.background = '#4a2d2d';
     statusEl.style.color = '#ff9999';
-    statusEl.innerHTML = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    statusEl.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 
   btn.disabled = false;
