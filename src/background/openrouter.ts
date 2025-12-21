@@ -147,7 +147,7 @@ Respond with ONLY a JSON array, one object per post in order:
 [{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   try {
-    const response = await callOpenRouter(apiKey, prompt);
+    const response = await callOpenRouter(prompt);
     log.debug(` Batch API response:`, response ? 'got response' : 'null response');
     if (!response) {
       log.debug(` Batch API returned null`);
@@ -278,7 +278,7 @@ Respond with ONLY a JSON array, one object per post in order:
 [{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   try {
-    const response = await callOpenRouter(apiKey, prompt);
+    const response = await callOpenRouter(prompt);
     if (!response) {
       return new Map();
     }
