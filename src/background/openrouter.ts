@@ -764,25 +764,24 @@ async function callApi(
       });
     }
 
-    // Build request body
+    // Build request body - keep it minimal for local model compatibility
     const requestBody: Record<string, unknown> = {
       model,
       messages,
       max_tokens: 2000,
-      temperature: 0.3,
     };
 
     // Only add OpenRouter-specific options
     if (config.type === 'openrouter') {
+      requestBody.temperature = 0.3;
       requestBody.provider = {
         order: ['Groq', 'Cerebras'],
         allow_fallbacks: true,
       };
-    }
-
-    // Only add JSON mode for non-vision requests
-    if (!effectiveImageUrl) {
-      requestBody.response_format = { type: 'json_object' };
+      // Only add JSON mode for OpenRouter non-vision requests
+      if (!effectiveImageUrl) {
+        requestBody.response_format = { type: 'json_object' };
+      }
     }
 
     // Build headers - OpenRouter needs specific headers
