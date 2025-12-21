@@ -241,6 +241,20 @@ function injectStyles(): void {
       opacity: 0 !important;
       pointer-events: none !important;
     }
+
+    /* Pending blur (before scoring completes) */
+    article.tolerance-pending {
+      position: relative;
+    }
+
+    article.tolerance-pending .tolerance-blur-overlay::after {
+      content: 'Scoring...';
+    }
+
+    /* Hide score badge while pending */
+    article.tolerance-pending .tolerance-score-badge {
+      display: none;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -304,6 +318,47 @@ function blurNavigationButtons(): void {
 
     link.appendChild(overlay);
   }
+}
+
+// Apply pending blur (before scoring) to a post
+function applyPendingBlur(post: InstagramPost): void {
+  const element = post.element;
+  if (!element) return;
+
+  // Don't blur if already blurred or pending
+  if (element.classList.contains('tolerance-blurred') ||
+      element.classList.contains('tolerance-pending')) return;
+
+  element.classList.add('tolerance-pending');
+  element.classList.add('tolerance-video-blocked');
+  element.style.position = 'relative';
+
+  // Add overlay with "Scoring..." label
+  if (!element.querySelector('.tolerance-blur-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tolerance-blur-overlay';
+
+    // Block clicks on blurred content
+    overlay.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    element.appendChild(overlay);
+  }
+}
+
+// Remove pending blur (after scoring reveals it's not high-engagement)
+function removePendingBlur(post: InstagramPost): void {
+  const element = post.element;
+  if (!element) return;
+
+  element.classList.remove('tolerance-pending');
+  element.classList.remove('tolerance-video-blocked');
+
+  // Remove overlay
+  const overlay = element.querySelector('.tolerance-blur-overlay');
+  if (overlay) overlay.remove();
 }
 
 async function sendMessage(message: unknown): Promise<unknown> {
@@ -371,9 +426,10 @@ async function processPosts(): Promise<void> {
 
     log.debug(` Instagram: Processing ${newPosts.length} new posts`);
 
-    // Mark as processed
+    // Mark as processed and apply pending blur immediately
     for (const post of newPosts) {
       processedPostIds.add(post.id);
+      applyPendingBlur(post);
     }
 
     // Serialize for messaging
@@ -424,8 +480,9 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   const element = post.element;
   if (!element) return;
 
-  // Mark as processed
+  // Mark as processed and remove pending state
   element.classList.add('tolerance-processed');
+  element.classList.remove('tolerance-pending');
 
   // Remove existing badge if any
   const existingBadge = element.querySelector('.tolerance-score-badge');
@@ -433,11 +490,14 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
     existingBadge.remove();
   }
 
-  // Remove existing blur overlay
+  // Remove existing blur overlay (will re-add if needed)
   const existingBlur = element.querySelector('.tolerance-blur-overlay');
   if (existingBlur) {
     existingBlur.remove();
   }
+
+  // Remove video-blocked class (will re-add if score is high)
+  element.classList.remove('tolerance-video-blocked');
 
   // Create badge
   const displayScore = score.apiScore ?? score.heuristicScore;
