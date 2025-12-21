@@ -88,8 +88,8 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
 
   // Handle TEST_ENDPOINT for dashboard connection testing
   if (message.type === 'TEST_ENDPOINT') {
-    const { endpoint, model } = message as { type: string; endpoint: string; model?: string };
-    testEndpointConnection(endpoint, model).then(sendResponse);
+    const { endpoint, model, apiKey } = message as { type: string; endpoint: string; model?: string; apiKey?: string };
+    testEndpointConnection(endpoint, model, apiKey).then(sendResponse);
     return true;
   }
 
@@ -525,16 +525,24 @@ function calculateNarrativeTrends(sessions: SessionLog[], days: number): DailyNa
 // Test endpoint connection for dashboard
 async function testEndpointConnection(
   endpoint: string,
-  model?: string
+  model?: string,
+  apiKey?: string
 ): Promise<{ success: boolean; message: string; model?: string; responseTime?: number }> {
   const startTime = Date.now();
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add Authorization header if API key is provided
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         model: model || 'test',
         messages: [{ role: 'user', content: 'Hi' }],

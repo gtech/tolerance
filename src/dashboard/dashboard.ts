@@ -1237,9 +1237,11 @@ async function testEndpoint(): Promise<void> {
 
   // Get current endpoint config from inputs
   const endpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const apiKeyInput = document.getElementById('custom-api-key') as HTMLInputElement;
   const textModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
 
   const endpoint = endpointInput?.value?.trim();
+  const apiKey = apiKeyInput?.value?.trim();
   const model = textModelInput?.value?.trim();
 
   if (!endpoint) {
@@ -1263,6 +1265,7 @@ async function testEndpoint(): Promise<void> {
       type: 'TEST_ENDPOINT',
       endpoint,
       model: model || undefined,
+      apiKey: apiKey || undefined,
     }) as {
       success: boolean;
       message: string;
