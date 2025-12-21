@@ -450,9 +450,15 @@ async function enrichTextPostsBatchWithGalleries(
 
   const results = await scoreTextPostsBatchWithGalleries(postsForScoring, apiKey);
 
+  log.debug(` Batch results: ${results.size} scores returned for ${posts.length} posts`);
+  if (results.size === 0) {
+    log.debug(` No results returned from batch API call`);
+  }
+
   // Apply results to scores
   for (const { post, score } of posts) {
     const apiResult = results.get(post.id);
+    log.debug(` Looking for post ${post.id}, found: ${apiResult ? 'yes' : 'no'}`);
     if (apiResult) {
       const apiScore = apiResult.score * 10;
       score.apiScore = apiScore;

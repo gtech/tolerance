@@ -141,13 +141,23 @@ Respond with ONLY a JSON array, one object per post in order:
 
   try {
     const response = await callOpenRouter(apiKey, prompt);
+    log.debug(` Batch API response:`, response ? 'got response' : 'null response');
     if (!response) {
+      log.debug(` Batch API returned null`);
       return new Map();
     }
 
     // Parse batch response - expect array in fullResponse
-    const content = (response.fullResponse as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content || '';
-    log.debug('Tolerance: Batch response content:', content.slice(0, 500));
+    log.debug(` fullResponse type:`, typeof response.fullResponse);
+    let content = (response.fullResponse as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content || '';
+    log.debug(' Batch response content:', content.slice(0, 500));
+
+    // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      content = codeBlockMatch[1].trim();
+      log.debug(' Stripped markdown code block, content now:', content.slice(0, 200));
+    }
 
     const results = new Map<string, ScoreResponse>();
 
@@ -267,7 +277,14 @@ Respond with ONLY a JSON array, one object per post in order:
       return new Map();
     }
 
-    const content = (response.fullResponse as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content || '';
+    let content = (response.fullResponse as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content || '';
+
+    // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      content = codeBlockMatch[1].trim();
+    }
+
     const results = new Map<string, ScoreResponse>();
 
     let parsed: BatchScoreResult[] | null = null;
@@ -848,6 +865,12 @@ async function callApi(
     if (!content) {
       console.error('API: No content in response');
       return null;
+    }
+
+    // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      content = codeBlockMatch[1].trim();
     }
 
     // Try to parse JSON from response
