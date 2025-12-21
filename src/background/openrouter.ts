@@ -49,15 +49,21 @@ interface ProviderConfig {
 async function getProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSettings();
   const provider: ApiProviderConfig = settings.apiProvider || { type: 'openrouter' };
-  const apiKey = settings.openRouterApiKey || '';
 
   const isOpenRouter = provider.type !== 'openai-compatible';
+
+  // Use appropriate API key based on provider type
+  const apiKey = isOpenRouter
+    ? (settings.openRouterApiKey || '')
+    : (provider.apiKey || '');
 
   // Use custom models if specified (non-empty), otherwise use defaults
   // This works for both OpenRouter and custom endpoints
   const textModel = (provider.textModel && provider.textModel.trim()) || DEFAULT_TEXT_MODEL;
   const imageModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_IMAGE_MODEL;
   const videoModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_FULL_VIDEO_MODEL;
+
+  log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, model=${textModel}`);
 
   return {
     type: provider.type || 'openrouter',

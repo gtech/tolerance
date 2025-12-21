@@ -287,6 +287,7 @@ export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 export interface ApiProviderConfig {
   type: 'openrouter' | 'openai-compatible';
   endpoint?: string;           // Custom endpoint URL (for openai-compatible)
+  apiKey?: string;             // API key for custom endpoint (separate from OpenRouter key)
   textModel?: string;          // Override default text model
   imageModel?: string;         // Override default vision model
   visionMode?: 'auto' | 'enabled' | 'disabled';  // Vision capability

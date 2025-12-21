@@ -224,6 +224,7 @@ function populateSettings(settings: Settings): void {
   const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
   const customEndpointSection = document.getElementById('custom-endpoint-section');
   const customEndpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const customApiKeyInput = document.getElementById('custom-api-key') as HTMLInputElement;
   const customTextModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
   const customVisionModelInput = document.getElementById('custom-vision-model') as HTMLInputElement;
   const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
@@ -239,6 +240,9 @@ function populateSettings(settings: Settings): void {
   }
   if (customEndpointInput) {
     customEndpointInput.value = provider.endpoint || '';
+  }
+  if (customApiKeyInput) {
+    customApiKeyInput.value = provider.apiKey || '';
   }
   if (customTextModelInput) {
     customTextModelInput.value = provider.textModel || '';
@@ -527,12 +531,14 @@ function setupEventListeners(): void {
 
   // Custom endpoint inputs
   const customEndpointInput = document.getElementById('custom-endpoint');
+  const customApiKeyInput = document.getElementById('custom-api-key');
   const customTextModelInput = document.getElementById('custom-text-model');
   const customVisionModelInput = document.getElementById('custom-vision-model');
   const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
   const trackCostsStatus = document.getElementById('track-costs-status');
 
   if (customEndpointInput) customEndpointInput.addEventListener('change', saveSettings);
+  if (customApiKeyInput) customApiKeyInput.addEventListener('change', saveSettings);
   if (customTextModelInput) customTextModelInput.addEventListener('change', saveSettings);
   if (customVisionModelInput) customVisionModelInput.addEventListener('change', saveSettings);
   if (trackCostsInput) {
@@ -635,6 +641,7 @@ async function saveSettings(): Promise<void> {
   // Provider configuration inputs
   const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
   const customEndpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
+  const customApiKeyInput = document.getElementById('custom-api-key') as HTMLInputElement;
   const customTextModelInput = document.getElementById('custom-text-model') as HTMLInputElement;
   const customVisionModelInput = document.getElementById('custom-vision-model') as HTMLInputElement;
   const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
@@ -656,6 +663,7 @@ async function saveSettings(): Promise<void> {
     apiProvider: {
       type: providerType,
       endpoint: providerType === 'openai-compatible' ? (customEndpointInput?.value?.trim() || undefined) : undefined,
+      apiKey: providerType === 'openai-compatible' ? (customApiKeyInput?.value?.trim() || undefined) : undefined,
       textModel: customTextModelInput?.value?.trim() || undefined,
       imageModel: visionModel || undefined,
       visionMode: visionModel ? 'enabled' : 'disabled',
