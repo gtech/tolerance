@@ -74,16 +74,19 @@ function openDashboard(e: Event): void {
 }
 
 function updateApiStatus(settings: Settings): void {
-  const hasApiKey = Boolean(settings.openRouterApiKey?.trim());
+  const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
+  const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
+                            Boolean(settings.apiProvider?.endpoint?.trim());
+  const isApiConfigured = hasOpenRouterKey || hasCustomEndpoint;
 
   const apiDot = document.getElementById('api-dot');
   const apiText = document.getElementById('api-status-text');
   const apiWarning = document.getElementById('api-warning');
 
   if (apiDot && apiText) {
-    if (hasApiKey) {
+    if (isApiConfigured) {
       apiDot.className = 'api-dot connected';
-      apiText.textContent = 'Connected';
+      apiText.textContent = hasCustomEndpoint ? 'Custom Endpoint' : 'Connected';
       apiText.style.color = '#27ae60';
     } else {
       apiDot.className = 'api-dot disconnected';
@@ -93,7 +96,7 @@ function updateApiStatus(settings: Settings): void {
   }
 
   if (apiWarning) {
-    apiWarning.style.display = hasApiKey ? 'none' : 'block';
+    apiWarning.style.display = isApiConfigured ? 'none' : 'block';
   }
 }
 

@@ -95,16 +95,19 @@ function updateModeDisplay(state: AppState): void {
 }
 
 function updateApiStatus(settings: Settings): void {
-  const hasApiKey = Boolean(settings.openRouterApiKey?.trim());
+  const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
+  const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
+                            Boolean(settings.apiProvider?.endpoint?.trim());
+  const isApiConfigured = hasOpenRouterKey || hasCustomEndpoint;
 
   // Update header status
   const statusDot = document.getElementById('api-status-dot');
   const statusText = document.getElementById('api-status-text');
 
   if (statusDot && statusText) {
-    if (hasApiKey) {
+    if (isApiConfigured) {
       statusDot.style.background = '#27ae60';
-      statusText.textContent = 'API Connected';
+      statusText.textContent = hasCustomEndpoint ? 'Custom Endpoint' : 'API Connected';
       statusText.style.color = '#27ae60';
     } else {
       statusDot.style.background = '#e74c3c';
@@ -116,16 +119,18 @@ function updateApiStatus(settings: Settings): void {
   // Update setup section status
   const apiKeyStatus = document.getElementById('api-key-status');
   if (apiKeyStatus) {
-    if (hasApiKey) {
+    if (isApiConfigured) {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#1a472a';
       apiKeyStatus.style.color = '#7dcea0';
-      apiKeyStatus.innerHTML = '✓ API key configured. Tolerance is active.';
+      apiKeyStatus.textContent = hasCustomEndpoint
+        ? '✓ Custom endpoint configured. Tolerance is active.'
+        : '✓ API key configured. Tolerance is active.';
     } else {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#4a2d2d';
       apiKeyStatus.style.color = '#ff9999';
-      apiKeyStatus.innerHTML = 'Enter your OpenRouter API key to enable post scoring.';
+      apiKeyStatus.textContent = 'Enter your OpenRouter API key or configure a custom endpoint to enable post scoring.';
     }
   }
 }
