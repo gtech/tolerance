@@ -423,41 +423,71 @@ async function handleNewPosts(): Promise<void> {
   await processPosts();
 }
 
-// Pre-fetch images as base64 for posts (needed for Reddit since their servers block API requests)
-async function prefetchImagesAsBase64<T extends { imageUrl?: string; thumbnailUrl?: string }>(
-  posts: T[]
-): Promise<T[]> {
-  const results = await Promise.all(
-    posts.map(async (post) => {
-      const updatedPost = { ...post };
+// Extract base64 from DOM images that are already loaded (no fetch needed)
+// This works because Reddit images are displayed on the page - we just grab them from DOM
+function extractImagesFromDOM(posts: RedditPost[]): Omit<RedditPost, 'element'>[] {
+  return posts.map(post => {
+    const { element, ...serialized } = post;
 
-      // Try to convert imageUrl to base64
-      if (post.imageUrl && !post.imageUrl.startsWith('data:')) {
-        try {
-          const base64 = await fetchImageAsBase64(post.imageUrl);
-          updatedPost.imageUrl = base64;
-          log.debug(` Converted imageUrl to base64 for post`);
-        } catch (err) {
-          log.debug(` Failed to fetch image: ${err}`);
-          // Keep original URL as fallback
+    if (!element || serialized.imageUrl?.startsWith('data:')) {
+      return serialized;
+    }
+
+    // Try to get base64 from actual img element in DOM
+    try {
+      // Find the image element that's already rendered
+      const imgEl = element.querySelector('[slot="post-media-container"] img, shreddit-post-image img, [slot="thumbnail"] img') as HTMLImageElement | null;
+
+      if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+        const base64 = imageElementToBase64(imgEl);
+        if (base64) {
+          serialized.imageUrl = base64;
+          log.debug(` Extracted image from DOM for post ${post.id}`);
         }
       }
+    } catch (err) {
+      log.debug(` Failed to extract image from DOM: ${err}`);
+      // Keep original URL as fallback
+    }
 
-      // Try to convert thumbnailUrl to base64
-      if (post.thumbnailUrl && !post.thumbnailUrl.startsWith('data:') && post.thumbnailUrl !== post.imageUrl) {
-        try {
-          const base64 = await fetchImageAsBase64(post.thumbnailUrl);
-          updatedPost.thumbnailUrl = base64;
-        } catch (err) {
-          // Keep original URL as fallback
-        }
-      }
+    return serialized;
+  });
+}
 
-      return updatedPost;
-    })
-  );
+// Convert an already-loaded img element to base64 (no network request)
+function imageElementToBase64(img: HTMLImageElement): string | null {
+  try {
+    // Limit size to reduce memory/bandwidth
+    const maxDim = 1024;
+    let width = img.naturalWidth;
+    let height = img.naturalHeight;
 
-  return results;
+    if (width === 0 || height === 0) {
+      return null;
+    }
+
+    if (width > maxDim || height > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return null;
+    }
+
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.8);
+  } catch (e) {
+    // Canvas tainted by cross-origin image
+    log.debug(` Canvas export failed: ${e}`);
+    return null;
+  }
 }
 
 // Main processing function
@@ -491,15 +521,11 @@ async function processPosts(): Promise<void> {
       processedPostIds.add(post.id);
     }
 
-    // Serialize posts
-    let serializedPosts = redditVersion === 'new'
-      ? newPosts.map(serializeNewRedditPost)
+    // Serialize posts - for new Reddit, extract images directly from DOM
+    // (Reddit blocks fetching image URLs, but we can grab already-loaded images)
+    const serializedPosts = redditVersion === 'new'
+      ? extractImagesFromDOM(newPosts)
       : newPosts.map(serializePost);
-
-    // For new Reddit, pre-fetch images as base64 (Reddit blocks API servers from fetching directly)
-    if (redditVersion === 'new') {
-      serializedPosts = await prefetchImagesAsBase64(serializedPosts);
-    }
 
     // Get scores from background
     const t2 = performance.now();
@@ -675,23 +701,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// Fetch image and convert to base64
+// Fetch image and convert to base64 (used for gallery images via message handler)
+// Note: This often fails with 403 for Reddit images - galleries fall back to text-only scoring
 async function fetchImageAsBase64(url: string): Promise<string> {
-  // Transform preview.redd.it URLs to i.redd.it (often more accessible)
-  let fetchUrl = url;
-  if (url.includes('preview.redd.it') && !url.includes('external-preview.redd.it')) {
-    // Extract the image ID and extension from preview URL
-    const match = url.match(/preview\.redd\.it\/([^?]+)/);
-    if (match) {
-      fetchUrl = `https://i.redd.it/${match[1]}`;
-      log.debug(` Transformed URL from preview to i.redd.it: ${fetchUrl}`);
-    }
-  }
-
-  // Use fetch API which works better in content scripts (no CORS restrictions for same-site)
+  // Try fetch first
   try {
-    const response = await fetch(fetchUrl, {
-      credentials: 'omit', // Don't send cookies
+    const response = await fetch(url, {
+      credentials: 'omit',
     });
 
     if (!response.ok) {
@@ -699,71 +715,21 @@ async function fetchImageAsBase64(url: string): Promise<string> {
     }
 
     const blob = await response.blob();
-    const contentType = blob.type || 'image/jpeg';
 
-    // Convert blob to data URL
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        log.debug(` Image converted successfully via fetch: ${result.length} chars`);
+        log.debug(` Image fetched successfully: ${result.length} chars`);
         resolve(result);
       };
       reader.onerror = () => reject(new Error('FileReader failed'));
       reader.readAsDataURL(blob);
     });
   } catch (fetchError) {
-    log.debug(` Fetch failed (${fetchError}), trying img element fallback`);
-
-    // Fallback to img element + canvas approach
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-
-      const timeout = setTimeout(() => {
-        reject(new Error('Image load timeout'));
-      }, 10000);
-
-      img.onload = () => {
-        clearTimeout(timeout);
-        try {
-          // Limit size to reduce memory/bandwidth
-          const maxDim = 1024;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          if (width > maxDim || height > maxDim) {
-            const scale = maxDim / Math.max(width, height);
-            width = Math.round(width * scale);
-            height = Math.round(height * scale);
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Could not get canvas context'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          log.debug(` Image converted via canvas: ${width}x${height}, ${dataUrl.length} chars`);
-          resolve(dataUrl);
-        } catch (e) {
-          reject(new Error(`Canvas export failed: ${e}`));
-        }
-      };
-
-      img.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error('Image load failed'));
-      };
-
-      img.src = fetchUrl;
-    });
+    // For Reddit images, fetch often fails with 403
+    // This is expected - galleries will fall back to text-only scoring
+    throw new Error(`Fetch failed: ${fetchError}`);
   }
 }
 
