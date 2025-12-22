@@ -120,11 +120,9 @@ function injectLoadingStyles(): void {
       to { transform: rotate(360deg); }
     }
 
-    /* Score badges - positioned left of subreddit icon */
+    /* Score badges - base styles */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 8px !important;
-      left: -12px !important;
       padding: 2px 6px !important;
       border-radius: 10px !important;
       font-size: 10px !important;
@@ -141,6 +139,18 @@ function injectLoadingStyles(): void {
     .tolerance-score-badge.high { background: #e74c3c !important; }
     .tolerance-score-badge.medium { background: #f39c12 !important; }
     .tolerance-score-badge.low { background: #27ae60 !important; }
+
+    /* Old Reddit badges - below post rank on left */
+    .thing .tolerance-score-badge {
+      top: 37px !important;
+      left: 0 !important;
+    }
+
+    /* New Reddit badges - left of subreddit icon */
+    shreddit-post .tolerance-score-badge {
+      top: 8px !important;
+      left: -12px !important;
+    }
 
     /* Badge tooltip - appears to the right */
     .tolerance-score-badge .tolerance-tooltip {
