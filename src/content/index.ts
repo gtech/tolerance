@@ -17,6 +17,14 @@ const processedPostIds = new Set<string>();
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
+// Adaptive blur threshold (score at or above this gets blurred)
+let currentBlurThreshold = 55; // Default for 'normal' phase
+let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
+
+// Quality Mode - instant aggressive blur (scores > 20)
+let qualityModeEnabled = false;
+const QUALITY_MODE_THRESHOLD = 21;
+
 function sendHeartbeat(): void {
   chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
     // Ignore errors (extension might be updating)
@@ -26,19 +34,60 @@ function sendHeartbeat(): void {
   });
 }
 
+async function updateBlurThreshold(): Promise<void> {
+  try {
+    const response = await sendMessage({ type: 'GET_GLOBAL_SESSION' });
+    if (response && 'phase' in response) {
+      const newPhase = response.phase as typeof currentPhase;
+      const settings = response.settings as { progressiveBoredomEnabled?: boolean };
+
+      // Get effective threshold for this phase
+      const thresholdResult = await sendMessage({
+        type: 'GET_EFFECTIVE_BLUR_THRESHOLD',
+        phase: newPhase,
+      });
+
+      if (thresholdResult && 'threshold' in thresholdResult) {
+        const newThreshold = thresholdResult.threshold as number;
+        if (newThreshold !== currentBlurThreshold || newPhase !== currentPhase) {
+          log.debug(` Reddit: Blur threshold updated - phase: ${newPhase}, threshold: ${newThreshold}`);
+          currentBlurThreshold = newThreshold;
+          currentPhase = newPhase;
+        }
+      }
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+}
+
+function shouldBlurScore(score: EngagementScore): boolean {
+  // Whitelisted sources bypass blur
+  if (score.whitelisted) return false;
+
+  const displayScore = score.apiScore ?? score.heuristicScore;
+  const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
+  return displayScore >= threshold;
+}
+
 function startHeartbeat(): void {
   if (heartbeatIntervalId) return; // Already running
 
   // Send immediately
   sendHeartbeat();
+  updateBlurThreshold();
 
   // Then every 30 seconds
-  heartbeatIntervalId = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+  heartbeatIntervalId = setInterval(() => {
+    sendHeartbeat();
+    updateBlurThreshold();
+  }, HEARTBEAT_INTERVAL);
 
   // Also send when tab becomes visible
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       sendHeartbeat();
+      updateBlurThreshold();
     }
   });
 
@@ -189,6 +238,63 @@ function injectLoadingStyles(): void {
     }
     .tolerance-tooltip-positions.moved-up { color: #7dcea0; }
     .tolerance-tooltip-positions.moved-down { color: #e67e73; }
+
+    /* Blur overlay for high-engagement content */
+    .tolerance-blur-overlay {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      z-index: 50 !important;
+      transition: opacity 0.3s ease;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      background: rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .tolerance-blur-overlay::after {
+      content: 'Hover 3s to reveal';
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 14px;
+      font-weight: 500;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      padding: 8px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .tolerance-blur-overlay.revealing::after {
+      content: 'Revealing...';
+    }
+
+    .tolerance-blur-overlay.revealed {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Pending blur (before scoring completes) */
+    .thing.tolerance-pending,
+    shreddit-post.tolerance-pending {
+      position: relative;
+    }
+
+    .tolerance-pending .tolerance-blur-overlay::after {
+      content: 'Scoring...';
+    }
+
+    /* Hide score badge while pending */
+    .tolerance-pending .tolerance-score-badge {
+      display: none !important;
+    }
+
+    /* Blurred state */
+    .thing.tolerance-blurred,
+    shreddit-post.tolerance-blurred {
+      position: relative;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -261,6 +367,97 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
   badge.appendChild(tooltip);
   element.appendChild(badge);
   log.debug(` Badge injected for post ${post.id}, score=${info.score}, bucket=${info.bucket}`);
+}
+
+// Apply pending blur (before scoring) to a post
+function applyPendingBlur(post: RedditPost): void {
+  const element = post.element;
+  if (!element) return;
+
+  // Don't blur if already blurred or pending
+  if (element.classList.contains('tolerance-blurred') ||
+      element.classList.contains('tolerance-pending')) return;
+
+  element.classList.add('tolerance-pending');
+
+  // Add overlay with "Scoring..." label
+  if (!element.querySelector('.tolerance-blur-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tolerance-blur-overlay';
+
+    // Block clicks on blurred content
+    overlay.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    element.appendChild(overlay);
+  }
+}
+
+// Remove pending blur (after scoring reveals it's not high-engagement)
+function removePendingBlur(post: RedditPost): void {
+  const element = post.element;
+  if (!element) return;
+
+  element.classList.remove('tolerance-pending');
+
+  // Remove overlay if post doesn't need blur
+  const overlay = element.querySelector('.tolerance-blur-overlay');
+  if (overlay) overlay.remove();
+}
+
+// Apply blur to high-engagement content with hover reveal
+function applyBlur(post: RedditPost): void {
+  const element = post.element;
+  if (!element) return;
+
+  // Mark as blurred
+  element.classList.add('tolerance-blurred');
+  element.classList.remove('tolerance-pending');
+
+  // Check if overlay already exists (from pending state)
+  let overlay = element.querySelector('.tolerance-blur-overlay') as HTMLElement;
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'tolerance-blur-overlay';
+    element.appendChild(overlay);
+  }
+
+  // Remove the "Scoring..." label by removing pending class effect
+  overlay.classList.remove('revealing', 'revealed');
+
+  // Add hover reveal functionality
+  let revealTimer: ReturnType<typeof setTimeout> | null = null;
+  let isRevealed = false;
+
+  overlay.addEventListener('mouseenter', () => {
+    if (isRevealed) return;
+    overlay.classList.add('revealing');
+
+    revealTimer = setTimeout(() => {
+      overlay.classList.remove('revealing');
+      overlay.classList.add('revealed');
+      isRevealed = true;
+    }, 3000); // 3 seconds to reveal
+  });
+
+  overlay.addEventListener('mouseleave', () => {
+    if (revealTimer) {
+      clearTimeout(revealTimer);
+      revealTimer = null;
+    }
+    if (!isRevealed) {
+      overlay.classList.remove('revealing');
+    }
+  });
+
+  // Block clicks on blurred content
+  overlay.addEventListener('click', (e) => {
+    if (!isRevealed) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
 }
 
 function createLoaderElement(): HTMLElement {
@@ -556,9 +753,10 @@ async function processPosts(): Promise<void> {
   try {
     log.debug(` Processing ${newPosts.length} new posts (scrape: ${(t1 - t0).toFixed(0)}ms)`);
 
-    // Mark as processed
+    // Mark as processed and apply pending blur immediately
     for (const post of newPosts) {
       processedPostIds.add(post.id);
+      applyPendingBlur(post);
     }
 
     // Serialize posts - for new Reddit, extract images directly from DOM
@@ -637,18 +835,22 @@ async function processPosts(): Promise<void> {
       }
     }
 
-    // Inject badges with full info (reason + positions)
+    // Inject badges and apply/remove blur based on scores
     for (const impression of impressions) {
       const post = postMap.get(impression.postId);
       const score = scores.get(impression.postId);
       if (post && score) {
         const displayScore = score.apiScore ?? score.heuristicScore;
-        // Debug: log reason availability
-        if (score.apiReason) {
-          log.debug(` Post ${post.id} has apiReason: "${score.apiReason}"`);
+
+        // Apply or remove blur based on score
+        if (shouldBlurScore(score)) {
+          applyBlur(post);
+          log.debug(` Post ${post.id} blurred (score: ${displayScore}, threshold: ${currentBlurThreshold})`);
         } else {
-          log.debug(` Post ${post.id} has NO apiReason, apiScore=${score.apiScore}`);
+          removePendingBlur(post);
         }
+
+        // Inject badge
         injectScoreBadge(post, {
           score: displayScore,
           bucket: score.bucket,
