@@ -47,18 +47,26 @@ function observeFeed(feed: Element, callback: () => void): void {
     feedObserver.disconnect();
   }
 
-  // Process any existing posts after a short delay to let Reddit finish rendering
-  const checkExistingPosts = () => {
-    const existingPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
-    if (existingPosts.length > 0) {
-      log.debug(` Found ${existingPosts.length} existing posts, triggering callback`);
+  // Poll for new posts during initial load (Reddit loads posts progressively)
+  let lastKnownCount = 0;
+  let pollCount = 0;
+  const maxPolls = 10; // Poll for up to 5 seconds (500ms * 10)
+
+  const pollForPosts = () => {
+    const currentPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
+    if (currentPosts.length > lastKnownCount) {
+      log.debug(` Poll found ${currentPosts.length} posts (was ${lastKnownCount}), triggering callback`);
+      lastKnownCount = currentPosts.length;
       callback();
     }
+    pollCount++;
+    if (pollCount < maxPolls) {
+      setTimeout(pollForPosts, 500);
+    }
   };
-  // Check immediately and again after a delay
-  checkExistingPosts();
-  setTimeout(checkExistingPosts, 500);
-  setTimeout(checkExistingPosts, 1500);
+
+  // Start polling immediately
+  pollForPosts();
 
   feedObserver = new MutationObserver((mutations) => {
     // Check if any shreddit-post elements were added
