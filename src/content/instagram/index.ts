@@ -440,13 +440,30 @@ async function processPosts(): Promise<void> {
     log.debug(` Instagram: Processing ${newPosts.length} new posts`);
 
     // Mark as processed and apply pending blur immediately
+    // But check cache first - if we have a score, use it instead of showing "Scoring..."
+    const postsNeedingScoring: typeof newPosts = [];
     for (const post of newPosts) {
       processedPostIds.add(post.id);
-      applyPendingBlur(post);
+
+      // Check if we already have a cached score (handles ID inconsistency edge cases)
+      const cached = scoreCache.get(post.id);
+      if (cached) {
+        log.debug(`Instagram: Using cached score for ${post.id}`);
+        injectBadge(post, cached.score);
+      } else {
+        applyPendingBlur(post);
+        postsNeedingScoring.push(post);
+      }
     }
 
-    // Serialize for messaging
-    const serializedPosts = newPosts.map(p => serializePost(p));
+    // If all posts were served from cache, we're done
+    if (postsNeedingScoring.length === 0) {
+      log.debug('Instagram: All posts served from cache');
+      return;
+    }
+
+    // Serialize only posts that need scoring
+    const serializedPosts = postsNeedingScoring.map(p => serializePost(p));
 
     // Send to background for scoring (with timeout to prevent hanging)
     const scorePromise = sendMessage({
@@ -464,7 +481,7 @@ async function processPosts(): Promise<void> {
     } catch (timeoutError) {
       log.debug('Instagram: Scoring timed out, will retry on next scroll');
       // Remove pending blur from posts that timed out so they're visible
-      for (const post of newPosts) {
+      for (const post of postsNeedingScoring) {
         removePendingBlur(post);
         processedPostIds.delete(post.id); // Allow retry
       }
@@ -486,7 +503,7 @@ async function processPosts(): Promise<void> {
     }
 
     // Inject badges and apply blur
-    for (const post of newPosts) {
+    for (const post of postsNeedingScoring) {
       const score = scoreMap.get(post.id);
       if (score) {
         scoreCache.set(post.id, { score, originalPosition: 0 });

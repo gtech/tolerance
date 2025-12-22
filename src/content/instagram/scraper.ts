@@ -27,13 +27,9 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
       return null;
     }
 
-    // Get post ID - try __igdl_id attribute first, then extract from permalink
-    let id = element.getAttribute('__igdl_id');
+    // Get post ID - prefer shortcode (stable) over __igdl_id (can change on DOM recreate)
     const shortcode = extractShortcode(element);
-
-    if (!id && shortcode) {
-      id = shortcode;
-    }
+    let id = shortcode || element.getAttribute('__igdl_id');
 
     if (!id) {
       log.debug('Instagram: Could not extract post ID');

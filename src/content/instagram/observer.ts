@@ -9,12 +9,9 @@ let lastSeenArticles = new Set<string>();
 const POLL_INTERVAL_MS = 500; // Check every 500ms for more responsive scrolling
 
 // Get a unique identifier for an article element
+// Must match scraper.ts ID extraction for consistency
 function getArticleId(article: Element): string | null {
-  // Try __igdl_id attribute first
-  const igdlId = article.getAttribute('__igdl_id');
-  if (igdlId) return igdlId;
-
-  // Try to find shortcode from permalink
+  // Prefer shortcode (stable) over __igdl_id (can change on DOM recreate)
   const link = article.querySelector<HTMLAnchorElement>('a[href*="/p/"], a[href*="/reel/"]');
   if (link) {
     const href = link.getAttribute('href') || '';
@@ -22,7 +19,11 @@ function getArticleId(article: Element): string | null {
     if (match) return match[2];
   }
 
-  // Fallback: use a hash of the article's position and content
+  // Fallback to __igdl_id
+  const igdlId = article.getAttribute('__igdl_id');
+  if (igdlId) return igdlId;
+
+  // Last resort: position-based (not ideal, may cause re-processing)
   const rect = article.getBoundingClientRect();
   const author = article.querySelector('a[href^="/"]')?.getAttribute('href') || '';
   return `pos-${Math.round(rect.top)}-${author}`;
