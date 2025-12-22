@@ -1,9 +1,14 @@
 import { RedditPost, EngagementScore, AppState, Settings, PostImpression } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
+import { scrapeNewRedditPosts, serializeNewRedditPost } from './scraper-new';
 import { reorderPosts, recordImpressions } from './reorder';
 import { setupObserver, setupRESObserver } from './observer';
+import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
+
+// Track which Reddit version we're on
+let redditVersion: 'old' | 'new' | null = null;
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -49,7 +54,7 @@ function injectLoadingStyles(): void {
 
   const style = document.createElement('style');
   style.textContent = `
-    /* Blur/fade effect on posts during loading */
+    /* Blur/fade effect on posts during loading - Old Reddit */
     #siteTable.tolerance-loading .thing {
       filter: blur(2px);
       opacity: 0.5;
@@ -59,6 +64,19 @@ function injectLoadingStyles(): void {
 
     #siteTable .thing {
       transition: filter 0.2s ease, opacity 0.2s ease;
+    }
+
+    /* Blur/fade effect on posts during loading - New Reddit */
+    shreddit-feed.tolerance-loading shreddit-post {
+      filter: blur(2px);
+      opacity: 0.5;
+      transition: filter 0.2s ease, opacity 0.2s ease;
+      pointer-events: none;
+    }
+
+    shreddit-post {
+      transition: filter 0.2s ease, opacity 0.2s ease;
+      position: relative;
     }
 
     /* Loading spinner overlay */
@@ -102,11 +120,9 @@ function injectLoadingStyles(): void {
       to { transform: rotate(360deg); }
     }
 
-    /* Score badges - positioned on left below post rank */
+    /* Score badges - base styles */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 37px !important;
-      left: 0 !important;
       padding: 2px 6px !important;
       border-radius: 10px !important;
       font-size: 10px !important;
@@ -123,6 +139,18 @@ function injectLoadingStyles(): void {
     .tolerance-score-badge.high { background: #e74c3c !important; }
     .tolerance-score-badge.medium { background: #f39c12 !important; }
     .tolerance-score-badge.low { background: #27ae60 !important; }
+
+    /* Old Reddit badges - below post rank on left */
+    .thing .tolerance-score-badge {
+      top: 37px !important;
+      left: 0 !important;
+    }
+
+    /* New Reddit badges - left of subreddit icon */
+    shreddit-post .tolerance-score-badge {
+      top: 8px !important;
+      left: -12px !important;
+    }
 
     /* Badge tooltip - appears to the right */
     .tolerance-score-badge .tolerance-tooltip {
@@ -188,14 +216,20 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
     return;
   }
 
-  // Ensure element has position for absolute positioning to work
-  if (getComputedStyle(element).position === 'static') {
-    element.style.position = 'relative';
-  }
-
   const badge = document.createElement('div');
   badge.className = `tolerance-score-badge ${info.bucket}`;
   badge.textContent = String(Math.round(info.score));
+
+  // Handle different DOM structures for old vs new Reddit
+  if (element.tagName === 'SHREDDIT-POST') {
+    // New Reddit: shreddit-post already has position:relative from our CSS
+    // Badge positioning handled by CSS
+  } else {
+    // Old Reddit: ensure element has position for absolute positioning
+    if (getComputedStyle(element).position === 'static') {
+      element.style.position = 'relative';
+    }
+  }
 
   // Build tooltip content
   const tooltip = document.createElement('div');
@@ -245,18 +279,24 @@ function createLoaderElement(): HTMLElement {
 
 function showLoading(): void {
   injectLoadingStyles();
-  const siteTable = document.querySelector('#siteTable');
-  if (siteTable) {
-    siteTable.classList.add('tolerance-loading');
+  // Add loading class to appropriate container based on Reddit version
+  const container = redditVersion === 'new'
+    ? document.querySelector('shreddit-feed')
+    : document.querySelector('#siteTable');
+  if (container) {
+    container.classList.add('tolerance-loading');
   }
   const loader = createLoaderElement();
   loader.classList.add('visible');
 }
 
 function hideLoading(): void {
-  const siteTable = document.querySelector('#siteTable');
-  if (siteTable) {
-    siteTable.classList.remove('tolerance-loading');
+  // Remove loading class from appropriate container
+  const container = redditVersion === 'new'
+    ? document.querySelector('shreddit-feed')
+    : document.querySelector('#siteTable');
+  if (container) {
+    container.classList.remove('tolerance-loading');
   }
   const loader = document.querySelector('.tolerance-loader');
   if (loader) {
@@ -273,6 +313,12 @@ function isOldReddit(): boolean {
   return document.querySelector('#siteTable') !== null;
 }
 
+// Check if we're on new Reddit (uses shreddit-* custom elements)
+function isNewReddit(): boolean {
+  return document.querySelector('shreddit-feed') !== null ||
+         document.querySelector('shreddit-post') !== null;
+}
+
 // Check if we're on a comments page (not the main feed)
 function isCommentsPage(): boolean {
   return window.location.pathname.includes('/comments/');
@@ -282,21 +328,49 @@ function isCommentsPage(): boolean {
 async function init(): Promise<void> {
   log.debug(' Content script loaded on', window.location.href);
 
-  // Only run on old Reddit interface
-  if (!isOldReddit()) {
-    log.debug(' Not old Reddit interface, waiting for DOM or skipping...');
-    // Try again after a short delay (page might still be loading)
+  // Detect Reddit version
+  if (isOldReddit()) {
+    redditVersion = 'old';
+    log.debug(' Old Reddit detected');
+    await initOldReddit();
+  } else if (isNewReddit()) {
+    redditVersion = 'new';
+    log.debug(' New Reddit detected');
+    await initNewReddit();
+  } else {
+    // Page might still be loading, wait and try again
+    log.debug(' Reddit version not detected, waiting for DOM...');
     setTimeout(() => {
       if (isOldReddit()) {
-        initCore();
+        redditVersion = 'old';
+        log.debug(' Old Reddit detected (delayed)');
+        initOldReddit();
+      } else if (isNewReddit()) {
+        redditVersion = 'new';
+        log.debug(' New Reddit detected (delayed)');
+        initNewReddit();
       } else {
-        log.debug(' New Reddit detected, extension inactive (old Reddit only for now)');
+        log.debug(' Could not detect Reddit version, extension inactive');
       }
     }, 1000);
-    return;
   }
+}
 
+// Initialize for old Reddit
+async function initOldReddit(): Promise<void> {
   await initCore();
+  setupObserver(handleNewPosts);
+  setupRESObserver(handleNewPosts);
+}
+
+// Initialize for new Reddit
+async function initNewReddit(): Promise<void> {
+  await initCore();
+  setupNewRedditObserver(handleNewPosts, () => {
+    // Clear processed posts on navigation so new page's posts get analyzed
+    log.debug(' Clearing processed posts for new Reddit navigation');
+    processedPostIds.clear();
+  });
 }
 
 async function initCore(): Promise<void> {
@@ -334,10 +408,6 @@ async function initCore(): Promise<void> {
 
   // Process initial posts
   await processPosts();
-
-  // Set up observer for infinite scroll
-  setupObserver(handleNewPosts);
-  setupRESObserver(handleNewPosts);
 }
 
 function calculateBaselineDaysRemaining(): number {
@@ -357,8 +427,10 @@ async function handleNewPosts(): Promise<void> {
 async function processPosts(): Promise<void> {
   const t0 = performance.now();
 
-  // Scrape all visible posts
-  const allPosts = scrapeVisiblePosts();
+  // Scrape all visible posts using appropriate scraper
+  const allPosts = redditVersion === 'new'
+    ? scrapeNewRedditPosts()
+    : scrapeVisiblePosts();
   const t1 = performance.now();
 
   // Filter to only new posts we haven't processed
@@ -383,7 +455,9 @@ async function processPosts(): Promise<void> {
     }
 
     // Get scores from background
-    const serializedPosts = newPosts.map(serializePost);
+    const serializedPosts = redditVersion === 'new'
+      ? newPosts.map(serializeNewRedditPost)
+      : newPosts.map(serializePost);
     const t2 = performance.now();
     const scoreResult = await sendMessage({
       type: 'SCORE_POSTS',
@@ -413,11 +487,16 @@ async function processPosts(): Promise<void> {
 
     let impressions: PostImpression[];
 
-    log.debug(` Current mode = ${currentState?.mode}`);
+    log.debug(` Current mode = ${currentState?.mode}, redditVersion = ${redditVersion}`);
 
     if (currentState?.mode === 'baseline') {
       // Baseline mode: just record, don't reorder
       log.debug(' Baseline mode - skipping reorder');
+      impressions = recordImpressions(newPosts, scores);
+    } else if (redditVersion === 'new') {
+      // New Reddit: skip reordering (SPA architecture makes it complex)
+      // Just record impressions and show badges
+      log.debug(' New Reddit - skipping reorder, badges only');
       impressions = recordImpressions(newPosts, scores);
     } else {
       // Active mode: reorder according to fixed interval schedule
