@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tolerance",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Make social media boring again",
   "browser_specific_settings": {
     "gecko": {
