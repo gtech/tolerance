@@ -102,18 +102,18 @@ function injectLoadingStyles(): void {
       to { transform: rotate(360deg); }
     }
 
-    /* Score badges */
+    /* Score badges - positioned on left below post rank */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 4px !important;
-      right: 4px !important;
-      padding: 2px 8px !important;
-      border-radius: 12px !important;
-      font-size: 11px !important;
+      top: 32px !important;
+      left: 0 !important;
+      padding: 2px 6px !important;
+      border-radius: 10px !important;
+      font-size: 10px !important;
       font-weight: 600 !important;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
       color: white !important;
-      opacity: 0.85 !important;
+      opacity: 0.9 !important;
       z-index: 9999 !important;
       pointer-events: auto !important;
       cursor: help !important;
