@@ -105,7 +105,7 @@ function injectLoadingStyles(): void {
     /* Score badges - positioned on left below post rank */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 32px !important;
+      top: 42px !important;
       left: 0 !important;
       padding: 2px 6px !important;
       border-radius: 10px !important;
@@ -124,14 +124,15 @@ function injectLoadingStyles(): void {
     .tolerance-score-badge.medium { background: #f39c12 !important; }
     .tolerance-score-badge.low { background: #27ae60 !important; }
 
-    /* Badge tooltip */
+    /* Badge tooltip - appears to the right */
     .tolerance-score-badge .tolerance-tooltip {
       visibility: hidden;
       opacity: 0;
       position: absolute;
-      bottom: 100%;
-      right: 0;
-      margin-bottom: 8px;
+      top: 50%;
+      left: 100%;
+      transform: translateY(-50%);
+      margin-left: 8px;
       padding: 8px 12px;
       background: rgba(20, 20, 20, 0.95);
       color: #e0e0e0;
