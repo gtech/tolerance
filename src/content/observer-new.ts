@@ -85,6 +85,22 @@ function observeFeed(feed: Element, callback: () => void): void {
     subtree: true,
   });
 
+  // Fallback: also check on scroll since Reddit's lazy loading might not trigger mutations
+  let scrollDebounce: ReturnType<typeof setTimeout> | null = null;
+  let lastPostCount = feed.querySelectorAll('shreddit-post:not([promoted])').length;
+
+  window.addEventListener('scroll', () => {
+    if (scrollDebounce) clearTimeout(scrollDebounce);
+    scrollDebounce = setTimeout(() => {
+      const currentCount = feed.querySelectorAll('shreddit-post:not([promoted])').length;
+      if (currentCount > lastPostCount) {
+        log.debug(` Scroll detected ${currentCount - lastPostCount} new posts (${lastPostCount} -> ${currentCount})`);
+        lastPostCount = currentCount;
+        callback();
+      }
+    }, 300);
+  }, { passive: true });
+
   log.debug(' New Reddit observer set up on shreddit-feed');
 }
 
