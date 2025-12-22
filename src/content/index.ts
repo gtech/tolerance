@@ -423,6 +423,43 @@ async function handleNewPosts(): Promise<void> {
   await processPosts();
 }
 
+// Pre-fetch images as base64 for posts (needed for Reddit since their servers block API requests)
+async function prefetchImagesAsBase64<T extends { imageUrl?: string; thumbnailUrl?: string }>(
+  posts: T[]
+): Promise<T[]> {
+  const results = await Promise.all(
+    posts.map(async (post) => {
+      const updatedPost = { ...post };
+
+      // Try to convert imageUrl to base64
+      if (post.imageUrl && !post.imageUrl.startsWith('data:')) {
+        try {
+          const base64 = await fetchImageAsBase64(post.imageUrl);
+          updatedPost.imageUrl = base64;
+          log.debug(` Converted imageUrl to base64 for post`);
+        } catch (err) {
+          log.debug(` Failed to fetch image: ${err}`);
+          // Keep original URL as fallback
+        }
+      }
+
+      // Try to convert thumbnailUrl to base64
+      if (post.thumbnailUrl && !post.thumbnailUrl.startsWith('data:') && post.thumbnailUrl !== post.imageUrl) {
+        try {
+          const base64 = await fetchImageAsBase64(post.thumbnailUrl);
+          updatedPost.thumbnailUrl = base64;
+        } catch (err) {
+          // Keep original URL as fallback
+        }
+      }
+
+      return updatedPost;
+    })
+  );
+
+  return results;
+}
+
 // Main processing function
 async function processPosts(): Promise<void> {
   const t0 = performance.now();
@@ -454,10 +491,17 @@ async function processPosts(): Promise<void> {
       processedPostIds.add(post.id);
     }
 
-    // Get scores from background
-    const serializedPosts = redditVersion === 'new'
+    // Serialize posts
+    let serializedPosts = redditVersion === 'new'
       ? newPosts.map(serializeNewRedditPost)
       : newPosts.map(serializePost);
+
+    // For new Reddit, pre-fetch images as base64 (Reddit blocks API servers from fetching directly)
+    if (redditVersion === 'new') {
+      serializedPosts = await prefetchImagesAsBase64(serializedPosts);
+    }
+
+    // Get scores from background
     const t2 = performance.now();
     const scoreResult = await sendMessage({
       type: 'SCORE_POSTS',
