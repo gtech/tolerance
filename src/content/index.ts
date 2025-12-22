@@ -124,7 +124,7 @@ function injectLoadingStyles(): void {
     .tolerance-score-badge {
       position: absolute !important;
       top: 8px !important;
-      left: 8px !important;
+      left: -12px !important;
       padding: 2px 6px !important;
       border-radius: 10px !important;
       font-size: 10px !important;

@@ -91,6 +91,9 @@ function setupNavigationListener(callback: () => void, onNavigate?: () => void):
     }, 100);
   };
 
+  // Track current URL to detect changes
+  let lastUrl = window.location.href;
+
   const handleNavigation = () => {
     log.debug(' Navigation detected, re-setting up observer');
 
@@ -150,6 +153,16 @@ function setupNavigationListener(callback: () => void, onNavigate?: () => void):
     originalReplaceState(...args);
     // Don't trigger for replaceState as it's often used for scroll position updates
   };
+
+  // Fallback: poll for URL changes (in case pushState interception doesn't work)
+  setInterval(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrl) {
+      log.debug(' URL change detected via polling:', lastUrl, '->', currentUrl);
+      lastUrl = currentUrl;
+      handleNavigation();
+    }
+  }, 500);
 }
 
 // Cleanup function
