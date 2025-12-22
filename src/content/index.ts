@@ -356,7 +356,11 @@ async function initOldReddit(): Promise<void> {
 // Initialize for new Reddit
 async function initNewReddit(): Promise<void> {
   await initCore();
-  setupNewRedditObserver(handleNewPosts);
+  setupNewRedditObserver(handleNewPosts, () => {
+    // Clear processed posts on navigation so new page's posts get analyzed
+    log.debug(' Clearing processed posts for new Reddit navigation');
+    processedPostIds.clear();
+  });
 }
 
 async function initCore(): Promise<void> {

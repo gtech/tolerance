@@ -6,7 +6,7 @@ import { log } from '../shared/constants';
 let feedObserver: MutationObserver | null = null;
 let bodyObserver: MutationObserver | null = null;
 
-export function setupNewRedditObserver(callback: () => void): void {
+export function setupNewRedditObserver(callback: () => void, onNavigate?: () => void): void {
   // Debounce the callback to avoid rapid-fire calls
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   const debouncedCallback = () => {
@@ -38,7 +38,7 @@ export function setupNewRedditObserver(callback: () => void): void {
   }
 
   // Also listen for SPA navigation events
-  setupNavigationListener(debouncedCallback);
+  setupNavigationListener(debouncedCallback, onNavigate);
 }
 
 function observeFeed(feed: Element, callback: () => void): void {
@@ -81,13 +81,59 @@ function observeFeed(feed: Element, callback: () => void): void {
   log.debug(' New Reddit observer set up on shreddit-feed');
 }
 
-function setupNavigationListener(callback: () => void): void {
+function setupNavigationListener(callback: () => void, onNavigate?: () => void): void {
+  // Debounce the callback
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const debouncedCallback = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      callback();
+    }, 100);
+  };
+
+  const handleNavigation = () => {
+    log.debug(' Navigation detected, re-setting up observer');
+
+    // Call navigation callback to clear processed posts etc.
+    if (onNavigate) onNavigate();
+
+    // Disconnect existing observers - the feed element may have been replaced
+    if (feedObserver) {
+      feedObserver.disconnect();
+      feedObserver = null;
+    }
+
+    // Wait for new content to load, then re-setup observer
+    setTimeout(() => {
+      const feed = document.querySelector('shreddit-feed');
+      if (feed) {
+        log.debug(' Found new shreddit-feed after navigation');
+        observeFeed(feed, debouncedCallback);
+        callback(); // Process the new posts
+      } else {
+        log.debug(' No shreddit-feed found after navigation, waiting...');
+        // Set up body observer to wait for feed
+        if (bodyObserver) bodyObserver.disconnect();
+        bodyObserver = new MutationObserver(() => {
+          const feed = document.querySelector('shreddit-feed');
+          if (feed) {
+            log.debug(' shreddit-feed appeared after navigation');
+            bodyObserver?.disconnect();
+            bodyObserver = null;
+            observeFeed(feed, debouncedCallback);
+            callback();
+          }
+        });
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+      }
+    }, 500);
+  };
+
   // New Reddit uses the History API for navigation
   // Listen for popstate events (back/forward navigation)
   window.addEventListener('popstate', () => {
-    log.debug(' Navigation detected (popstate), re-processing posts');
-    // Wait a bit for the new content to load
-    setTimeout(callback, 500);
+    log.debug(' Navigation detected (popstate)');
+    handleNavigation();
   });
 
   // Also intercept pushState/replaceState for SPA navigation
@@ -96,8 +142,8 @@ function setupNavigationListener(callback: () => void): void {
 
   history.pushState = function(...args) {
     originalPushState(...args);
-    log.debug(' Navigation detected (pushState), re-processing posts');
-    setTimeout(callback, 500);
+    log.debug(' Navigation detected (pushState)');
+    handleNavigation();
   };
 
   history.replaceState = function(...args) {
