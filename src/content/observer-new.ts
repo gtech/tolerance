@@ -47,6 +47,13 @@ function observeFeed(feed: Element, callback: () => void): void {
     feedObserver.disconnect();
   }
 
+  // Process any existing posts immediately
+  const existingPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
+  if (existingPosts.length > 0) {
+    log.debug(` Found ${existingPosts.length} existing posts, triggering callback`);
+    callback();
+  }
+
   feedObserver = new MutationObserver((mutations) => {
     // Check if any shreddit-post elements were added
     let hasNewPosts = false;
