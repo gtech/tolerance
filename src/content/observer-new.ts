@@ -5,6 +5,10 @@ import { log } from '../shared/constants';
 
 let feedObserver: MutationObserver | null = null;
 let bodyObserver: MutationObserver | null = null;
+let postCheckInterval: ReturnType<typeof setInterval> | null = null;
+
+// Track all post IDs we've seen (globally, to detect new ones)
+let knownPostIds = new Set<string>();
 
 export function setupNewRedditObserver(callback: () => void, onNavigate?: () => void): void {
   // Debounce the callback to avoid rapid-fire calls
@@ -42,32 +46,74 @@ export function setupNewRedditObserver(callback: () => void, onNavigate?: () => 
 }
 
 function observeFeed(feed: Element, callback: () => void): void {
-  // Disconnect any existing observer
+  // Disconnect any existing observer and interval
   if (feedObserver) {
     feedObserver.disconnect();
   }
+  if (postCheckInterval) {
+    clearInterval(postCheckInterval);
+  }
+
+  // Helper: Get all current post IDs from the document (not just the feed element)
+  // This ensures we detect posts even if the feed element reference is stale
+  const getCurrentPostIds = (): Set<string> => {
+    const posts = document.querySelectorAll('shreddit-post:not([promoted])');
+    const ids = new Set<string>();
+    for (const post of posts) {
+      const id = post.getAttribute('id');
+      if (id) ids.add(id);
+    }
+    return ids;
+  };
+
+  // Helper: Check for new posts and trigger callback if found
+  const checkForNewPosts = (source: string): boolean => {
+    const currentIds = getCurrentPostIds();
+    let hasNew = false;
+
+    for (const id of currentIds) {
+      if (!knownPostIds.has(id)) {
+        hasNew = true;
+        knownPostIds.add(id);
+      }
+    }
+
+    if (hasNew) {
+      log.debug(` ${source}: New posts detected (total known: ${knownPostIds.size})`);
+      callback();
+    }
+
+    return hasNew;
+  };
+
+  // Initial check - record existing posts
+  const initialIds = getCurrentPostIds();
+  for (const id of initialIds) {
+    knownPostIds.add(id);
+  }
+  log.debug(` Initial posts recorded: ${knownPostIds.size}`);
+
+  // Trigger callback for initial posts
+  if (initialIds.size > 0) {
+    callback();
+  }
 
   // Poll for new posts during initial load (Reddit loads posts progressively)
-  let lastKnownCount = 0;
   let pollCount = 0;
   const maxPolls = 10; // Poll for up to 5 seconds (500ms * 10)
 
   const pollForPosts = () => {
-    const currentPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
-    if (currentPosts.length > lastKnownCount) {
-      log.debug(` Poll found ${currentPosts.length} posts (was ${lastKnownCount}), triggering callback`);
-      lastKnownCount = currentPosts.length;
-      callback();
-    }
+    checkForNewPosts('Poll');
     pollCount++;
     if (pollCount < maxPolls) {
       setTimeout(pollForPosts, 500);
     }
   };
 
-  // Start polling immediately
-  pollForPosts();
+  // Start polling after a short delay (let initial render complete)
+  setTimeout(pollForPosts, 200);
 
+  // MutationObserver on the feed
   feedObserver = new MutationObserver((mutations) => {
     // Check if any shreddit-post elements were added
     let hasNewPosts = false;
@@ -88,8 +134,7 @@ function observeFeed(feed: Element, callback: () => void): void {
     }
 
     if (hasNewPosts) {
-      log.debug(' New posts detected via MutationObserver');
-      callback();
+      checkForNewPosts('MutationObserver');
     }
   });
 
@@ -99,23 +144,37 @@ function observeFeed(feed: Element, callback: () => void): void {
     subtree: true,
   });
 
-  // Fallback: also check on scroll since Reddit's lazy loading might not trigger mutations
+  // Also observe document body in case posts are added outside the feed
+  const bodyMutationObserver = new MutationObserver(() => {
+    // Lightweight check - only run if there might be new posts
+    const currentCount = document.querySelectorAll('shreddit-post:not([promoted])').length;
+    if (currentCount > knownPostIds.size) {
+      checkForNewPosts('BodyObserver');
+    }
+  });
+
+  bodyMutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+
+  // Fallback: check on scroll since Reddit's lazy loading might not trigger mutations
   let scrollDebounce: ReturnType<typeof setTimeout> | null = null;
-  let lastPostCount = feed.querySelectorAll('shreddit-post:not([promoted])').length;
 
   window.addEventListener('scroll', () => {
     if (scrollDebounce) clearTimeout(scrollDebounce);
     scrollDebounce = setTimeout(() => {
-      const currentCount = feed.querySelectorAll('shreddit-post:not([promoted])').length;
-      if (currentCount > lastPostCount) {
-        log.debug(` Scroll detected ${currentCount - lastPostCount} new posts (${lastPostCount} -> ${currentCount})`);
-        lastPostCount = currentCount;
-        callback();
-      }
+      checkForNewPosts('Scroll');
     }, 300);
   }, { passive: true });
 
-  log.debug(' New Reddit observer set up on shreddit-feed');
+  // Ultimate fallback: periodic check every 2 seconds
+  // This catches any posts that slip through other detection methods
+  postCheckInterval = setInterval(() => {
+    checkForNewPosts('Interval');
+  }, 2000);
+
+  log.debug(' New Reddit observer set up with multiple detection methods');
 }
 
 function setupNavigationListener(callback: () => void, onNavigate?: () => void): void {
@@ -137,10 +196,17 @@ function setupNavigationListener(callback: () => void, onNavigate?: () => void):
     // Call navigation callback to clear processed posts etc.
     if (onNavigate) onNavigate();
 
+    // Clear known post IDs so new page's posts are detected
+    knownPostIds.clear();
+
     // Disconnect existing observers - the feed element may have been replaced
     if (feedObserver) {
       feedObserver.disconnect();
       feedObserver = null;
+    }
+    if (postCheckInterval) {
+      clearInterval(postCheckInterval);
+      postCheckInterval = null;
     }
 
     // Wait for new content to load, then re-setup observer
@@ -212,4 +278,9 @@ export function disconnectNewRedditObserver(): void {
     bodyObserver.disconnect();
     bodyObserver = null;
   }
+  if (postCheckInterval) {
+    clearInterval(postCheckInterval);
+    postCheckInterval = null;
+  }
+  knownPostIds.clear();
 }

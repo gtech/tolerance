@@ -10,6 +10,9 @@
 
 ## Facebook
 
+## Custom filters
+- Defined by the types of content you choose to see.
+
 ## Narrative Dasboard
 
 ## Dialectical Countering
