@@ -452,14 +452,8 @@ export async function describeImages(
   ];
 
   for (const url of imageUrls.slice(0, 4)) { // Limit to 4 images
-    // Transform preview.redd.it to i.redd.it for better accessibility
+    // Keep original URL - preview.redd.it URLs have auth tokens in query params
     let imageUrl = url;
-    if (url.includes('preview.redd.it') && !url.includes('external-preview.redd.it')) {
-      const match = url.match(/preview\.redd\.it\/([^?]+)/);
-      if (match) {
-        imageUrl = `https://i.redd.it/${match[1]}`;
-      }
-    }
 
     // Reddit images: fetch via content script and convert to base64
     // Reddit blocks API servers from fetching directly (403 error)
@@ -469,10 +463,14 @@ export async function describeImages(
       if (base64) {
         imageUrl = base64;
         log.debug(` Converted gallery image to base64 (${base64.length} chars)`);
+      } else {
+        // Skip images we can't fetch - gallery will use text-only scoring
+        log.debug(` Skipping gallery image (403 blocked)`);
+        continue;
       }
     }
 
-    log.debug(` Adding image URL: ${imageUrl.slice(0, 60)}...`);
+    log.debug(` Adding image: ${imageUrl.startsWith('data:') ? 'base64' : imageUrl.slice(0, 60)}...`);
     imageContents.push({ type: 'image_url', image_url: { url: imageUrl } });
   }
 
@@ -765,13 +763,8 @@ async function callApi(
       // Transform image URLs for better API accessibility
       let transformedImageUrl = effectiveImageUrl;
 
-      // Reddit: preview.redd.it to i.redd.it (but NOT external-preview.redd.it)
-      if (effectiveImageUrl.includes('preview.redd.it') && !effectiveImageUrl.includes('external-preview.redd.it')) {
-        const match = effectiveImageUrl.match(/preview\.redd\.it\/([^?]+)/);
-        if (match) {
-          transformedImageUrl = `https://i.redd.it/${match[1]}`;
-        }
-      }
+      // Keep preview.redd.it URLs as-is - they have auth tokens in query params
+      // Don't transform to i.redd.it which strips the auth
 
       // Twitter: Convert query-param format to direct URL format
       if (effectiveImageUrl.includes('pbs.twimg.com/media/') && effectiveImageUrl.includes('?format=')) {
@@ -793,20 +786,29 @@ async function callApi(
           transformedImageUrl = base64;
           log.debug(` Converted Reddit image to base64 (${base64.length} chars)`);
         } else {
-          log.debug(` Failed to fetch Reddit image via content script, will try URL directly`);
+          // Can't fetch Reddit image - fall back to text-only scoring
+          log.debug(` Reddit image blocked, falling back to text-only scoring`);
+          messages.push({
+            role: 'user',
+            content: prompt,
+          });
+          transformedImageUrl = ''; // Clear so we don't add image below
         }
       }
 
-      log.debug(` Sending to ${model}, imageUrl=${transformedImageUrl.slice(0, 80)}...`);
+      // Only add image if we have a valid URL/base64
+      if (transformedImageUrl) {
+        log.debug(` Sending to ${model}, image=${transformedImageUrl.startsWith('data:') ? 'base64' : transformedImageUrl.slice(0, 60)}...`);
 
-      // Multimodal message with image URL
-      messages.push({
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: transformedImageUrl } },
-        ],
-      });
+        // Multimodal message with image URL
+        messages.push({
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: transformedImageUrl } },
+          ],
+        });
+      }
     } else {
       messages.push({
         role: 'user',
