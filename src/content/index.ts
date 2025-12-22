@@ -374,23 +374,30 @@ function applyPendingBlur(post: RedditPost): void {
   const element = post.element;
   if (!element) return;
 
+  // Safety check: make sure element is attached to DOM and has content
+  if (!element.isConnected || !element.offsetParent) return;
+
   // Don't blur if already blurred or pending
   if (element.classList.contains('tolerance-blurred') ||
       element.classList.contains('tolerance-pending')) return;
 
-  element.classList.add('tolerance-pending');
+  try {
+    element.classList.add('tolerance-pending');
 
-  // Add overlay with "Scoring..." label
-  if (!element.querySelector('.tolerance-blur-overlay')) {
-    const overlay = document.createElement('div');
-    overlay.className = 'tolerance-blur-overlay';
+    // Add overlay with "Scoring..." label
+    if (!element.querySelector('.tolerance-blur-overlay')) {
+      const overlay = document.createElement('div');
+      overlay.className = 'tolerance-blur-overlay';
 
-    // Block clicks on blurred content
-    overlay.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    element.appendChild(overlay);
+      // Block clicks on blurred content
+      overlay.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      element.appendChild(overlay);
+    }
+  } catch (err) {
+    log.debug(` Failed to apply pending blur: ${err}`);
   }
 }
 
@@ -753,10 +760,25 @@ async function processPosts(): Promise<void> {
   try {
     log.debug(` Processing ${newPosts.length} new posts (scrape: ${(t1 - t0).toFixed(0)}ms)`);
 
-    // Mark as processed and apply pending blur immediately
+    // Mark as processed
     for (const post of newPosts) {
       processedPostIds.add(post.id);
-      applyPendingBlur(post);
+    }
+
+    // Apply pending blur after a short delay to let Reddit finish rendering
+    // (New Reddit uses web components that need time to initialize)
+    if (redditVersion === 'new') {
+      setTimeout(() => {
+        for (const post of newPosts) {
+          if (post.element?.isConnected) {
+            applyPendingBlur(post);
+          }
+        }
+      }, 100);
+    } else {
+      for (const post of newPosts) {
+        applyPendingBlur(post);
+      }
     }
 
     // Serialize posts - for new Reddit, extract images directly from DOM
