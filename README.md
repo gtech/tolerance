@@ -1,6 +1,6 @@
 # Tolerance
 
-**Make social media disinteresting again.**
+**Make social media boring again.**
 
 A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively uninteresting until you'd rather do literally anything else.
 
