@@ -169,7 +169,7 @@ function injectStyles(): void {
       top: -10px !important;
       left: 0 !important;
       right: 0 !important;
-      bottom: 0 !important;
+      bottom: 10px !important;
       backdrop-filter: blur(8px) !important;
       -webkit-backdrop-filter: blur(8px) !important;
       z-index: 50 !important;
