@@ -105,7 +105,7 @@ function injectLoadingStyles(): void {
     /* Score badges - positioned on left below post rank */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 42px !important;
+      top: 37px !important;
       left: 0 !important;
       padding: 2px 6px !important;
       border-radius: 10px !important;
