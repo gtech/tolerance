@@ -47,12 +47,18 @@ function observeFeed(feed: Element, callback: () => void): void {
     feedObserver.disconnect();
   }
 
-  // Process any existing posts immediately
-  const existingPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
-  if (existingPosts.length > 0) {
-    log.debug(` Found ${existingPosts.length} existing posts, triggering callback`);
-    callback();
-  }
+  // Process any existing posts after a short delay to let Reddit finish rendering
+  const checkExistingPosts = () => {
+    const existingPosts = feed.querySelectorAll('shreddit-post:not([promoted])');
+    if (existingPosts.length > 0) {
+      log.debug(` Found ${existingPosts.length} existing posts, triggering callback`);
+      callback();
+    }
+  };
+  // Check immediately and again after a delay
+  checkExistingPosts();
+  setTimeout(checkExistingPosts, 500);
+  setTimeout(checkExistingPosts, 1500);
 
   feedObserver = new MutationObserver((mutations) => {
     // Check if any shreddit-post elements were added
