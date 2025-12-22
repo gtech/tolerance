@@ -234,18 +234,18 @@ function injectStyles(): void {
       to { transform: rotate(360deg); }
     }
 
-    /* Score badges */
+    /* Score badges - positioned below profile image */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 28px !important;
-      right: 8px !important;
-      padding: 2px 8px !important;
-      border-radius: 12px !important;
-      font-size: 11px !important;
+      top: 56px !important;
+      left: 4px !important;
+      padding: 2px 6px !important;
+      border-radius: 10px !important;
+      font-size: 10px !important;
       font-weight: 600 !important;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
       color: white !important;
-      opacity: 0.85 !important;
+      opacity: 0.9 !important;
       z-index: 9999 !important;
       pointer-events: auto !important;
       cursor: help !important;
@@ -264,14 +264,15 @@ function injectStyles(): void {
       pointer-events: auto !important;
     }
 
-    /* Badge tooltip */
+    /* Badge tooltip - appears to the right of badge */
     .tolerance-score-badge .tolerance-tooltip {
       visibility: hidden;
       opacity: 0;
       position: absolute;
-      bottom: 100%;
-      right: 0;
-      margin-bottom: 8px;
+      top: 50%;
+      left: 100%;
+      transform: translateY(-50%);
+      margin-left: 8px;
       padding: 8px 12px;
       background: rgba(20, 20, 20, 0.95);
       color: #e0e0e0;

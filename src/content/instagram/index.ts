@@ -166,7 +166,7 @@ function injectStyles(): void {
     /* Blur overlay for high-engagement content */
     .tolerance-blur-overlay {
       position: absolute !important;
-      top: 0 !important;
+      top: -10px !important;
       left: 0 !important;
       right: 0 !important;
       bottom: 0 !important;
