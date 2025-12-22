@@ -429,25 +429,65 @@ function extractImagesFromDOM(posts: RedditPost[]): Omit<RedditPost, 'element'>[
   return posts.map(post => {
     const { element, ...serialized } = post;
 
-    if (!element || serialized.imageUrl?.startsWith('data:')) {
+    if (!element) {
       return serialized;
     }
 
-    // Try to get base64 from actual img element in DOM
     try {
-      // Find the image element that's already rendered
-      const imgEl = element.querySelector('[slot="post-media-container"] img, shreddit-post-image img, [slot="thumbnail"] img') as HTMLImageElement | null;
+      // For image posts: extract main image
+      if (post.mediaType === 'image' && !serialized.imageUrl?.startsWith('data:')) {
+        const imgEl = element.querySelector('[slot="post-media-container"] img, shreddit-post-image img') as HTMLImageElement | null;
+        if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
+          const base64 = imageElementToBase64(imgEl);
+          if (base64) {
+            serialized.imageUrl = base64;
+            log.debug(` Extracted image from DOM for post ${post.id}`);
+          }
+        }
+      }
 
-      if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
-        const base64 = imageElementToBase64(imgEl);
-        if (base64) {
-          serialized.imageUrl = base64;
-          log.debug(` Extracted image from DOM for post ${post.id}`);
+      // For video/gif posts: extract thumbnail
+      if ((post.mediaType === 'video' || post.mediaType === 'gif') && !serialized.thumbnailUrl?.startsWith('data:')) {
+        const thumbEl = element.querySelector('[slot="thumbnail"] img, shreddit-post-thumbnail img, video[poster]') as HTMLImageElement | HTMLVideoElement | null;
+        if (thumbEl) {
+          if (thumbEl instanceof HTMLImageElement && thumbEl.complete && thumbEl.naturalWidth > 0) {
+            const base64 = imageElementToBase64(thumbEl);
+            if (base64) {
+              serialized.thumbnailUrl = base64;
+              log.debug(` Extracted video thumbnail from DOM for post ${post.id}`);
+            }
+          } else if (thumbEl instanceof HTMLVideoElement && thumbEl.poster) {
+            // Video has poster attribute - try to load it
+            const posterImg = new Image();
+            posterImg.src = thumbEl.poster;
+            if (posterImg.complete && posterImg.naturalWidth > 0) {
+              const base64 = imageElementToBase64(posterImg);
+              if (base64) {
+                serialized.thumbnailUrl = base64;
+                log.debug(` Extracted video poster from DOM for post ${post.id}`);
+              }
+            }
+          }
+        }
+      }
+
+      // Also try thumbnail slot for any post type as fallback
+      if (!serialized.imageUrl?.startsWith('data:') && !serialized.thumbnailUrl?.startsWith('data:')) {
+        const fallbackThumb = element.querySelector('[slot="thumbnail"] img') as HTMLImageElement | null;
+        if (fallbackThumb && fallbackThumb.complete && fallbackThumb.naturalWidth > 0) {
+          const base64 = imageElementToBase64(fallbackThumb);
+          if (base64) {
+            if (post.mediaType === 'image' || post.mediaType === 'gallery') {
+              serialized.imageUrl = base64;
+            } else {
+              serialized.thumbnailUrl = base64;
+            }
+            log.debug(` Extracted fallback thumbnail from DOM for post ${post.id}`);
+          }
         }
       }
     } catch (err) {
       log.debug(` Failed to extract image from DOM: ${err}`);
-      // Keep original URL as fallback
     }
 
     return serialized;
