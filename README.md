@@ -1,18 +1,18 @@
 # Tolerance
 
-**Make social media boring again.**
+**Make social media disinteresting again.**
 
-A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively boring until you'd rather do literally anything else.
+A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively uninteresting until you'd rather do literally anything else.
 
 [Website](https://tolerance.lol) · [Download](https://github.com/gtech/tolerance/releases)
 
 ## How it works
 
-1. **Every post gets scored** — AI analyzes each piece of content for manipulation signals: outrage bait, curiosity gaps, tribal triggers, engagement farming.
+1. **Every post gets scored.** AI analyzes each piece of content for manipulation signals: outrage bait, curiosity gaps, tribal triggers, engagement farming.
 
-2. **The feed gets boring over time** — For the first 15 minutes, you browse normally. Then Tolerance starts blurring the most manipulative content. The longer you scroll, the more gets blurred.
+2. **The feed gets boring over time.** For the first 15 minutes, you browse normally. Then Tolerance starts blurring the most manipulative content. The longer you scroll, the more gets blurred.
 
-3. **You leave because you're bored, not blocked** — Blocking creates craving. Boredom creates freedom. You close the tab because there's nothing interesting left.
+3. **You leave because you're bored, not blocked.** Blocking creates craving. Boredom creates freedom. You reclaim your feed and close the tab on your own terms.
 
 ## Supported platforms
 
@@ -90,9 +90,9 @@ Daily feedback ("too restricted / balanced / too easy") adjusts thresholds autom
 
 ## Privacy
 
-- **No tracking** — No analytics, no telemetry
-- **No accounts** — Everything stored locally
-- **Open source** — Read the code
+- **No tracking.** No analytics, no telemetry.
+- **No accounts.** Everything stored locally.
+- **Open source.** Read the code.
 
 Post titles and content are sent to OpenRouter for scoring. Nothing else leaves your browser.
 
@@ -156,6 +156,7 @@ src/
 
 **YouTube:** For best results, disable video previews:
 Settings → Playback and performance → uncheck "Video previews"
+
 
 ETH: 0x000047da31d416b657a1c415467cdd57bc4ed9a7
 Ko-fi: https://ko-fi.com/tolerance

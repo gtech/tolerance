@@ -75,9 +75,40 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
+// Track active tab for image fetching
+let activeContentScriptTabId: number | null = null;
+
+// Fetch image as base64 via content script (needed for Reddit images that block API servers)
+export async function fetchImageViaContentScript(url: string): Promise<string | null> {
+  if (!activeContentScriptTabId) {
+    log.debug(' No active content script tab for image fetch');
+    return null;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(activeContentScriptTabId, {
+      type: 'FETCH_IMAGE_BASE64',
+      url,
+    });
+
+    if (response?.success && response.base64) {
+      return response.base64;
+    }
+    log.debug(` Image fetch failed: ${response?.error || 'unknown error'}`);
+    return null;
+  } catch (err) {
+    log.debug(` Image fetch error: ${err}`);
+    return null;
+  }
+}
+
 // Message handler for content script communication
 // Also handles heartbeats from tracker.js on other social media sites
 chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, sender, sendResponse) => {
+  // Track sender tab for potential image fetch requests
+  if (sender.tab?.id) {
+    activeContentScriptTabId = sender.tab.id;
+  }
   // Handle SOCIAL_MEDIA_HEARTBEAT separately (comes from tracker.js, not typed in MessageType)
   if (message.type === 'SOCIAL_MEDIA_HEARTBEAT') {
     recordHeartbeat().then(() => {

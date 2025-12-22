@@ -4,6 +4,7 @@ import { log } from '../shared/constants';
 
 import { getSettings } from './storage';
 import { ApiProviderConfig } from '../shared/types';
+import { fetchImageViaContentScript } from './index';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -445,7 +446,7 @@ export async function describeImages(
 
   const prompt = `Briefly describe each image in 1-2 sentences. Focus on: subject matter, emotional tone, any text visible, and whether it seems designed to provoke reactions.`;
 
-  // Send URLs directly (vision models can fetch them)
+  // Build image content with URLs
   const imageContents: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
     { type: 'text', text: prompt }
   ];
@@ -459,7 +460,19 @@ export async function describeImages(
         imageUrl = `https://i.redd.it/${match[1]}`;
       }
     }
-    log.debug(` Adding image URL: ${imageUrl}`);
+
+    // Reddit images: fetch via content script and convert to base64
+    // Reddit blocks API servers from fetching directly (403 error)
+    if (imageUrl.includes('redd.it') && !imageUrl.startsWith('data:')) {
+      log.debug(` Fetching Reddit gallery image via content script: ${imageUrl.slice(0, 60)}...`);
+      const base64 = await fetchImageViaContentScript(imageUrl);
+      if (base64) {
+        imageUrl = base64;
+        log.debug(` Converted gallery image to base64 (${base64.length} chars)`);
+      }
+    }
+
+    log.debug(` Adding image URL: ${imageUrl.slice(0, 60)}...`);
     imageContents.push({ type: 'image_url', image_url: { url: imageUrl } });
   }
 
@@ -768,6 +781,19 @@ async function callApi(
           const format = mediaMatch[2];
           transformedImageUrl = `https://pbs.twimg.com/media/${mediaId}.${format}`;
           log.debug(` Transformed Twitter URL: ${effectiveImageUrl.slice(0, 50)}... -> ${transformedImageUrl}`);
+        }
+      }
+
+      // Reddit images: fetch via content script and convert to base64
+      // Reddit blocks API servers from fetching directly (403 error)
+      if (transformedImageUrl.includes('redd.it') && !transformedImageUrl.startsWith('data:')) {
+        log.debug(` Fetching Reddit image via content script: ${transformedImageUrl.slice(0, 60)}...`);
+        const base64 = await fetchImageViaContentScript(transformedImageUrl);
+        if (base64) {
+          transformedImageUrl = base64;
+          log.debug(` Converted Reddit image to base64 (${base64.length} chars)`);
+        } else {
+          log.debug(` Failed to fetch Reddit image via content script, will try URL directly`);
         }
       }
 

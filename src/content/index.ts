@@ -679,7 +679,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function fetchImageAsBase64(url: string): Promise<string> {
   // Transform preview.redd.it URLs to i.redd.it (often more accessible)
   let fetchUrl = url;
-  if (url.includes('preview.redd.it')) {
+  if (url.includes('preview.redd.it') && !url.includes('external-preview.redd.it')) {
     // Extract the image ID and extension from preview URL
     const match = url.match(/preview\.redd\.it\/([^?]+)/);
     if (match) {
@@ -688,55 +688,83 @@ async function fetchImageAsBase64(url: string): Promise<string> {
     }
   }
 
-  // Try loading via img element and canvas
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
+  // Use fetch API which works better in content scripts (no CORS restrictions for same-site)
+  try {
+    const response = await fetch(fetchUrl, {
+      credentials: 'omit', // Don't send cookies
+    });
 
-    const timeout = setTimeout(() => {
-      reject(new Error('Image load timeout'));
-    }, 10000);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-    img.onload = () => {
-      clearTimeout(timeout);
-      try {
-        // Limit size to reduce memory/bandwidth
-        const maxDim = 1024;
-        let width = img.naturalWidth;
-        let height = img.naturalHeight;
+    const blob = await response.blob();
+    const contentType = blob.type || 'image/jpeg';
 
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
+    // Convert blob to data URL
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        log.debug(` Image converted successfully via fetch: ${result.length} chars`);
+        resolve(result);
+      };
+      reader.onerror = () => reject(new Error('FileReader failed'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (fetchError) {
+    log.debug(` Fetch failed (${fetchError}), trying img element fallback`);
+
+    // Fallback to img element + canvas approach
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Image load timeout'));
+      }, 10000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          // Limit size to reduce memory/bandwidth
+          const maxDim = 1024;
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          log.debug(` Image converted via canvas: ${width}x${height}, ${dataUrl.length} chars`);
+          resolve(dataUrl);
+        } catch (e) {
+          reject(new Error(`Canvas export failed: ${e}`));
         }
+      };
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Image load failed'));
+      };
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Could not get canvas context'));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        log.debug(` Image converted successfully: ${width}x${height}, ${dataUrl.length} chars`);
-        resolve(dataUrl);
-      } catch (e) {
-        reject(new Error(`Canvas export failed: ${e}`));
-      }
-    };
-
-    img.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error('Image load failed'));
-    };
-
-    img.src = fetchUrl;
-  });
+      img.src = fetchUrl;
+    });
+  }
 }
 
 // Initialize when DOM is ready

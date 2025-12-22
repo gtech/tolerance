@@ -238,6 +238,10 @@ export async function logCalibration(
   // Only store API reason/response if setting allows it
   const storeReason = settings.calibration?.storeApiReason !== false;
 
+  // Don't store base64 data URLs - only store actual URLs
+  const imageUrl = metadata?.imageUrl?.startsWith('data:') ? undefined : metadata?.imageUrl;
+  const thumbnailUrl = metadata?.thumbnailUrl?.startsWith('data:') ? undefined : metadata?.thumbnailUrl;
+
   await db.put('calibration', {
     postId,
     heuristicScore,
@@ -257,9 +261,9 @@ export async function logCalibration(
     isNsfw: metadata?.isNsfw,
     domain: metadata?.domain,
     createdUtc: metadata?.createdUtc,
-    // Media URLs
-    imageUrl: metadata?.imageUrl,
-    thumbnailUrl: metadata?.thumbnailUrl,
+    // Media URLs (only actual URLs, not base64)
+    imageUrl,
+    thumbnailUrl,
     // API response data
     apiReason: storeReason ? metadata?.apiReason : undefined,
     apiFullResponse: storeReason ? metadata?.apiFullResponse : undefined,
