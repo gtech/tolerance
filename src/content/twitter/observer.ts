@@ -5,12 +5,18 @@ import { log } from '../../shared/constants';
 
 let timelineObserver: MutationObserver | null = null;
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_MS = 500; // Twitter updates frequently, debounce aggressively
+let scrollCheckInterval: ReturnType<typeof setInterval> | null = null;
+let lastCallTime = 0;
+let lastKnownTweetCount = 0;
+const THROTTLE_MS = 1000; // Process at most once per second
 
 export function setupTwitterObserver(callback: () => Promise<void>): void {
   // Disconnect existing observer if any
   if (timelineObserver) {
     timelineObserver.disconnect();
+  }
+  if (scrollCheckInterval) {
+    clearInterval(scrollCheckInterval);
   }
 
   // Wait for timeline to exist
@@ -24,14 +30,39 @@ export function setupTwitterObserver(callback: () => Promise<void>): void {
 
     log.debug(' Setting up Twitter timeline observer');
 
+    // Throttled callback - ensures we don't spam processing
+    const throttledCallback = (source: string) => {
+      const now = Date.now();
+      const timeSinceLastCall = now - lastCallTime;
+
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = null;
+      }
+
+      // If it's been long enough since last call, trigger immediately
+      if (timeSinceLastCall >= THROTTLE_MS) {
+        lastCallTime = now;
+        log.debug(` Twitter observer triggered (${source})`);
+        callback();
+      } else {
+        // Schedule for when throttle period ends
+        const delay = THROTTLE_MS - timeSinceLastCall;
+        debounceTimeout = setTimeout(() => {
+          lastCallTime = Date.now();
+          log.debug(` Twitter observer triggered (${source}, delayed)`);
+          callback();
+        }, delay);
+      }
+    };
+
+    // MutationObserver for DOM changes
     timelineObserver = new MutationObserver((mutations) => {
-      // Only process if actual tweet-like nodes were added
       let hasNewTweets = false;
 
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node instanceof HTMLElement) {
-            // Check if this contains a tweet
             if (
               node.querySelector?.('[data-testid="tweet"]') ||
               node.matches?.('[data-testid="cellInnerDiv"]')
@@ -45,13 +76,7 @@ export function setupTwitterObserver(callback: () => Promise<void>): void {
       }
 
       if (hasNewTweets) {
-        // Debounce to avoid processing during rapid scroll
-        if (debounceTimeout) {
-          clearTimeout(debounceTimeout);
-        }
-        debounceTimeout = setTimeout(() => {
-          callback();
-        }, DEBOUNCE_MS);
+        throttledCallback('mutation');
       }
     });
 
@@ -59,6 +84,46 @@ export function setupTwitterObserver(callback: () => Promise<void>): void {
       childList: true,
       subtree: true,
     });
+
+    // Scroll-based fallback - Twitter's virtualization may not always trigger mutations
+    // Check every 500ms while scrolling for new tweets
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isScrolling = false;
+
+    const checkForNewTweets = () => {
+      const currentCount = document.querySelectorAll('[data-testid="tweet"]').length;
+      if (currentCount !== lastKnownTweetCount) {
+        log.debug(` Tweet count changed: ${lastKnownTweetCount} -> ${currentCount}`);
+        lastKnownTweetCount = currentCount;
+        throttledCallback('scroll-check');
+      }
+    };
+
+    window.addEventListener('scroll', () => {
+      isScrolling = true;
+
+      // Clear existing scroll end timeout
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+
+      // Mark scroll as ended after 200ms of no scroll events
+      scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        // Final check when scrolling stops
+        checkForNewTweets();
+      }, 200);
+    }, { passive: true });
+
+    // Periodic check during scroll - catches tweets that slip through
+    scrollCheckInterval = setInterval(() => {
+      if (isScrolling) {
+        checkForNewTweets();
+      }
+    }, 500);
+
+    // Initial tweet count
+    lastKnownTweetCount = document.querySelectorAll('[data-testid="tweet"]').length;
   };
 
   // Start looking for timeline
@@ -97,4 +162,9 @@ export function disconnectObservers(): void {
     clearTimeout(debounceTimeout);
     debounceTimeout = null;
   }
+  if (scrollCheckInterval) {
+    clearInterval(scrollCheckInterval);
+    scrollCheckInterval = null;
+  }
+  lastKnownTweetCount = 0;
 }
