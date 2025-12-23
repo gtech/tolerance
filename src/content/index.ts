@@ -374,8 +374,9 @@ function applyPendingBlur(post: RedditPost): void {
   const element = post.element;
   if (!element) return;
 
-  // Safety check: make sure element is attached to DOM and has content
-  if (!element.isConnected || !element.offsetParent) return;
+  // Safety check: make sure element is attached to DOM
+  // Note: Don't check offsetParent - it can be null for web components like shreddit-post
+  if (!element.isConnected) return;
 
   // Don't blur if already blurred or pending
   if (element.classList.contains('tolerance-blurred') ||
@@ -765,20 +766,11 @@ async function processPosts(): Promise<void> {
       processedPostIds.add(post.id);
     }
 
-    // Apply pending blur after a short delay to let Reddit finish rendering
-    // (New Reddit uses web components that need time to initialize)
-    if (redditVersion === 'new') {
-      setTimeout(() => {
-        for (const post of newPosts) {
-          if (post.element?.isConnected) {
-            applyPendingBlur(post);
-          }
-        }
-      }, 100);
-    } else {
-      for (const post of newPosts) {
-        applyPendingBlur(post);
-      }
+    // Apply pending blur synchronously
+    // Note: We used to delay for new Reddit, but this caused race conditions
+    // where scoring completed before blur was applied, leaving permanent "Scoring..." overlay
+    for (const post of newPosts) {
+      applyPendingBlur(post);
     }
 
     // Serialize posts - for new Reddit, extract images directly from DOM

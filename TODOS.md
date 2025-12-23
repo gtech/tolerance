@@ -17,6 +17,7 @@
 
 ## Dialectical Countering
 - Inject counter content
+- e.g. homeless child star: homelessness trends from official databases, and counter-meme showing improvements and interventions
 
 ## Intent Matching
 
