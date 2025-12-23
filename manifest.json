@@ -15,18 +15,6 @@
     "alarms"
   ],
   "host_permissions": [
-    "*://old.reddit.com/*",
-    "*://www.reddit.com/*",
-    "*://www.rescuetime.com/*",
-    "*://twitter.com/*",
-    "*://x.com/*",
-    "*://www.facebook.com/*",
-    "*://www.instagram.com/*",
-    "*://www.tiktok.com/*",
-    "*://www.youtube.com/*",
-    "*://openrouter.ai/*",
-    "http://localhost:*/*",
-    "http://127.0.0.1:*/*",
     "<all_urls>"
   ],
   "background": {
