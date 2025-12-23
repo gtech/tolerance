@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tolerance",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Make social media boring again",
   "browser_specific_settings": {
     "gecko": {
@@ -26,7 +26,26 @@
     "alarms"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "*://old.reddit.com/*",
+    "*://www.reddit.com/*",
+    "*://reddit.com/*",
+    "*://twitter.com/*",
+    "*://x.com/*",
+    "*://www.youtube.com/*",
+    "*://www.instagram.com/*",
+    "*://www.facebook.com/*",
+    "*://www.tiktok.com/*",
+    "*://openrouter.ai/*",
+    "*://api.openai.com/*",
+    "*://api.anthropic.com/*",
+    "*://api.groq.com/*",
+    "*://api.together.xyz/*",
+    "*://api.mistral.ai/*",
+    "*://api.fireworks.ai/*",
+    "*://api.perplexity.ai/*",
+    "*://api.cohere.ai/*",
+    "*://generativelanguage.googleapis.com/*",
+    "*://api-inference.huggingface.co/*"
   ],
   "background": {
     "scripts": [
