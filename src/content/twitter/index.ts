@@ -285,11 +285,7 @@ function injectStyles(): void {
     .tolerance-score-badge .tolerance-tooltip {
       visibility: hidden;
       opacity: 0;
-      position: absolute;
-      bottom: 100%;
-      left: 0;
-      transform: none;
-      margin-bottom: 8px;
+      position: fixed;
       padding: 8px 12px;
       background: rgba(20, 20, 20, 0.95);
       color: #e0e0e0;
@@ -299,7 +295,7 @@ function injectStyles(): void {
       white-space: nowrap;
       box-shadow: 0 2px 8px rgba(0,0,0,0.4);
       transition: opacity 0.15s ease, visibility 0.15s ease;
-      z-index: 10000;
+      z-index: 999999;
       pointer-events: none;
     }
     .tolerance-score-badge:hover .tolerance-tooltip {
@@ -520,6 +516,14 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   }
 
   badge.appendChild(tooltip);
+
+  // Position tooltip on hover (fixed position needs JS positioning)
+  badge.addEventListener('mouseenter', () => {
+    const rect = badge.getBoundingClientRect();
+    tooltip.style.left = `${rect.left}px`;
+    tooltip.style.top = `${rect.top - tooltip.offsetHeight - 8}px`;
+  });
+
   cell.appendChild(badge);
   log.debug(` Badge injected for tweet ${tweet.id}, score=${info.score}, bucket=${info.bucket}`);
 }
