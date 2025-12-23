@@ -715,6 +715,29 @@ async function waitForTimeline(): Promise<void> {
   });
 }
 
+// Wait for tweets to actually appear (they load after the timeline container)
+async function waitForTweets(): Promise<void> {
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const maxAttempts = 20; // 10 seconds max
+
+    const check = () => {
+      const tweets = document.querySelectorAll('[data-testid="tweet"]');
+      if (tweets.length > 0) {
+        log.debug(` Found ${tweets.length} initial tweets`);
+        resolve();
+      } else if (attempts >= maxAttempts) {
+        log.debug(' Timeout waiting for tweets, proceeding anyway');
+        resolve();
+      } else {
+        attempts++;
+        setTimeout(check, 500);
+      }
+    };
+    check();
+  });
+}
+
 async function initCore(): Promise<void> {
   // Get initial state from background
   const stateResult = await sendMessage({ type: 'GET_STATE' });
@@ -772,6 +795,11 @@ async function initCore(): Promise<void> {
     await preloadTweets();
   }
 
+  // Wait for tweets to appear before processing
+  if (!isTweetDetailPage()) {
+    await waitForTweets();
+  }
+
   // Process initial tweets
   await processTweets();
 
@@ -799,6 +827,12 @@ async function initCore(): Promise<void> {
       if (currentState?.mode === 'active' && !isTweetDetailPage() && reorderEnabled) {
         await preloadTweets();
       }
+
+      // Wait for tweets to appear after navigation
+      if (!isTweetDetailPage()) {
+        await waitForTweets();
+      }
+
       await processTweets();
     }, 500);
   });
