@@ -239,7 +239,14 @@ function injectStyles(): void {
       position: absolute !important;
       top: 71px !important;
       left: 4px !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: fit-content !important;
+      height: fit-content !important;
+      max-width: 40px !important;
+      min-width: 0 !important;
       padding: 2px 6px !important;
+      margin: 0 !important;
       border-radius: 10px !important;
       font-size: 10px !important;
       font-weight: 600 !important;
@@ -250,12 +257,17 @@ function injectStyles(): void {
       pointer-events: auto !important;
       cursor: help !important;
       box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
-      display: inline-block !important;
-      width: auto !important;
-      height: auto !important;
-      right: auto !important;
-      bottom: auto !important;
+      display: block !important;
+      flex: none !important;
+      flex-grow: 0 !important;
+      flex-shrink: 0 !important;
+      flex-basis: auto !important;
+      align-self: auto !important;
+      justify-self: auto !important;
+      grid-area: auto !important;
       line-height: 1.2 !important;
+      text-align: center !important;
+      box-sizing: border-box !important;
     }
     .tolerance-score-badge.high { background: #e74c3c !important; }
     .tolerance-score-badge.medium { background: #f39c12 !important; }
