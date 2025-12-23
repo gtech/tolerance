@@ -281,39 +281,10 @@ function injectStyles(): void {
       pointer-events: auto !important;
     }
 
-    /* Badge tooltip - appears to the right of badge */
+    /* Badge tooltip - hidden, use title attribute instead */
     .tolerance-score-badge .tolerance-tooltip {
-      visibility: hidden;
-      opacity: 0;
-      position: fixed;
-      padding: 8px 12px;
-      background: rgba(20, 20, 20, 0.95);
-      color: #e0e0e0;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 400;
-      white-space: nowrap;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-      transition: opacity 0.15s ease, visibility 0.15s ease;
-      z-index: 999999;
-      pointer-events: none;
+      display: none !important;
     }
-    .tolerance-score-badge:hover .tolerance-tooltip {
-      visibility: visible;
-      opacity: 1;
-    }
-    .tolerance-tooltip-reason {
-      margin-bottom: 4px;
-      font-style: italic;
-      max-width: 250px;
-      white-space: normal;
-    }
-    .tolerance-tooltip-positions {
-      font-size: 11px;
-      color: #aaa;
-    }
-    .tolerance-tooltip-positions.moved-up { color: #7dcea0; }
-    .tolerance-tooltip-positions.moved-down { color: #e67e73; }
 
     /* Blur effect (pending and high-engagement) */
     .tolerance-blurred,
@@ -515,14 +486,12 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     tooltip.appendChild(debugDiv);
   }
 
-  badge.appendChild(tooltip);
-
-  // Position tooltip on hover (fixed position needs JS positioning)
-  badge.addEventListener('mouseenter', () => {
-    const rect = badge.getBoundingClientRect();
-    tooltip.style.left = `${rect.left}px`;
-    tooltip.style.top = `${rect.top - tooltip.offsetHeight - 8}px`;
-  });
+  // Use native title tooltip instead of custom one (more reliable)
+  const titleParts: string[] = [];
+  if (info.reason) titleParts.push(info.reason);
+  titleParts.push(`Position: ${info.newPosition + 1}`);
+  if (info.mediaType) titleParts.push(`Type: ${info.mediaType}`);
+  badge.title = titleParts.join('\n');
 
   cell.appendChild(badge);
   log.debug(` Badge injected for tweet ${tweet.id}, score=${info.score}, bucket=${info.bucket}`);
