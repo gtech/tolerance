@@ -250,7 +250,12 @@ function injectStyles(): void {
       pointer-events: auto !important;
       cursor: help !important;
       box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
-      display: block !important;
+      display: inline-block !important;
+      width: auto !important;
+      height: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      line-height: 1.2 !important;
     }
     .tolerance-score-badge.high { background: #e74c3c !important; }
     .tolerance-score-badge.medium { background: #f39c12 !important; }
