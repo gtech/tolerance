@@ -237,7 +237,7 @@ function injectStyles(): void {
     /* Score badges - positioned below profile image */
     .tolerance-score-badge {
       position: absolute !important;
-      top: 71px !important;
+      top: 111px !important;
       left: 4px !important;
       right: auto !important;
       bottom: auto !important;
@@ -286,10 +286,10 @@ function injectStyles(): void {
       visibility: hidden;
       opacity: 0;
       position: absolute;
-      top: 50%;
-      left: 100%;
-      transform: translateY(-50%);
-      margin-left: 8px;
+      bottom: 100%;
+      left: 0;
+      transform: none;
+      margin-bottom: 8px;
       padding: 8px 12px;
       background: rgba(20, 20, 20, 0.95);
       color: #e0e0e0;
