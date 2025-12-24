@@ -213,6 +213,16 @@ function populateSettings(settings: Settings): void {
     tierOwnKeyLabel.style.background = currentTier === 'own-key' ? '#2a2a3a' : '#222';
   }
 
+  // Quality Mode toggle
+  const qualityModeToggle = document.getElementById('quality-mode-toggle') as HTMLInputElement;
+  const qualityModeSection = document.getElementById('quality-mode-section');
+  if (qualityModeToggle) {
+    qualityModeToggle.checked = settings.qualityMode ?? false;
+  }
+  if (qualityModeSection) {
+    qualityModeSection.classList.toggle('active', settings.qualityMode ?? false);
+  }
+
   // Platform toggles
   const platformReddit = document.getElementById('platform-reddit') as HTMLInputElement;
   const platformTwitter = document.getElementById('platform-twitter') as HTMLInputElement;
@@ -558,6 +568,37 @@ function setupEventListeners(): void {
   const clearBtn = document.getElementById('clear-btn');
   if (clearBtn) {
     clearBtn.addEventListener('click', clearData);
+  }
+
+  // Quality Mode toggle
+  const qualityModeToggle = document.getElementById('quality-mode-toggle') as HTMLInputElement;
+  const qualityModeSection = document.getElementById('quality-mode-section');
+  if (qualityModeToggle) {
+    qualityModeToggle.addEventListener('change', async () => {
+      const enabled = qualityModeToggle.checked;
+
+      // Update visual state
+      if (qualityModeSection) {
+        qualityModeSection.classList.toggle('active', enabled);
+      }
+
+      // Save setting
+      const settings = await getSettings();
+      settings.qualityMode = enabled;
+      await chrome.storage.local.set({ settings });
+
+      // Notify all tabs to refresh their blur state
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          try {
+            await chrome.tabs.sendMessage(tab.id, { type: 'QUALITY_MODE_CHANGED', enabled });
+          } catch {
+            // Tab might not have content script
+          }
+        }
+      }
+    });
   }
 
   // API Tier selection
