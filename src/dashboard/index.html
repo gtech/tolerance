@@ -790,12 +790,34 @@
 
     <!-- Setup Section - Always visible, prominent -->
     <div id="api-setup" class="settings-section" style="background: #1a1a1a; border: 2px solid #3d2d4a; border-radius: 12px; padding: 24px; margin-top: 24px;">
-      <h2 style="margin-bottom: 16px; color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">⚙️ Setup Required</h2>
+      <h2 id="api-setup-title" style="margin-bottom: 16px; color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">⚙️ API Configuration</h2>
 
-      <div class="setting-row" style="border-bottom: none; padding-bottom: 0;">
+      <!-- API Tier Selection -->
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #888; margin-bottom: 12px;">Choose how to access the AI scoring API:</div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-free-label">
+            <input type="radio" name="api-tier" value="free" id="tier-free" style="margin-top: 2px;" />
+            <div>
+              <div style="font-weight: 500; color: #fff;">Free Tier</div>
+              <div style="font-size: 12px; color: #888; margin-top: 2px;">Try without setup - limited daily usage</div>
+            </div>
+          </label>
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-own-key-label">
+            <input type="radio" name="api-tier" value="own-key" id="tier-own-key" style="margin-top: 2px;" />
+            <div>
+              <div style="font-weight: 500; color: #fff;">Own API Key</div>
+              <div style="font-size: 12px; color: #888; margin-top: 2px;">Unlimited usage with your OpenRouter key</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Own Key Section - shown when own-key selected -->
+      <div id="own-key-section" class="setting-row" style="border-bottom: none; padding-bottom: 0; display: none;">
         <div>
           <div class="setting-label" style="font-size: 16px;">OpenRouter API Key</div>
-          <div class="setting-description">Required for scoring posts. Get your key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></div>
+          <div class="setting-description">Get your key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></div>
         </div>
         <input type="text" id="api-key" placeholder="sk-or-..." style="width: 280px;" />
       </div>

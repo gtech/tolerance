@@ -34,6 +34,11 @@ const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
+// Free tier API key (base64 encoded for light obfuscation)
+// This key has a $1/day spending cap on OpenRouter
+const FREE_TIER_KEY_ENCODED = 'c2stb3ItdjEtZDU4YTViZmMwMDM3MzFlMjI1NzhjOTAwOGFiZTIyMjgyZTE3NGI2YWNmNTEyOWE3N2RjNzdhYmQ5MWY5OGVlYQ==';
+const FREE_TIER_KEY = atob(FREE_TIER_KEY_ENCODED);
+
 // Provider configuration built from settings
 interface ProviderConfig {
   type: 'openrouter' | 'openai-compatible';
@@ -55,10 +60,18 @@ async function getProviderConfig(): Promise<ProviderConfig> {
 
   const isOpenRouter = provider.type !== 'openai-compatible';
 
-  // Use appropriate API key based on provider type
-  const apiKey = isOpenRouter
-    ? (settings.openRouterApiKey || '')
-    : (provider.apiKey || '');
+  // Use appropriate API key based on provider type and tier
+  let apiKey: string;
+  if (isOpenRouter) {
+    if (settings.apiTier === 'own-key' && settings.openRouterApiKey) {
+      apiKey = settings.openRouterApiKey;
+    } else {
+      // Free tier (default)
+      apiKey = FREE_TIER_KEY;
+    }
+  } else {
+    apiKey = provider.apiKey || '';
+  }
 
   // Use custom models if specified (non-empty), otherwise use defaults
   // This works for both OpenRouter and custom endpoints

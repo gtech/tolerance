@@ -319,6 +319,7 @@ export interface ApiProviderConfig {
 
 export interface Settings {
   scheduler: SchedulerConfig;
+  apiTier?: 'free' | 'own-key';    // API tier: free (built-in key) or own-key
   openRouterApiKey?: string;
   apiProvider?: ApiProviderConfig;  // Custom API endpoint configuration
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API

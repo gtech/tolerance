@@ -103,10 +103,11 @@ function updateModeDisplay(state: AppState): void {
 }
 
 function updateApiStatus(settings: Settings): void {
+  const isFreeTier = settings.apiTier !== 'own-key';
   const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
-  const isApiConfigured = hasOpenRouterKey || hasCustomEndpoint;
+  const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
 
   // Update header status
   const statusDot = document.getElementById('api-status-dot');
@@ -115,7 +116,13 @@ function updateApiStatus(settings: Settings): void {
   if (statusDot && statusText) {
     if (isApiConfigured) {
       statusDot.style.background = '#27ae60';
-      statusText.textContent = hasCustomEndpoint ? 'Custom Endpoint' : 'API Connected';
+      if (isFreeTier) {
+        statusText.textContent = 'Free Tier';
+      } else if (hasCustomEndpoint) {
+        statusText.textContent = 'Custom Endpoint';
+      } else {
+        statusText.textContent = 'API Connected';
+      }
       statusText.style.color = '#27ae60';
     } else {
       statusDot.style.background = '#e74c3c';
@@ -127,18 +134,26 @@ function updateApiStatus(settings: Settings): void {
   // Update setup section status
   const apiKeyStatus = document.getElementById('api-key-status');
   if (apiKeyStatus) {
-    if (isApiConfigured) {
+    if (isFreeTier) {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#1a472a';
       apiKeyStatus.style.color = '#7dcea0';
-      apiKeyStatus.textContent = hasCustomEndpoint
-        ? '✓ Custom endpoint configured. Tolerance is active.'
-        : '✓ API key configured. Tolerance is active.';
+      apiKeyStatus.textContent = '✓ Free tier active. Tolerance is ready to use!';
+    } else if (hasCustomEndpoint) {
+      apiKeyStatus.style.display = 'block';
+      apiKeyStatus.style.background = '#1a472a';
+      apiKeyStatus.style.color = '#7dcea0';
+      apiKeyStatus.textContent = '✓ Custom endpoint configured. Tolerance is active.';
+    } else if (hasOpenRouterKey) {
+      apiKeyStatus.style.display = 'block';
+      apiKeyStatus.style.background = '#1a472a';
+      apiKeyStatus.style.color = '#7dcea0';
+      apiKeyStatus.textContent = '✓ API key configured. Tolerance is active.';
     } else {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#4a2d2d';
       apiKeyStatus.style.color = '#ff9999';
-      apiKeyStatus.textContent = 'Enter your OpenRouter API key or configure a custom endpoint to enable post scoring.';
+      apiKeyStatus.textContent = 'Enter your OpenRouter API key to enable post scoring.';
     }
   }
 }
@@ -161,6 +176,28 @@ function populateSettings(settings: Settings): void {
   const hoverDelayValue = document.getElementById('hover-delay-value');
   const blurIntensityInput = document.getElementById('blur-intensity') as HTMLInputElement;
   const blurIntensityValue = document.getElementById('blur-intensity-value');
+
+  // API Tier selection
+  const tierFree = document.getElementById('tier-free') as HTMLInputElement;
+  const tierOwnKey = document.getElementById('tier-own-key') as HTMLInputElement;
+  const ownKeySection = document.getElementById('own-key-section');
+  const tierFreeLabel = document.getElementById('tier-free-label');
+  const tierOwnKeyLabel = document.getElementById('tier-own-key-label');
+
+  const currentTier = settings.apiTier || 'free';
+  if (tierFree) tierFree.checked = currentTier === 'free';
+  if (tierOwnKey) tierOwnKey.checked = currentTier === 'own-key';
+  if (ownKeySection) ownKeySection.style.display = currentTier === 'own-key' ? 'flex' : 'none';
+
+  // Update tier label styling
+  if (tierFreeLabel) {
+    tierFreeLabel.style.borderColor = currentTier === 'free' ? '#3d2d4a' : '#333';
+    tierFreeLabel.style.background = currentTier === 'free' ? '#2a2a3a' : '#222';
+  }
+  if (tierOwnKeyLabel) {
+    tierOwnKeyLabel.style.borderColor = currentTier === 'own-key' ? '#3d2d4a' : '#333';
+    tierOwnKeyLabel.style.background = currentTier === 'own-key' ? '#2a2a3a' : '#222';
+  }
 
   // Platform toggles
   const platformReddit = document.getElementById('platform-reddit') as HTMLInputElement;
@@ -509,6 +546,36 @@ function setupEventListeners(): void {
     clearBtn.addEventListener('click', clearData);
   }
 
+  // API Tier selection
+  const tierRadios = document.querySelectorAll('input[name="api-tier"]');
+  const ownKeySection = document.getElementById('own-key-section');
+  const tierFreeLabel = document.getElementById('tier-free-label');
+  const tierOwnKeyLabel = document.getElementById('tier-own-key-label');
+
+  tierRadios.forEach(radio => {
+    radio.addEventListener('change', async (e) => {
+      const target = e.target as HTMLInputElement;
+      const tier = target.value;
+
+      // Toggle own-key section visibility
+      if (ownKeySection) {
+        ownKeySection.style.display = tier === 'own-key' ? 'flex' : 'none';
+      }
+
+      // Update label styling
+      if (tierFreeLabel) {
+        tierFreeLabel.style.borderColor = tier === 'free' ? '#3d2d4a' : '#333';
+        tierFreeLabel.style.background = tier === 'free' ? '#2a2a3a' : '#222';
+      }
+      if (tierOwnKeyLabel) {
+        tierOwnKeyLabel.style.borderColor = tier === 'own-key' ? '#3d2d4a' : '#333';
+        tierOwnKeyLabel.style.background = tier === 'own-key' ? '#2a2a3a' : '#222';
+      }
+
+      await saveSettings();
+    });
+  });
+
   // Settings auto-save
   const apiKeyInput = document.getElementById('api-key');
   const apiSampleRateInput = document.getElementById('api-sample-rate');
@@ -692,6 +759,10 @@ async function saveSettings(): Promise<void> {
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
 
+  // API tier selection
+  const tierRadio = document.querySelector('input[name="api-tier"]:checked') as HTMLInputElement;
+  const apiTier = (tierRadio?.value || 'free') as 'free' | 'own-key';
+
   // Provider configuration inputs
   const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
   const customEndpointInput = document.getElementById('custom-endpoint') as HTMLInputElement;
@@ -713,6 +784,7 @@ async function saveSettings(): Promise<void> {
 
   const settings: Settings = {
     ...existing,
+    apiTier,
     openRouterApiKey: apiKeyInput?.value || undefined,
     apiProvider: {
       type: providerType,
