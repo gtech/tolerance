@@ -216,11 +216,16 @@ function populateSettings(settings: Settings): void {
   // Quality Mode toggle
   const qualityModeToggle = document.getElementById('quality-mode-toggle') as HTMLInputElement;
   const qualityModeSection = document.getElementById('quality-mode-section');
+  const qualityModeStatus = document.getElementById('quality-mode-status');
+  const isQualityMode = settings.qualityMode ?? false;
   if (qualityModeToggle) {
-    qualityModeToggle.checked = settings.qualityMode ?? false;
+    qualityModeToggle.checked = isQualityMode;
   }
   if (qualityModeSection) {
-    qualityModeSection.classList.toggle('active', settings.qualityMode ?? false);
+    qualityModeSection.classList.toggle('active', isQualityMode);
+  }
+  if (qualityModeStatus) {
+    qualityModeStatus.style.display = isQualityMode ? 'block' : 'none';
   }
 
   // Platform toggles
@@ -573,6 +578,7 @@ function setupEventListeners(): void {
   // Quality Mode toggle
   const qualityModeToggle = document.getElementById('quality-mode-toggle') as HTMLInputElement;
   const qualityModeSection = document.getElementById('quality-mode-section');
+  const qualityModeStatus = document.getElementById('quality-mode-status');
   if (qualityModeToggle) {
     qualityModeToggle.addEventListener('change', async () => {
       const enabled = qualityModeToggle.checked;
@@ -580,6 +586,9 @@ function setupEventListeners(): void {
       // Update visual state
       if (qualityModeSection) {
         qualityModeSection.classList.toggle('active', enabled);
+      }
+      if (qualityModeStatus) {
+        qualityModeStatus.style.display = enabled ? 'block' : 'none';
       }
 
       // Save setting

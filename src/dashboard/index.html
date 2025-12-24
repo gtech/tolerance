@@ -684,6 +684,25 @@
           Ratio: <span id="effective-ratio" style="color: #888;">20%</span> high-engagement posts
         </div>
       </div>
+
+      <div class="card" id="quality-mode-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">&#9733;</span>
+            Quality Mode
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="quality-mode-toggle" style="opacity: 0; width: 0; height: 0;">
+            <span id="quality-mode-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Instantly blur all high-engagement content (score 20+). Skip the gradual phases and go straight to strict filtering.
+        </div>
+        <div id="quality-mode-status" style="margin-top: 12px; font-size: 12px; font-weight: 600; color: #667eea; display: none;">
+          &#10003; Active - Maximum content filtering
+        </div>
+      </div>
     </div>
 
     <div class="grid">
@@ -850,23 +869,6 @@
       </div>
 
       <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
-    </div>
-
-    <!-- Quality Mode - Prominent toggle -->
-    <div id="quality-mode-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #4a4a8a; border-radius: 12px; padding: 20px 24px; margin-top: 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 24px;">&#9733;</span>
-          <div>
-            <div style="font-size: 18px; font-weight: 600; color: #fff;">Quality Mode</div>
-            <div style="font-size: 13px; color: #888; margin-top: 2px;">Blur all high-engagement content instantly (score 20+)</div>
-          </div>
-        </div>
-        <label style="position: relative; display: inline-block; width: 52px; height: 28px;">
-          <input type="checkbox" id="quality-mode-toggle" style="opacity: 0; width: 0; height: 0;">
-          <span id="quality-mode-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
-        </label>
-      </div>
     </div>
 
     <!-- Advanced API Settings -->
