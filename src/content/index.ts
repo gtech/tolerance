@@ -62,6 +62,9 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
+  // Don't blur if scoring failed (no API score when API is expected)
+  if (score.apiScore === undefined) return false;
+
   // Whitelisted sources bypass blur
   if (score.whitelisted) return false;
 
@@ -193,6 +196,7 @@ function injectLoadingStyles(): void {
     .tolerance-score-badge.high { background: #e74c3c !important; }
     .tolerance-score-badge.medium { background: #f39c12 !important; }
     .tolerance-score-badge.low { background: #27ae60 !important; }
+    .tolerance-score-badge.failed { background: #7f8c8d !important; color: #fff !important; }
 
     /* Old Reddit badges - below post rank on left */
     .thing .tolerance-score-badge {
@@ -311,6 +315,7 @@ interface BadgeInfo {
   reason?: string;
   originalPosition: number;
   newPosition: number;
+  scoringFailed?: boolean;
 }
 
 // Inject score badge on a Reddit post
@@ -328,8 +333,8 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
   }
 
   const badge = document.createElement('div');
-  badge.className = `tolerance-score-badge ${info.bucket}`;
-  badge.textContent = String(Math.round(info.score));
+  badge.className = `tolerance-score-badge ${info.scoringFailed ? 'failed' : info.bucket}`;
+  badge.textContent = info.scoringFailed ? '?' : String(Math.round(info.score));
 
   // Handle different DOM structures for old vs new Reddit
   if (element.tagName === 'SHREDDIT-POST') {
@@ -347,7 +352,12 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
   tooltip.className = 'tolerance-tooltip';
 
   // Reason
-  if (info.reason) {
+  if (info.scoringFailed) {
+    const reasonDiv = document.createElement('div');
+    reasonDiv.className = 'tolerance-tooltip-reason';
+    reasonDiv.textContent = 'Scoring failed - free tier may be exhausted';
+    tooltip.appendChild(reasonDiv);
+  } else if (info.reason) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
     reasonDiv.textContent = `"${info.reason}"`;
@@ -860,6 +870,7 @@ async function processPosts(): Promise<void> {
       const score = scores.get(impression.postId);
       if (post && score) {
         const displayScore = score.apiScore ?? score.heuristicScore;
+        const scoringFailed = score.apiScore === undefined;
 
         // Apply or remove blur based on score
         if (shouldBlurScore(score)) {
@@ -876,6 +887,7 @@ async function processPosts(): Promise<void> {
           reason: score.apiReason,
           originalPosition: impression.originalPosition,
           newPosition: impression.position,
+          scoringFailed,
         });
       }
     }

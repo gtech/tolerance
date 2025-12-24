@@ -95,6 +95,9 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
+  // Don't blur if scoring failed (no API score when API is expected)
+  if (score.apiScore === undefined) return false;
+
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
 
@@ -161,6 +164,10 @@ function injectStyles(): void {
 
     .tolerance-score-badge.high {
       background: rgba(244, 67, 54, 0.85);
+    }
+
+    .tolerance-score-badge.failed {
+      background: rgba(127, 140, 141, 0.85);
     }
 
     /* Blur overlay for high-engagement content */
@@ -548,12 +555,17 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Create badge
   const displayScore = score.apiScore ?? score.heuristicScore;
+  const scoringFailed = score.apiScore === undefined;
   const badge = document.createElement('div');
-  badge.className = `tolerance-score-badge ${score.bucket}`;
-  badge.textContent = displayScore.toString();
+  badge.className = `tolerance-score-badge ${scoringFailed ? 'failed' : score.bucket}`;
+  badge.textContent = scoringFailed ? '?' : displayScore.toString();
 
   // Add tooltip with reason
-  if (score.apiReason) {
+  if (scoringFailed) {
+    badge.title = 'Scoring failed - free tier may be exhausted';
+    badge.style.cursor = 'help';
+    badge.style.pointerEvents = 'auto';
+  } else if (score.apiReason) {
     badge.title = score.apiReason;
     badge.style.cursor = 'help';
     badge.style.pointerEvents = 'auto';
