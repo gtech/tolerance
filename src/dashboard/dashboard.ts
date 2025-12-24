@@ -56,6 +56,27 @@ async function init(): Promise<void> {
   // Set up event listeners
   setupEventListeners();
 
+  // Listen for storage changes to sync Quality Mode toggle
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.settings?.newValue) {
+      const newSettings = changes.settings.newValue as Settings;
+      const qualityModeToggle = document.getElementById('quality-mode-toggle') as HTMLInputElement;
+      const qualityModeSection = document.getElementById('quality-mode-section');
+      const qualityModeStatus = document.getElementById('quality-mode-status');
+      const isQualityMode = newSettings.qualityMode ?? false;
+
+      if (qualityModeToggle && qualityModeToggle.checked !== isQualityMode) {
+        qualityModeToggle.checked = isQualityMode;
+      }
+      if (qualityModeSection) {
+        qualityModeSection.classList.toggle('active', isQualityMode);
+      }
+      if (qualityModeStatus) {
+        qualityModeStatus.style.display = isQualityMode ? 'block' : 'none';
+      }
+    }
+  });
+
   // Start blur overlay countdowns
   startBlurOverlayCountdowns();
 
