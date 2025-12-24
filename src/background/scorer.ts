@@ -180,9 +180,15 @@ export async function scorePosts(
   const totalApiCalls = (textPostsForApi.length > 0 ? 1 : 0) + singleMedia.length + (galleries.length > 0 ? 1 : 0);
   log.debug(` Scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, heuristics: ${(t3-t2).toFixed(0)}ms, API: ${(t4-t3).toFixed(0)}ms, total: ${(t4-t0).toFixed(0)}ms (${uncached.length} uncached, ${totalApiCalls} API batches)`);
 
-  // Cache new scores (now potentially enriched with API scores)
+  // Cache new scores (only those with API scores when API is enabled)
+  // Don't cache fallback heuristic scores when API failed - they might be from exhausted free tier
   if (newScores.length > 0) {
-    await cacheScores(newScores);
+    const scoresToCache = apiEnabled
+      ? newScores.filter(s => s.apiScore !== undefined)  // Only cache if API succeeded
+      : newScores;  // Cache all if API not configured (heuristic only mode)
+    if (scoresToCache.length > 0) {
+      await cacheScores(scoresToCache);
+    }
   }
 
   // Combine cached and new scores
@@ -357,9 +363,14 @@ export async function scoreTweets(
 
   log.debug(` Tweet scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Cache new scores
+  // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    await cacheScores(newScores);
+    const scoresToCache = apiEnabled
+      ? newScores.filter(s => s.apiScore !== undefined)
+      : newScores;
+    if (scoresToCache.length > 0) {
+      await cacheScores(scoresToCache);
+    }
   }
 
   // Combine cached and new scores
@@ -837,9 +848,14 @@ export async function scoreVideos(
 
   log.debug(` Video scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Cache new scores
+  // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    await cacheScores(newScores);
+    const scoresToCache = apiEnabled
+      ? newScores.filter(s => s.apiScore !== undefined)
+      : newScores;
+    if (scoresToCache.length > 0) {
+      await cacheScores(scoresToCache);
+    }
   }
 
   // Combine cached and new scores
@@ -1027,9 +1043,14 @@ export async function scoreInstagramPosts(
 
   log.debug(` Instagram scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Cache new scores
+  // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    await cacheScores(newScores);
+    const scoresToCache = apiEnabled
+      ? newScores.filter(s => s.apiScore !== undefined)
+      : newScores;
+    if (scoresToCache.length > 0) {
+      await cacheScores(scoresToCache);
+    }
   }
 
   // Combine cached and new scores

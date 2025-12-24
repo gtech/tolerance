@@ -94,6 +94,9 @@ async function updateBlurThreshold(): Promise<void> {
 
 // Check if a score should be blurred based on current threshold
 function shouldBlurScore(score: EngagementScore): boolean {
+  // Don't blur if scoring failed (no API score when API is expected)
+  if (score.apiScore === undefined) return false;
+
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
 
@@ -273,6 +276,7 @@ function injectStyles(): void {
     .tolerance-score-badge.medium { background: #f39c12 !important; }
     .tolerance-score-badge.low { background: #27ae60 !important; }
     .tolerance-score-badge.pending { background: #95a5a6 !important; }
+    .tolerance-score-badge.failed { background: #7f8c8d !important; color: #fff !important; }
 
     /* Ensure badge is not blurred */
     .tolerance-blurred .tolerance-score-badge,
@@ -416,6 +420,8 @@ interface BadgeInfo {
   hasImage?: boolean;
   hasQuote?: boolean;
   mediaType?: string;
+  // API failure indicator
+  scoringFailed?: boolean;
 }
 
 // Inject score badge on a tweet
@@ -443,8 +449,8 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   }
 
   const badge = document.createElement('div');
-  badge.className = `tolerance-score-badge ${info.bucket}`;
-  badge.textContent = String(Math.round(info.score));
+  badge.className = `tolerance-score-badge ${info.scoringFailed ? 'failed' : info.bucket}`;
+  badge.textContent = info.scoringFailed ? '?' : String(Math.round(info.score));
 
   // Build tooltip content
   const tooltip = document.createElement('div');
@@ -488,7 +494,11 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
 
   // Use native title tooltip instead of custom one (more reliable)
   const titleParts: string[] = [];
-  if (info.reason) titleParts.push(info.reason);
+  if (info.scoringFailed) {
+    titleParts.push('Scoring failed - free tier may be exhausted');
+  } else if (info.reason) {
+    titleParts.push(info.reason);
+  }
   titleParts.push(`Position: ${info.newPosition + 1}`);
   if (info.mediaType) titleParts.push(`Type: ${info.mediaType}`);
   badge.title = titleParts.join('\n');
@@ -887,12 +897,14 @@ async function processTweets(): Promise<void> {
         const cached = scoreCache.get(tweet.id);
         if (cached) {
           const displayScore = cached.score.apiScore ?? cached.score.heuristicScore;
+          const scoringFailed = cached.score.apiScore === undefined;
           injectScoreBadge(tweet, {
             score: displayScore,
             bucket: cached.score.bucket,
             reason: cached.score.apiReason,
             originalPosition: cached.originalPosition,
             newPosition: cached.originalPosition, // Same position for re-injection
+            scoringFailed,
             hasImage: !!tweet.imageUrl,
             hasQuote: tweet.isQuoteTweet,
             mediaType: tweet.mediaType,
@@ -1027,6 +1039,7 @@ async function processTweets(): Promise<void> {
         });
 
         const displayScore = score.apiScore ?? score.heuristicScore;
+        const scoringFailed = score.apiScore === undefined;
         injectScoreBadge(tweet, {
           score: displayScore,
           bucket: score.bucket,
@@ -1037,6 +1050,7 @@ async function processTweets(): Promise<void> {
           hasImage: !!tweet.imageUrl,
           hasQuote: tweet.isQuoteTweet,
           mediaType: tweet.mediaType,
+          scoringFailed,
         });
       }
     }
