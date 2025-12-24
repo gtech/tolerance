@@ -16,7 +16,7 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 
 ## Supported platforms
 
-- Reddit (old.reddit.com)
+- Reddit (old.reddit.com is better)
 - Twitter/X
 - YouTube
 - Instagram
