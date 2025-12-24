@@ -79,10 +79,11 @@ function openDashboardToApiSection(e: Event): void {
 }
 
 function updateApiStatus(settings: Settings): void {
+  const isFreeTier = settings.apiTier !== 'own-key';
   const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
-  const isApiConfigured = hasOpenRouterKey || hasCustomEndpoint;
+  const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
 
   const apiDot = document.getElementById('api-dot');
   const apiText = document.getElementById('api-status-text');
@@ -91,7 +92,13 @@ function updateApiStatus(settings: Settings): void {
   if (apiDot && apiText) {
     if (isApiConfigured) {
       apiDot.className = 'api-dot connected';
-      apiText.textContent = hasCustomEndpoint ? 'Custom Endpoint' : 'Connected';
+      if (isFreeTier) {
+        apiText.textContent = 'Free Tier';
+      } else if (hasCustomEndpoint) {
+        apiText.textContent = 'Custom Endpoint';
+      } else {
+        apiText.textContent = 'Connected';
+      }
       apiText.style.color = '#27ae60';
     } else {
       apiDot.className = 'api-dot disconnected';
