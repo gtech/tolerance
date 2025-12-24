@@ -33,7 +33,7 @@ async function init(): Promise<void> {
   // Load settings
   const settings = await getSettings();
   populateSettings(settings);
-  updateApiStatus(settings);
+  await updateApiStatus(settings);
 
   // Load and render whitelist
   renderWhitelist(settings.whitelist || []);
@@ -102,19 +102,28 @@ function updateModeDisplay(state: AppState): void {
   }
 }
 
-function updateApiStatus(settings: Settings): void {
+async function updateApiStatus(settings: Settings): Promise<void> {
   const isFreeTier = settings.apiTier !== 'own-key';
   const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
   const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
 
+  // Check for free tier exhaustion
+  const errorStateResult = await chrome.storage.local.get('apiErrorState');
+  const errorState = errorStateResult.apiErrorState as { exhausted: boolean; message: string } | undefined;
+  const isExhausted = isFreeTier && errorState?.exhausted;
+
   // Update header status
   const statusDot = document.getElementById('api-status-dot');
   const statusText = document.getElementById('api-status-text');
 
   if (statusDot && statusText) {
-    if (isApiConfigured) {
+    if (isExhausted) {
+      statusDot.style.background = '#e74c3c';
+      statusText.textContent = 'Free Tier Exhausted';
+      statusText.style.color = '#e74c3c';
+    } else if (isApiConfigured) {
       statusDot.style.background = '#27ae60';
       if (isFreeTier) {
         statusText.textContent = 'Free Tier';
@@ -134,7 +143,12 @@ function updateApiStatus(settings: Settings): void {
   // Update setup section status
   const apiKeyStatus = document.getElementById('api-key-status');
   if (apiKeyStatus) {
-    if (isFreeTier) {
+    if (isExhausted) {
+      apiKeyStatus.style.display = 'block';
+      apiKeyStatus.style.background = '#4a2d2d';
+      apiKeyStatus.style.color = '#ff9999';
+      apiKeyStatus.textContent = '⚠ Free tier daily limit reached. Add your own OpenRouter API key for unlimited usage.';
+    } else if (isFreeTier) {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#1a472a';
       apiKeyStatus.style.color = '#7dcea0';
@@ -824,7 +838,7 @@ async function saveSettings(): Promise<void> {
   console.log('Settings saved, apiSampleRate:', apiSampleRate, 'hoverDelay:', settings.twitter?.hoverRevealDelay);
 
   // Update API status display
-  updateApiStatus(settings);
+  await updateApiStatus(settings);
 }
 
 async function exportData(): Promise<void> {

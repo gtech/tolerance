@@ -19,6 +19,27 @@ export interface ApiUsage {
   lastReset: number;
 }
 
+// API error state for free tier exhaustion
+export interface ApiErrorState {
+  exhausted: boolean;
+  message: string;
+  timestamp: number;
+}
+
+// Track and retrieve API error state
+export async function setApiErrorState(state: ApiErrorState | null): Promise<void> {
+  if (state) {
+    await chrome.storage.local.set({ apiErrorState: state });
+  } else {
+    await chrome.storage.local.remove('apiErrorState');
+  }
+}
+
+export async function getApiErrorState(): Promise<ApiErrorState | null> {
+  const result = await chrome.storage.local.get('apiErrorState');
+  return result.apiErrorState || null;
+}
+
 // Model pricing (per 1M tokens, approximate) - OpenRouter only
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'anthropic/claude-haiku-4.5': { input: 1, output: 5 },
@@ -881,7 +902,28 @@ async function callApi(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error: ${response.status} for model=${model}`, errorText);
+
+      // Check for rate limit / budget exhaustion errors (402, 429)
+      // Only set exhausted state if we're on free tier
+      if ((response.status === 402 || response.status === 429) && config.apiKey === FREE_TIER_KEY) {
+        await setApiErrorState({
+          exhausted: true,
+          message: 'Free tier daily limit reached. Add your own API key for unlimited usage.',
+          timestamp: Date.now(),
+        });
+        log.debug(' Free tier exhausted - setting error state');
+      }
+
       return null;
+    }
+
+    // Clear any previous error state on successful request (if on free tier)
+    if (config.apiKey === FREE_TIER_KEY) {
+      const errorState = await getApiErrorState();
+      if (errorState?.exhausted) {
+        await setApiErrorState(null);
+        log.debug(' Free tier working again - cleared error state');
+      }
     }
 
     const data = await response.json();

@@ -37,7 +37,7 @@ async function init(): Promise<void> {
 
   if (result?.settings) {
     currentSettings = result.settings;
-    updateApiStatus(result.settings);
+    await updateApiStatus(result.settings);
     updateQualityModeToggle(result.settings);
   }
 
@@ -78,19 +78,28 @@ function openDashboardToApiSection(e: Event): void {
   chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html#api-setup') });
 }
 
-function updateApiStatus(settings: Settings): void {
+async function updateApiStatus(settings: Settings): Promise<void> {
   const isFreeTier = settings.apiTier !== 'own-key';
   const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
   const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
 
+  // Check for free tier exhaustion
+  const errorStateResult = await chrome.storage.local.get('apiErrorState');
+  const errorState = errorStateResult.apiErrorState as { exhausted: boolean; message: string } | undefined;
+  const isExhausted = isFreeTier && errorState?.exhausted;
+
   const apiDot = document.getElementById('api-dot');
   const apiText = document.getElementById('api-status-text');
   const apiWarning = document.getElementById('api-warning');
 
   if (apiDot && apiText) {
-    if (isApiConfigured) {
+    if (isExhausted) {
+      apiDot.className = 'api-dot disconnected';
+      apiText.textContent = 'Free Tier Exhausted';
+      apiText.style.color = '#e74c3c';
+    } else if (isApiConfigured) {
       apiDot.className = 'api-dot connected';
       if (isFreeTier) {
         apiText.textContent = 'Free Tier';
@@ -108,7 +117,15 @@ function updateApiStatus(settings: Settings): void {
   }
 
   if (apiWarning) {
-    apiWarning.style.display = isApiConfigured ? 'none' : 'block';
+    // Show warning if not configured OR if exhausted
+    apiWarning.style.display = (!isApiConfigured || isExhausted) ? 'block' : 'none';
+    if (isExhausted && apiWarning) {
+      apiWarning.innerHTML = '<a href="#" id="setup-link">Free tier limit reached. Add your own API key →</a>';
+      const setupLink = apiWarning.querySelector('#setup-link');
+      if (setupLink) {
+        setupLink.addEventListener('click', openDashboardToApiSection);
+      }
+    }
   }
 }
 
