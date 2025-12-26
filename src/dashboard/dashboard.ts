@@ -389,6 +389,8 @@ function populateCustomThresholds(settings: Settings): void {
     const topSlider = document.getElementById(`${id}-top`) as HTMLInputElement;
     const topValueEl = document.getElementById(`${id}-value-top`);
 
+    console.log(`updateSlider: ${id} = ${value}`, { slider: !!slider, valueEl: !!valueEl, topSlider: !!topSlider, topValueEl: !!topValueEl });
+
     if (slider) slider.value = String(value);
     if (valueEl) valueEl.textContent = String(value);
     if (topSlider) topSlider.value = String(value);
