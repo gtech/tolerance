@@ -1673,12 +1673,7 @@ function setupThresholdControls(): void {
     }
   }
 
-  // Reset buttons
-  const resetBtn = document.getElementById('reset-thresholds-btn');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', resetThresholdsToCalibrated);
-  }
-
+  // Reset button (top card)
   const resetBtnTop = document.getElementById('reset-thresholds-btn-top');
   if (resetBtnTop) {
     resetBtnTop.addEventListener('click', resetThresholdsToCalibrated);
