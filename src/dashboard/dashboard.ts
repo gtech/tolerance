@@ -55,6 +55,7 @@ async function init(): Promise<void> {
 
   // Set up event listeners
   setupEventListeners();
+  setupAuthEventListeners();
 
   // Listen for storage changes to sync Quality Mode toggle
   chrome.storage.onChanged.addListener((changes) => {

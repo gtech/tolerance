@@ -534,7 +534,7 @@ export async function describeImages(
     };
     if (config.type === 'openrouter') {
       requestBody.provider = {
-        order: ['Groq', 'Cerebras'],
+        // order: ['Groq', 'Cerebras'],
         allow_fallbacks: true,
       };
     }

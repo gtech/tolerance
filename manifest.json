@@ -34,7 +34,8 @@
     "*://api.perplexity.ai/*",
     "*://api.cohere.ai/*",
     "*://generativelanguage.googleapis.com/*",
-    "*://api-inference.huggingface.co/*"
+    "*://api-inference.huggingface.co/*",
+    "*://*.tolerance.lol/*"
   ],
   "background": {
     "service_worker": "background.js",

@@ -1,8 +1,9 @@
-import { MessageType, PostImpression, EngagementScore, NarrativeTheme, SessionLog, DailyNarrativeStats } from '../shared/types';
+import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import {
   getState,
   getSettings,
+  setSettings,
   createSession,
   endSession,
   logImpressions,
