@@ -78,8 +78,8 @@ async function init(): Promise<void> {
     }
   });
 
-  // Start blur overlay countdowns
-  startBlurOverlayCountdowns();
+  // Set up threshold controls (top card + settings section)
+  setupThresholdControls();
 
   // Scroll to API setup section if hash is present
   if (window.location.hash === '#api-setup') {
@@ -382,31 +382,23 @@ function populateCustomThresholds(settings: Settings): void {
   }
 
   // Blur threshold sliders
-  const blurNormal = document.getElementById('blur-normal') as HTMLInputElement;
-  const blurReduced = document.getElementById('blur-reduced') as HTMLInputElement;
-  const blurWinddown = document.getElementById('blur-winddown') as HTMLInputElement;
-  const blurMinimal = document.getElementById('blur-minimal') as HTMLInputElement;
+  // Update both settings section and top card sliders
+  const updateSlider = (id: string, value: number) => {
+    const slider = document.getElementById(id) as HTMLInputElement;
+    const valueEl = document.getElementById(`${id}-value`);
+    const topSlider = document.getElementById(`${id}-top`) as HTMLInputElement;
+    const topValueEl = document.getElementById(`${id}-value-top`);
 
-  if (blurNormal) {
-    blurNormal.value = String(blurThresholds.normal);
-    const valueEl = document.getElementById('blur-normal-value');
-    if (valueEl) valueEl.textContent = String(blurThresholds.normal);
-  }
-  if (blurReduced) {
-    blurReduced.value = String(blurThresholds.reduced);
-    const valueEl = document.getElementById('blur-reduced-value');
-    if (valueEl) valueEl.textContent = String(blurThresholds.reduced);
-  }
-  if (blurWinddown) {
-    blurWinddown.value = String(blurThresholds.windDown);
-    const valueEl = document.getElementById('blur-winddown-value');
-    if (valueEl) valueEl.textContent = String(blurThresholds.windDown);
-  }
-  if (blurMinimal) {
-    blurMinimal.value = String(blurThresholds.minimal);
-    const valueEl = document.getElementById('blur-minimal-value');
-    if (valueEl) valueEl.textContent = String(blurThresholds.minimal);
-  }
+    if (slider) slider.value = String(value);
+    if (valueEl) valueEl.textContent = String(value);
+    if (topSlider) topSlider.value = String(value);
+    if (topValueEl) topValueEl.textContent = String(value);
+  };
+
+  updateSlider('blur-normal', blurThresholds.normal);
+  updateSlider('blur-reduced', blurThresholds.reduced);
+  updateSlider('blur-winddown', blurThresholds.windDown);
+  updateSlider('blur-minimal', blurThresholds.minimal);
 
   // Phase timing sliders
   const timingNormal = document.getElementById('timing-normal') as HTMLInputElement;
@@ -1630,50 +1622,40 @@ function updateProgressBar(id: string, currentMinutes: number, segmentStart: num
 }
 
 // ==========================================
-// Blur Overlay Countdowns (Meta-friction)
+// Threshold Controls
 // ==========================================
 
-function startBlurOverlayCountdowns(): void {
-  // Platform controls countdown (30 seconds)
-  startCountdown('platform-blur-overlay', 'platform-countdown', 30);
-
-  // Threshold controls countdown (30 seconds)
-  startCountdown('threshold-blur-overlay', 'threshold-countdown', 30);
-
-  // Set up threshold sliders and reset button
-  setupThresholdControls();
-}
-
-function startCountdown(overlayId: string, countdownId: string, seconds: number): void {
-  const overlay = document.getElementById(overlayId);
-  const countdownEl = document.getElementById(countdownId);
-  if (!overlay || !countdownEl) return;
-
-  let remaining = seconds;
-  countdownEl.textContent = String(remaining);
-
-  const interval = setInterval(() => {
-    remaining--;
-    countdownEl.textContent = String(remaining);
-
-    if (remaining <= 0) {
-      clearInterval(interval);
-      overlay.style.display = 'none';
-    }
-  }, 1000);
-}
-
 function setupThresholdControls(): void {
-  // Blur threshold sliders - live update display
+  // Blur threshold sliders - both top card and settings section
   const blurSliders = ['blur-normal', 'blur-reduced', 'blur-winddown', 'blur-minimal'];
+
   for (const id of blurSliders) {
+    // Settings section sliders
     const slider = document.getElementById(id) as HTMLInputElement;
     const valueEl = document.getElementById(`${id}-value`);
     if (slider && valueEl) {
       slider.addEventListener('input', () => {
         valueEl.textContent = slider.value;
+        // Sync to top card slider
+        const topSlider = document.getElementById(`${id}-top`) as HTMLInputElement;
+        const topValueEl = document.getElementById(`${id}-value-top`);
+        if (topSlider) topSlider.value = slider.value;
+        if (topValueEl) topValueEl.textContent = slider.value;
       });
       slider.addEventListener('change', saveCustomThresholds);
+    }
+
+    // Top card sliders
+    const topSlider = document.getElementById(`${id}-top`) as HTMLInputElement;
+    const topValueEl = document.getElementById(`${id}-value-top`);
+    if (topSlider && topValueEl) {
+      topSlider.addEventListener('input', () => {
+        topValueEl.textContent = topSlider.value;
+        // Sync to settings section slider
+        if (slider) slider.value = topSlider.value;
+        if (valueEl) valueEl.textContent = topSlider.value;
+      });
+      topSlider.addEventListener('change', saveCustomThresholds);
     }
   }
 
@@ -1690,16 +1672,15 @@ function setupThresholdControls(): void {
     }
   }
 
-  // Reset button (in threshold controls section)
+  // Reset buttons
   const resetBtn = document.getElementById('reset-thresholds-btn');
   if (resetBtn) {
     resetBtn.addEventListener('click', resetThresholdsToCalibrated);
   }
 
-  // Quick reset button (always visible, above API key)
-  const quickResetBtn = document.getElementById('quick-reset-btn');
-  if (quickResetBtn) {
-    quickResetBtn.addEventListener('click', resetThresholdsToCalibrated);
+  const resetBtnTop = document.getElementById('reset-thresholds-btn-top');
+  if (resetBtnTop) {
+    resetBtnTop.addEventListener('click', resetThresholdsToCalibrated);
   }
 }
 
