@@ -188,7 +188,7 @@ async function updateApiStatus(settings: Settings): Promise<void> {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#4a2d2d';
       apiKeyStatus.style.color = '#ff9999';
-      apiKeyStatus.textContent = 'Enter your OpenRouter API key to enable post scoring.';
+      apiKeyStatus.textContent = 'Enter your API key to enable post scoring.';
     }
   }
 }

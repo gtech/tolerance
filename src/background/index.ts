@@ -33,7 +33,7 @@ import {
 } from './storage';
 import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
-import { getApiUsage, resetApiUsage } from './openrouter';
+import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
 import { getProductivityStats } from './rescuetime';
 import {
   discoverEmergingNarratives,
@@ -302,6 +302,16 @@ async function handleMessage(
     case 'RESET_API_USAGE': {
       await resetApiUsage();
       return { success: true };
+    }
+
+    case 'GET_API_CALL_LOG': {
+      const callLog = await getApiCallLog();
+      return { type: 'API_CALL_LOG_RESULT', callLog };
+    }
+
+    case 'GET_API_CALL_SUMMARY': {
+      const summary = await getApiCallSummary();
+      return { type: 'API_CALL_SUMMARY_RESULT', summary };
     }
 
     case 'CLEAR_SCORE_CACHE': {

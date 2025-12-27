@@ -186,7 +186,7 @@ Respond with ONLY a JSON array, one object per post in order:
 [{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   try {
-    const response = await callOpenRouter(prompt);
+    const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
     log.debug(` Batch API response:`, response ? 'got response' : 'null response');
     if (!response) {
       log.debug(` Batch API returned null`);
@@ -322,7 +322,7 @@ Respond with ONLY a JSON array, one object per post in order:
 [{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   try {
-    const response = await callOpenRouter(prompt);
+    const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
     if (!response) {
       return new Map();
     }
@@ -640,7 +640,7 @@ Consider: Do the images match the ${contentLabel.toLowerCase()}? Are they design
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-    return callOpenRouter(prompt);
+    return callOpenRouter(prompt, undefined, undefined, 'image', 1);
   }
 
   // Single image: use vision model from config
@@ -669,7 +669,7 @@ Consider: ${hasText ? `Does the image match the ${contentLabel.toLowerCase()}? `
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl);
+  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1);
 }
 
 // Score a video/gif post using thumbnail
@@ -738,7 +738,7 @@ Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong
 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined);
+  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1);
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -782,15 +782,20 @@ Consider: Does the video use attention-grabbing tactics? Quick cuts designed to 
 Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
 
   // Use the Gemini video model for full video analysis
-  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl);
+  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1);
 }
+
+// Call type for tracking
+type ApiCallType = 'text-batch' | 'image' | 'video' | 'gallery-describe' | 'instagram-video' | 'text-single';
 
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
 async function callApi(
   config: ProviderConfig,
   prompt: string,
   model: string,
-  imageUrl?: string
+  imageUrl?: string,
+  callType: ApiCallType = 'text-single',
+  postCount: number = 1
 ): Promise<ScoreResponse | null> {
   const callStart = performance.now();
   log.debug(` callApi START at t=${callStart.toFixed(0)}, model=${model}, endpoint=${config.endpoint}`);
@@ -955,8 +960,14 @@ async function callApi(
              (outputTokens / 1_000_000) * modelCosts.output;
     }
 
-    // Track usage
-    await trackUsage(cost, config.trackCosts);
+    // Track usage with details for benchmarking
+    await trackUsage(cost, config.trackCosts, {
+      model,
+      type: callType,
+      postCount,
+      inputTokens,
+      outputTokens,
+    });
 
     // Parse response - check content first, then reasoning field
     const message = data.choices?.[0]?.message;
@@ -1057,17 +1068,30 @@ async function callApi(
 async function callOpenRouter(
   prompt: string,
   model?: string,
-  imageUrl?: string
+  imageUrl?: string,
+  callType: ApiCallType = 'text-single',
+  postCount: number = 1
 ): Promise<ScoreResponse | null> {
   const config = await getProviderConfig();
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
-  return callApi(config, prompt, effectiveModel, imageUrl);
+  return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount);
+}
+
+// Detailed API call tracking for benchmarking
+export interface ApiCallLog {
+  timestamp: number;
+  model: string;
+  type: 'text-batch' | 'image' | 'video' | 'gallery-describe' | 'instagram-video';
+  postCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
 }
 
 // Track API usage
-async function trackUsage(cost: number, trackCosts: boolean = true): Promise<void> {
-  const result = await chrome.storage.local.get('apiUsage');
+async function trackUsage(cost: number, trackCosts: boolean = true, details?: Partial<ApiCallLog>): Promise<void> {
+  const result = await chrome.storage.local.get(['apiUsage', 'apiCallLog']);
   const usage = result.apiUsage as ApiUsage || {
     totalCalls: 0,
     totalCost: 0,
@@ -1081,7 +1105,48 @@ async function trackUsage(cost: number, trackCosts: boolean = true): Promise<voi
     usage.totalCost += cost;
   }
 
-  await chrome.storage.local.set({ apiUsage: usage });
+  // Detailed call logging (keep last 100 calls)
+  if (details) {
+    const callLog: ApiCallLog[] = result.apiCallLog || [];
+    callLog.push({
+      timestamp: Date.now(),
+      model: details.model || 'unknown',
+      type: details.type || 'text-batch',
+      postCount: details.postCount || 1,
+      inputTokens: details.inputTokens || 0,
+      outputTokens: details.outputTokens || 0,
+      cost,
+    });
+    // Keep only last 100 calls
+    const trimmedLog = callLog.slice(-100);
+    await chrome.storage.local.set({ apiUsage: usage, apiCallLog: trimmedLog });
+  } else {
+    await chrome.storage.local.set({ apiUsage: usage });
+  }
+}
+
+// Get API call log for benchmarking
+export async function getApiCallLog(): Promise<ApiCallLog[]> {
+  const result = await chrome.storage.local.get('apiCallLog');
+  return result.apiCallLog || [];
+}
+
+// Get call breakdown summary
+export async function getApiCallSummary(): Promise<Record<string, { calls: number; cost: number; posts: number }>> {
+  const log = await getApiCallLog();
+  const summary: Record<string, { calls: number; cost: number; posts: number }> = {};
+
+  for (const call of log) {
+    const key = call.type;
+    if (!summary[key]) {
+      summary[key] = { calls: 0, cost: 0, posts: 0 };
+    }
+    summary[key].calls++;
+    summary[key].cost += call.cost;
+    summary[key].posts += call.postCount;
+  }
+
+  return summary;
 }
 
 // Get current usage stats
