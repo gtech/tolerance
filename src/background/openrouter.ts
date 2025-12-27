@@ -809,7 +809,7 @@ async function callApi(
   try {
     const messages: Array<{
       role: string;
-      content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      content: string | Array<{ type: string; text?: string; image_url?: { url: string; detail?: 'low' | 'high' | 'auto' } }>;
     }> = [];
 
     if (effectiveImageUrl) {
@@ -854,11 +854,12 @@ async function callApi(
         log.debug(` Sending to ${model}, image=${transformedImageUrl.startsWith('data:') ? 'base64' : transformedImageUrl.slice(0, 60)}...`);
 
         // Multimodal message with image URL
+        // Use detail: 'low' to reduce token cost from ~1500-2500 to ~85 tokens
         messages.push({
           role: 'user',
           content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: transformedImageUrl } },
+            { type: 'image_url', image_url: { url: transformedImageUrl, detail: 'low' } },
           ],
         });
       }
