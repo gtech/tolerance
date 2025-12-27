@@ -870,10 +870,13 @@ async function callApi(
     }
 
     // Build request body - keep it minimal for local model compatibility
+    // Image/video scoring only needs ~40 tokens for {"score": N, "reason": "..."}
+    // Text batches need more for multiple post responses
+    const isImageCall = callType === 'image' || callType === 'video' || callType === 'instagram-video';
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: 4000,
+      max_tokens: isImageCall ? 40 : 4000,
       stream: false,
     };
 
