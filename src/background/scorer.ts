@@ -818,31 +818,36 @@ export async function scoreVideos(
     }
   }
 
-  // Process API scoring for videos (batch text scoring)
+  // Process API scoring for videos (BATCHED - single API call for all videos)
   if (videosForApi.length > 0) {
-    log.debug(` Scoring ${videosForApi.length} videos via API`);
+    log.debug(` Scoring ${videosForApi.length} videos via batched API`);
 
-    const apiPromises = videosForApi.map(async ({ video, score }) => {
-      try {
-        // Score video title as text
-        const apiResult = await scoreTextPost(
-          video.title,
-          video.channel || '@unknown',
-          null, // No score/likes visible before clicking
-          0, // No comments visible
-          settings.openRouterApiKey!
-        );
-        if (apiResult) {
-          const apiScore = apiResult.score * 10;
+    // Build batch request
+    const postsForBatch: PostForScoring[] = videosForApi.map(({ video }) => ({
+      id: video.id,
+      title: video.title,
+      subreddit: video.channel || '@unknown', // Channel name in subreddit field
+      score: null, // No score/likes visible before clicking
+      numComments: 0, // No comments visible
+      platform: 'twitter' as const, // Use Twitter format (@channel)
+    }));
+
+    try {
+      const batchResults = await scoreTextPostsBatch(postsForBatch);
+
+      // Apply results to scores
+      for (const { video, score } of videosForApi) {
+        const result = batchResults.get(video.id);
+        if (result) {
+          const apiScore = result.score * 10;
           score.apiScore = apiScore;
-          score.apiReason = apiResult.reason;
+          score.apiReason = result.reason;
           score.bucket = scoreToBucket(apiScore, 'youtube');
         }
-      } catch (err) {
-        console.error('Video API scoring failed:', err);
       }
-    });
-    await Promise.all(apiPromises);
+    } catch (err) {
+      console.error('Video batch API scoring failed:', err);
+    }
   }
   const t3 = performance.now();
 

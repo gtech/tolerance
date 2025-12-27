@@ -6,15 +6,19 @@ import { log } from '../../shared/constants';
 
 export function scrapeVisibleVideos(): YouTubeVideo[] {
   const videos: YouTubeVideo[] = [];
+  const seenIds = new Set<string>();
 
-  // Homepage videos (rich grid)
+  // Homepage videos (rich grid) - these contain yt-lockup-view-model inside
   const homeVideos = document.querySelectorAll<HTMLElement>('ytd-rich-item-renderer');
 
-  // Sidebar recommendations (compact) - legacy and new lockup model
+  // Sidebar recommendations (compact) - legacy
   const sidebarVideos = document.querySelectorAll<HTMLElement>('ytd-compact-video-renderer');
 
   // New sidebar/recommendations using lockup view model (horizontal layout)
-  const lockupVideos = document.querySelectorAll<HTMLElement>('yt-lockup-view-model.yt-lockup-view-model--wrapper');
+  // ONLY select lockup models that are NOT inside ytd-rich-item-renderer (to avoid duplicates)
+  const lockupVideos = document.querySelectorAll<HTMLElement>(
+    'yt-lockup-view-model.yt-lockup-view-model--wrapper:not(ytd-rich-item-renderer yt-lockup-view-model)'
+  );
 
   // Search results and other video lists
   const listVideos = document.querySelectorAll<HTMLElement>('ytd-video-renderer');
@@ -23,12 +27,13 @@ export function scrapeVisibleVideos(): YouTubeVideo[] {
 
   for (const element of [...homeVideos, ...sidebarVideos, ...lockupVideos, ...listVideos]) {
     const video = parseVideoElement(element);
-    if (video) {
+    if (video && !seenIds.has(video.id)) {
+      seenIds.add(video.id);
       videos.push(video);
     }
   }
 
-  log.debug(` Scraped ${videos.length} valid videos`);
+  log.debug(` Scraped ${videos.length} unique videos`);
   return videos;
 }
 
