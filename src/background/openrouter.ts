@@ -830,17 +830,17 @@ async function callApi(
         }
       }
 
-      // Reddit images: fetch via content script and convert to base64
-      // Reddit blocks API servers from fetching directly (403 error)
-      if (transformedImageUrl.includes('redd.it') && !transformedImageUrl.startsWith('data:')) {
-        log.debug(` Fetching Reddit image via content script: ${transformedImageUrl.slice(0, 60)}...`);
+      // Fetch ALL images via content script to resize them (reduces tokens from ~2000 to ~200-400)
+      // Content script resizes to max 512px before base64 encoding
+      if (!transformedImageUrl.startsWith('data:')) {
+        log.debug(` Fetching image via content script for resize: ${transformedImageUrl.slice(0, 60)}...`);
         const base64 = await fetchImageViaContentScript(transformedImageUrl);
         if (base64) {
           transformedImageUrl = base64;
-          log.debug(` Converted Reddit image to base64 (${base64.length} chars)`);
+          log.debug(` Image resized and converted to base64 (${base64.length} chars)`);
         } else {
-          // Can't fetch Reddit image - fall back to text-only scoring
-          log.debug(` Reddit image blocked, falling back to text-only scoring`);
+          // Can't fetch image - fall back to text-only scoring
+          log.debug(` Image fetch failed, falling back to text-only scoring`);
           messages.push({
             role: 'user',
             content: prompt,

@@ -780,6 +780,14 @@ function extractAuthorFromElement(element: HTMLElement | null): string | null {
 
 // Listen for context menu queries from background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'FETCH_IMAGE_BASE64') {
+    // Fetch image, resize to 512px, and convert to base64
+    fetchImageAsBase64(message.url)
+      .then(base64 => sendResponse({ success: true, base64 }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true; // Keep channel open for async response
+  }
+
   if (message.type === 'GET_CLICKED_AUTHOR') {
     // Return author from the right-clicked element
     const author = extractAuthorFromElement(lastRightClickedElement);
@@ -806,3 +814,48 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+
+// Fetch image, resize to max 512px, and convert to base64 (reduces token cost)
+async function fetchImageAsBase64(url: string): Promise<string> {
+  const MAX_SIZE = 512;
+
+  const response = await fetch(url, { credentials: 'omit' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const blob = await response.blob();
+  const img = await createImageBitmap(blob);
+
+  // Calculate scaled dimensions (max 512px, preserve aspect ratio)
+  let width = img.width;
+  let height = img.height;
+
+  if (width > MAX_SIZE || height > MAX_SIZE) {
+    if (width > height) {
+      height = Math.round((height / width) * MAX_SIZE);
+      width = MAX_SIZE;
+    } else {
+      width = Math.round((width / height) * MAX_SIZE);
+      height = MAX_SIZE;
+    }
+  }
+
+  // Draw to canvas at reduced size
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+  ctx.drawImage(img, 0, 0, width, height);
+
+  // Convert to blob then base64
+  const resizedBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      log.debug(` Image resized ${img.width}x${img.height} -> ${width}x${height}`);
+      resolve(result);
+    };
+    reader.onerror = () => reject(new Error('FileReader failed'));
+    reader.readAsDataURL(resizedBlob);
+  });
+}

@@ -1075,10 +1075,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// Fetch image and convert to base64 (used for gallery images via message handler)
+// Fetch image, resize to max 512px, and convert to base64
+// Resizing reduces token cost from ~2000 to ~200-400 tokens
 // Note: This often fails with 403 for Reddit images - galleries fall back to text-only scoring
 async function fetchImageAsBase64(url: string): Promise<string> {
-  // Try fetch first
+  const MAX_SIZE = 512;
+
   try {
     const response = await fetch(url, {
       credentials: 'omit',
@@ -1090,15 +1092,43 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 
     const blob = await response.blob();
 
+    // Load image to get dimensions
+    const img = await createImageBitmap(blob);
+
+    // Calculate scaled dimensions (max 512px, preserve aspect ratio)
+    let width = img.width;
+    let height = img.height;
+
+    if (width > MAX_SIZE || height > MAX_SIZE) {
+      if (width > height) {
+        height = Math.round((height / width) * MAX_SIZE);
+        width = MAX_SIZE;
+      } else {
+        width = Math.round((width / height) * MAX_SIZE);
+        height = MAX_SIZE;
+      }
+    }
+
+    // Draw to canvas at reduced size
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Could not get canvas context');
+    }
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // Convert to blob then base64
+    const resizedBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        log.debug(` Image fetched successfully: ${result.length} chars`);
+        log.debug(` Image resized ${img.width}x${img.height} -> ${width}x${height}, ${result.length} chars`);
         resolve(result);
       };
       reader.onerror = () => reject(new Error('FileReader failed'));
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(resizedBlob);
     });
   } catch (fetchError) {
     // For Reddit images, fetch often fails with 403
