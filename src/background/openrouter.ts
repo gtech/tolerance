@@ -873,7 +873,7 @@ async function callApi(
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: 2000,
+      max_tokens: 4000,
       stream: false,
     };
 

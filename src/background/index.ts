@@ -81,11 +81,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Pre-provision free tier API key (async, fire-and-forget)
   // This ensures the key is ready when the user first visits a social media site
-  provisionFreeKey().then(result => {
-    if (result) {
-      log.debug(` Free tier key pre-provisioned on ${details.reason}`);
-    }
-  }).catch(err => {
+  // Only logs on actual new provisioning (not when returning cached key)
+  provisionFreeKey().catch(err => {
     log.debug(` Free tier key pre-provisioning failed: ${err}`);
   });
 });

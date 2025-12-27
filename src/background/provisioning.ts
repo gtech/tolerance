@@ -19,22 +19,26 @@ async function getOrCreateInstallId(): Promise<string> {
     return result.installId;
   }
 
-  // Generate a UUID-like install ID
-  const installId = crypto.randomUUID();
+  // Generate a UUID-like install ID (with fallback for older browsers)
+  const installId = crypto.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
   await chrome.storage.local.set({ installId });
   log.debug(` Generated new install ID: ${installId}`);
   return installId;
 }
 
 // Provision a free tier API key from the backend
-export async function provisionFreeKey(): Promise<ProvisionedKey | null> {
+// Returns cached key if available, otherwise provisions new one
+export async function provisionFreeKey(forceLog = false): Promise<ProvisionedKey | null> {
   try {
     const installId = await getOrCreateInstallId();
 
     // Check if we already have a provisioned key
     const cached = await getProvisionedKey();
     if (cached) {
-      log.debug(` Using cached provisioned key (provisioned ${new Date(cached.provisionedAt).toLocaleDateString()})`);
+      if (forceLog) {
+        log.debug(` Using cached provisioned key (provisioned ${new Date(cached.provisionedAt).toLocaleDateString()})`);
+      }
       return cached;
     }
 
