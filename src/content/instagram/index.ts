@@ -699,6 +699,9 @@ async function init(): Promise<void> {
     log.error('Instagram: Failed to get settings:', error);
   }
 
+  // Fetch initial blur threshold BEFORE processing posts
+  await updateBlurThreshold();
+
   // Start heartbeat for session tracking
   startHeartbeat();
 

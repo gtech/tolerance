@@ -54,8 +54,12 @@ export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<v
     <div class="tolerance-onboarding-content">
       <div class="tolerance-onboarding-icon">💡</div>
       <div class="tolerance-onboarding-text">
-        <strong>Tip:</strong> Hover for 3 seconds to reveal blurred content.
-        <br><span class="tolerance-onboarding-secondary">You can adjust blur thresholds and hover duration in the extension settings.</span>
+        <strong>Tips:</strong>
+        <ul class="tolerance-onboarding-list">
+          <li>Hover for 3 seconds to reveal blurred content</li>
+          <li>Right-click any post to trust that author forever</li>
+        </ul>
+        <span class="tolerance-onboarding-secondary">Adjust blur thresholds and hover duration in Settings.</span>
       </div>
       <button class="tolerance-onboarding-dismiss" aria-label="Dismiss">✕</button>
     </div>
@@ -181,6 +185,24 @@ export function injectOnboardingStyles(): void {
     .tolerance-onboarding-secondary {
       color: #888;
       font-size: 12px;
+    }
+
+    .tolerance-onboarding-list {
+      margin: 8px 0;
+      padding-left: 18px;
+      list-style: none;
+    }
+
+    .tolerance-onboarding-list li {
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    .tolerance-onboarding-list li::before {
+      content: "•";
+      color: #7dcea0;
+      position: absolute;
+      left: -14px;
     }
 
     .tolerance-onboarding-dismiss {

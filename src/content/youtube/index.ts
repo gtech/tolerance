@@ -657,6 +657,9 @@ async function initCore(): Promise<void> {
   const sessionResult = await sendMessage({ type: 'ENSURE_SESSION' });
   log.debug(' Session result:', sessionResult);
 
+  // Fetch initial blur threshold BEFORE processing videos
+  await updateBlurThreshold();
+
   // Start heartbeat tracking
   startHeartbeat();
 
