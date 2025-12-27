@@ -3,6 +3,7 @@ import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver } from './observer';
+import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -492,10 +493,20 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     tooltip.appendChild(debugDiv);
   }
 
+  // Make failed badges clickable to upgrade page
+  if (info.scoringFailed) {
+    badge.style.cursor = 'pointer';
+    badge.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open('https://tolerance.lol/account.html', '_blank');
+    });
+  }
+
   // Use native title tooltip instead of custom one (more reliable)
   const titleParts: string[] = [];
   if (info.scoringFailed) {
-    titleParts.push('Scoring failed - free tier may be exhausted');
+    titleParts.push('Free tier exhausted. Click to upgrade to Pro.');
   } else if (info.reason) {
     titleParts.push(info.reason);
   }
@@ -616,6 +627,9 @@ function applyBlurToTweet(tweet: Tweet, score: number, reason?: string, blurInte
   cell.appendChild(overlay);
 
   log.debug(` Blurred high-engagement tweet ${tweet.id}, score=${score}`);
+
+  // Show onboarding tooltip on first blur (one-time)
+  showOnboardingTooltip(cell);
 }
 
 // Helper for async delays
@@ -762,6 +776,7 @@ async function initCore(): Promise<void> {
 
   // Inject styles only if platform is enabled
   injectStyles();
+  injectOnboardingStyles();
 
   log.debug(' Mode =', currentState.mode);
 
@@ -1182,14 +1197,69 @@ function refreshBlurState(): void {
   }
 }
 
-// Listen for quality mode changes from popup
+// Track right-clicked element for context menu
+let lastRightClickedElement: HTMLElement | null = null;
+
+document.addEventListener('contextmenu', (e) => {
+  lastRightClickedElement = e.target as HTMLElement;
+});
+
+// Extract author from a tweet element
+function extractAuthorFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+
+  // Walk up to find the tweet container (cellInnerDiv)
+  const cell = element.closest('[data-testid="cellInnerDiv"]');
+  if (!cell) return null;
+
+  // Find the tweet element
+  const tweet = cell.querySelector('[data-testid="tweet"]');
+  if (!tweet) return null;
+
+  // Twitter shows author as a link with href like "/@username"
+  // Look for the author link in the tweet header
+  const userLinks = tweet.querySelectorAll('a[href^="/"]') as NodeListOf<HTMLAnchorElement>;
+  for (const link of userLinks) {
+    const href = link.getAttribute('href');
+    if (href && href.match(/^\/[A-Za-z0-9_]+$/) && !href.includes('/status/')) {
+      // This is a username link
+      const username = href.slice(1); // Remove leading /
+      if (username && username.length > 0) {
+        return username;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Listen for quality mode changes and context menu queries from popup/background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'QUALITY_MODE_CHANGED') {
     qualityModeEnabled = message.enabled;
     log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
     refreshBlurState();
     sendResponse({ success: true });
+    return true;
   }
+
+  if (message.type === 'GET_CLICKED_AUTHOR') {
+    // Return author from the right-clicked element
+    const author = extractAuthorFromElement(lastRightClickedElement);
+    if (author) {
+      sendResponse({ sourceId: `@${author}`, platform: 'twitter' });
+    } else {
+      sendResponse({ sourceId: null, platform: null });
+    }
+    return false;
+  }
+
+  if (message.type === 'AUTHOR_WHITELISTED') {
+    // Optional: show visual feedback that author was whitelisted
+    log.info(`Author ${message.sourceId} added to whitelist`);
+    return false;
+  }
+
   return true;
 });
 

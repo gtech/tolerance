@@ -2,6 +2,7 @@ import { YouTubeVideo, EngagementScore, AppState, Settings } from '../../shared/
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
+import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -411,8 +412,16 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   if (info.scoringFailed) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
-    reasonDiv.textContent = 'Scoring failed - free tier may be exhausted';
+    reasonDiv.textContent = 'Free tier exhausted. Click to upgrade to Pro.';
     tooltip.appendChild(reasonDiv);
+
+    // Make badge clickable and open account page
+    badge.style.cursor = 'pointer';
+    badge.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open('https://tolerance.lol/account.html', '_blank');
+    });
   } else if (info.reason) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
@@ -557,6 +566,9 @@ function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, b
 
     overlay.appendChild(label);
     thumbnail.appendChild(overlay);
+
+    // Show onboarding tooltip on first blur (one-time)
+    showOnboardingTooltip(thumbnail);
   }
 
   log.debug(` Blurred high-engagement video ${video.id}, score=${score}`);
@@ -625,6 +637,7 @@ async function initCore(): Promise<void> {
 
   // Inject styles only if platform is enabled
   injectStyles();
+  injectOnboardingStyles();
 
   // Show tip about disabling video previews
   showVideoPreviewTip();
@@ -943,14 +956,80 @@ function refreshBlurState(): void {
   }
 }
 
-// Listen for quality mode changes from popup
+// Track right-clicked element for context menu
+let lastRightClickedElement: HTMLElement | null = null;
+
+document.addEventListener('contextmenu', (e) => {
+  lastRightClickedElement = e.target as HTMLElement;
+});
+
+// Extract channel name from a video element
+function extractChannelFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+
+  // Walk up to find the video container
+  const videoContainer = element.closest(
+    'ytd-rich-item-renderer, ' +
+    'ytd-compact-video-renderer, ' +
+    'yt-lockup-view-model'
+  );
+  if (!videoContainer) return null;
+
+  // Try to find channel name from various YouTube layouts
+  // New layout: yt-formatted-string in channel link
+  const channelLink = videoContainer.querySelector(
+    'a[href^="/@"] yt-formatted-string, ' +         // New format
+    'ytd-channel-name a, ' +                         // Channel name link
+    'a.yt-formatted-string[href^="/@"], ' +          // Direct link
+    '.ytd-channel-name yt-formatted-string'          // Fallback
+  ) as HTMLElement | null;
+
+  if (channelLink) {
+    const text = channelLink.textContent?.trim();
+    if (text) return text;
+  }
+
+  // Try from href
+  const channelAnchor = videoContainer.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
+  if (channelAnchor) {
+    const href = channelAnchor.getAttribute('href');
+    if (href) {
+      // Extract @username from href
+      const match = href.match(/^\/@([^/]+)/);
+      if (match) return match[1];
+    }
+  }
+
+  return null;
+}
+
+// Listen for quality mode changes and context menu queries from popup/background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'QUALITY_MODE_CHANGED') {
     qualityModeEnabled = message.enabled;
     log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
     refreshBlurState();
     sendResponse({ success: true });
+    return true;
   }
+
+  if (message.type === 'GET_CLICKED_AUTHOR') {
+    // Return channel from the right-clicked element
+    const channel = extractChannelFromElement(lastRightClickedElement);
+    if (channel) {
+      sendResponse({ sourceId: channel, platform: 'youtube' });
+    } else {
+      sendResponse({ sourceId: null, platform: null });
+    }
+    return false;
+  }
+
+  if (message.type === 'AUTHOR_WHITELISTED') {
+    // Optional: show visual feedback that channel was whitelisted
+    log.info(`Channel ${message.sourceId} added to whitelist`);
+    return false;
+  }
+
   return true;
 });
 

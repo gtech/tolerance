@@ -2,6 +2,7 @@ import { InstagramPost, EngagementScore, AppState, Settings } from '../../shared
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
+import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -562,9 +563,14 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Add tooltip with reason
   if (scoringFailed) {
-    badge.title = 'Scoring failed - free tier may be exhausted';
-    badge.style.cursor = 'help';
+    badge.title = 'Free tier exhausted. Click to upgrade to Pro.';
+    badge.style.cursor = 'pointer';
     badge.style.pointerEvents = 'auto';
+    badge.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open('https://tolerance.lol/account.html', '_blank');
+    });
   } else if (score.apiReason) {
     badge.title = score.apiReason;
     badge.style.cursor = 'help';
@@ -642,6 +648,9 @@ function applyBlur(element: HTMLElement): void {
   });
 
   element.appendChild(overlay);
+
+  // Show onboarding tooltip on first blur (one-time)
+  showOnboardingTooltip(element);
 }
 
 async function init(): Promise<void> {
@@ -649,6 +658,7 @@ async function init(): Promise<void> {
 
   // Inject styles
   injectStyles();
+  injectOnboardingStyles();
 
   // Blur navigation buttons (Explore, Reels) with 10-second hover reveal
   blurNavigationButtons();
@@ -728,4 +738,65 @@ window.addEventListener('unload', () => {
   if (heartbeatIntervalId) {
     clearInterval(heartbeatIntervalId);
   }
+});
+
+// Track right-clicked element for context menu
+let lastRightClickedElement: HTMLElement | null = null;
+
+document.addEventListener('contextmenu', (e) => {
+  lastRightClickedElement = e.target as HTMLElement;
+});
+
+// Extract author username from an Instagram post element
+function extractAuthorFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+
+  // Walk up to find the article (post) container
+  const article = element.closest('article');
+  if (!article) return null;
+
+  // Instagram post headers have the username link
+  // Look for the author link in the post header (usually first username link)
+  const headerLinks = article.querySelectorAll('header a[href^="/"]') as NodeListOf<HTMLAnchorElement>;
+  for (const link of headerLinks) {
+    const href = link.getAttribute('href');
+    if (href && href.match(/^\/[A-Za-z0-9_.]+\/?$/) && !href.includes('/p/') && !href.includes('/reel/')) {
+      // This looks like a username link
+      const username = href.replace(/^\/|\/$/g, ''); // Remove leading/trailing slashes
+      if (username && username.length > 0) {
+        return username;
+      }
+    }
+  }
+
+  return null;
+}
+
+// Listen for context menu queries from background
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'GET_CLICKED_AUTHOR') {
+    // Return author from the right-clicked element
+    const author = extractAuthorFromElement(lastRightClickedElement);
+    if (author) {
+      sendResponse({ sourceId: `@${author}`, platform: 'instagram' });
+    } else {
+      sendResponse({ sourceId: null, platform: null });
+    }
+    return false;
+  }
+
+  if (message.type === 'AUTHOR_WHITELISTED') {
+    // Optional: show visual feedback that author was whitelisted
+    log.info(`Author ${message.sourceId} added to whitelist`);
+    return false;
+  }
+
+  if (message.type === 'QUALITY_MODE_CHANGED') {
+    qualityModeEnabled = message.enabled;
+    log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
+    sendResponse({ success: true });
+    return true;
+  }
+
+  return true;
 });

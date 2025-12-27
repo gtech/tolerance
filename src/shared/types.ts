@@ -407,6 +407,16 @@ export interface ProductivityStats {
   lastUpdated: number;  // timestamp
 }
 
+// Onboarding state - tracks one-time tooltips and hints
+export interface OnboardingState {
+  hoverTooltipDismissed: boolean;  // One-time "hover to reveal" tooltip
+  dismissedAt?: number;            // When tooltip was dismissed
+}
+
+export const DEFAULT_ONBOARDING_STATE: OnboardingState = {
+  hoverTooltipDismissed: false,
+};
+
 // Message types for content <-> background communication
 export type MessageType =
   | { type: 'SCORE_POSTS'; posts: Omit<RedditPost, 'element'>[] }
@@ -445,7 +455,15 @@ export type MessageType =
   | { type: 'GET_ADAPTIVE_SETTINGS' }
   | { type: 'SUBMIT_CALIBRATION_FEEDBACK'; response: 'restricted' | 'balanced' | 'too_easy' }
   | { type: 'GET_FEEDBACK_PROMPT_STATUS' }  // Check if we should show feedback prompt
-  | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal' };
+  | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal' }
+  // Onboarding messages
+  | { type: 'GET_ONBOARDING_STATE' }
+  | { type: 'DISMISS_ONBOARDING_TOOLTIP' }
+  // Context menu whitelist
+  | { type: 'GET_CLICKED_AUTHOR' }  // Background asks content script for author at click position
+  | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' }
+  // API error state
+  | { type: 'GET_API_ERROR_STATE' };
 
 export const DEFAULT_SETTINGS: Settings = {
   scheduler: {

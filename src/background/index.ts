@@ -1,4 +1,4 @@
-import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats } from '../shared/types';
+import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import {
   getState,
@@ -57,9 +57,82 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Schedule narrative theme discovery (daily)
   chrome.alarms.create('narrativeDiscovery', { periodInMinutes: 1440 }); // 24 hours
 
+  // Create context menu for whitelisting authors
+  chrome.contextMenus.create({
+    id: 'tolerance-trust-author',
+    title: 'Trust this author (never blur)',
+    contexts: ['all'],
+    documentUrlPatterns: [
+      '*://old.reddit.com/*',
+      '*://www.reddit.com/*',
+      '*://reddit.com/*',
+      '*://twitter.com/*',
+      '*://x.com/*',
+      '*://www.youtube.com/*',
+      '*://www.instagram.com/*',
+    ],
+  });
+
   // Open dashboard on first install to prompt API key setup
   if (details.reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html') });
+  }
+});
+
+// Handle context menu clicks for author whitelisting
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== 'tolerance-trust-author' || !tab?.id) return;
+
+  try {
+    // Ask content script for the clicked author
+    const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_CLICKED_AUTHOR' });
+
+    if (!response?.sourceId || !response?.platform) {
+      log.debug('Context menu: No author found at click position');
+      return;
+    }
+
+    const { sourceId, platform } = response;
+
+    // Add to whitelist
+    const settings = await getSettings();
+    const whitelist: WhitelistEntry[] = settings.whitelist || [];
+
+    // Check if already whitelisted
+    const normalizedSource = sourceId.toLowerCase().replace(/^[@u/]+/, '');
+    const alreadyExists = whitelist.some(entry =>
+      entry.platform === platform &&
+      entry.sourceId.toLowerCase().replace(/^[@u/]+/, '') === normalizedSource
+    );
+
+    if (alreadyExists) {
+      log.debug(`Context menu: ${sourceId} already whitelisted`);
+      return;
+    }
+
+    // Add new entry
+    const newEntry: WhitelistEntry = {
+      sourceId,
+      platform,
+      createdAt: Date.now(),
+      reason: 'Added via right-click menu',
+    };
+
+    whitelist.push(newEntry);
+    await setSettings({ ...settings, whitelist });
+
+    log.info(`Context menu: Added ${sourceId} (${platform}) to whitelist`);
+
+    // Notify content script to refresh (optional visual feedback)
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'AUTHOR_WHITELISTED',
+      sourceId,
+      platform,
+    }).catch(() => {
+      // Content script might not be ready, that's fine
+    });
+  } catch (err) {
+    log.debug('Context menu error:', err);
   }
 });
 

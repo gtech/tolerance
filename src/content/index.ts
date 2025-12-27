@@ -6,6 +6,7 @@ import { reorderPosts, recordImpressions } from './reorder';
 import { setupObserver, setupRESObserver } from './observer';
 import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
+import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -355,8 +356,17 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
   if (info.scoringFailed) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
-    reasonDiv.textContent = 'Scoring failed - free tier may be exhausted';
+    reasonDiv.textContent = 'Free tier exhausted. Click to upgrade to Pro.';
     tooltip.appendChild(reasonDiv);
+
+    // Make badge clickable and open account page
+    badge.style.cursor = 'pointer';
+    badge.style.pointerEvents = 'auto';
+    badge.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      window.open('https://tolerance.lol/account.html', '_blank');
+    });
   } else if (info.reason) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
@@ -481,6 +491,9 @@ function applyBlur(post: RedditPost): void {
       e.stopPropagation();
     }
   });
+
+  // Show onboarding tooltip on first blur (one-time)
+  showOnboardingTooltip(element);
 }
 
 function createLoaderElement(): HTMLElement {
@@ -594,6 +607,9 @@ async function initNewReddit(): Promise<void> {
 }
 
 async function initCore(): Promise<void> {
+  // Inject onboarding tooltip styles
+  injectOnboardingStyles();
+
   // Get initial state from background
   const stateResult = await sendMessage({ type: 'GET_STATE' });
   if (stateResult && 'state' in stateResult) {
@@ -963,6 +979,38 @@ async function sendMessage(message: unknown): Promise<unknown> {
   });
 }
 
+// Track right-clicked element for context menu
+let lastRightClickedElement: HTMLElement | null = null;
+
+document.addEventListener('contextmenu', (e) => {
+  lastRightClickedElement = e.target as HTMLElement;
+});
+
+// Extract author from a Reddit post element
+function extractAuthorFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+
+  // Walk up to find the post container
+  const postElement = element.closest('.thing, shreddit-post');
+  if (!postElement) return null;
+
+  // New Reddit: shreddit-post has author attribute
+  if (postElement.tagName === 'SHREDDIT-POST') {
+    const author = postElement.getAttribute('author');
+    if (author) return author;
+  }
+
+  // Old Reddit: find .author link
+  const authorLink = postElement.querySelector('.author') as HTMLAnchorElement | null;
+  if (authorLink) {
+    // Extract username from href or text
+    const text = authorLink.textContent?.trim();
+    if (text) return text;
+  }
+
+  return null;
+}
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'FETCH_IMAGE_BASE64') {
@@ -971,6 +1019,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then(base64 => sendResponse({ success: true, base64 }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true; // Keep channel open for async response
+  }
+
+  if (message.type === 'GET_CLICKED_AUTHOR') {
+    // Return author from the right-clicked element
+    const author = extractAuthorFromElement(lastRightClickedElement);
+    if (author) {
+      sendResponse({ sourceId: `u/${author}`, platform: 'reddit' });
+    } else {
+      sendResponse({ sourceId: null, platform: null });
+    }
+    return false;
+  }
+
+  if (message.type === 'AUTHOR_WHITELISTED') {
+    // Optional: show visual feedback that author was whitelisted
+    log.info(`Author ${message.sourceId} added to whitelist`);
+    return false;
   }
 });
 

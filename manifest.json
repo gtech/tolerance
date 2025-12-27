@@ -12,7 +12,8 @@
   "permissions": [
     "storage",
     "tabs",
-    "alarms"
+    "alarms",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://old.reddit.com/*",

@@ -168,7 +168,7 @@ async function updateApiStatus(settings: Settings): Promise<void> {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#4a2d2d';
       apiKeyStatus.style.color = '#ff9999';
-      apiKeyStatus.textContent = '⚠ Free tier daily limit reached. Add your own OpenRouter API key for unlimited usage.';
+      apiKeyStatus.innerHTML = '⚠ Free tier daily limit reached. <a href="https://tolerance.lol/account.html" target="_blank" style="color: #7dcea0; text-decoration: underline;">Upgrade to Pro</a> for unlimited usage, or add your own OpenRouter API key below.';
     } else if (isFreeTier) {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#1a472a';
