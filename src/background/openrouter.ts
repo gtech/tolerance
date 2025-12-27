@@ -217,6 +217,11 @@ Respond with ONLY a JSON array, one object per post in order:
       } else if (fullParsed.results && Array.isArray(fullParsed.results)) {
         // Handle {"results":[...]} format
         parsed = fullParsed.results;
+      } else if (typeof fullParsed.id === 'string' && typeof fullParsed.score === 'number') {
+        // Handle single object response (when model returns one object instead of array)
+        // This happens sometimes with single-post batches
+        parsed = [fullParsed];
+        log.debug(' Wrapped single object response into array');
       }
     } catch {
       // If full parse fails, try to extract array with regex
@@ -338,6 +343,11 @@ Respond with ONLY a JSON array, one object per post in order:
         parsed = fullParsed.data;
       } else if (fullParsed.results && Array.isArray(fullParsed.results)) {
         parsed = fullParsed.results;
+      } else if (typeof fullParsed.id === 'string' && typeof fullParsed.score === 'number') {
+        // Handle single object response (when model returns one object instead of array)
+        // This happens sometimes with single-post batches
+        parsed = [fullParsed];
+        log.debug(' Wrapped single object response into array');
       }
     } catch {
       const arrayMatch = content.match(/\[[\s\S]*\]/);
@@ -862,7 +872,7 @@ async function callApi(
     if (config.type === 'openrouter') {
       requestBody.temperature = 0.3;
       requestBody.provider = {
-        order: ['Groq', 'Cerebras'],
+        // order: ['Groq', 'Cerebras'],
         allow_fallbacks: true,
       };
       // Only add JSON mode for OpenRouter non-vision requests
