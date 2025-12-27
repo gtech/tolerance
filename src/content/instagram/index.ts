@@ -28,6 +28,9 @@ let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 let qualityModeEnabled = false;
 const QUALITY_MODE_THRESHOLD = 21;
 
+// Current settings (for checking apiTier)
+let currentSettings: Settings | null = null;
+
 // Hover reveal delay (in ms)
 let hoverRevealDelay = 3000; // Default 3 seconds
 
@@ -680,6 +683,7 @@ async function init(): Promise<void> {
     const response = await sendMessage({ type: 'GET_STATE' });
     if (response) {
       const { settings } = response as { state: AppState; settings: Settings };
+      currentSettings = settings;
 
       // Check if Instagram is enabled (default to true if not set)
       if (settings.platforms?.instagram === false) {
