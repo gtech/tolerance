@@ -1,5 +1,6 @@
 import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
+import { provisionFreeKey } from './provisioning';
 import {
   getState,
   getSettings,
@@ -77,6 +78,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html') });
   }
+
+  // Pre-provision free tier API key (async, fire-and-forget)
+  // This ensures the key is ready when the user first visits a social media site
+  provisionFreeKey().then(result => {
+    if (result) {
+      log.debug(` Free tier key pre-provisioned on ${details.reason}`);
+    }
+  }).catch(err => {
+    log.debug(` Free tier key pre-provisioning failed: ${err}`);
+  });
 });
 
 // Handle context menu clicks for author whitelisting

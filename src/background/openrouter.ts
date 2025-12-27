@@ -5,6 +5,7 @@ import { log } from '../shared/constants';
 import { getSettings } from './storage';
 import { ApiProviderConfig } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
+import { getFreeTierApiKey } from './provisioning';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -55,11 +56,6 @@ const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
-// Free tier API key (base64 encoded for light obfuscation)
-// This key has a $1/day spending cap on OpenRouter
-const FREE_TIER_KEY_ENCODED = 'c2stb3ItdjEtZDU4YTViZmMwMDM3MzFlMjI1NzhjOTAwOGFiZTIyMjgyZTE3NGI2YWNmNTEyOWE3N2RjNzdhYmQ5MWY5OGVlYQ==';
-const FREE_TIER_KEY = atob(FREE_TIER_KEY_ENCODED);
-
 // Provider configuration built from settings
 interface ProviderConfig {
   type: 'openrouter' | 'openai-compatible';
@@ -70,6 +66,7 @@ interface ProviderConfig {
   videoModel: string;
   supportsVision: boolean;
   trackCosts: boolean;
+  isFreeTier: boolean; // True if using provisioned free tier key
 }
 
 // Build provider config from settings
@@ -83,12 +80,18 @@ async function getProviderConfig(): Promise<ProviderConfig> {
 
   // Use appropriate API key based on provider type and tier
   let apiKey: string;
+  let isFreeTier = false;
+
   if (isOpenRouter) {
     if (settings.apiTier === 'own-key' && settings.openRouterApiKey) {
       apiKey = settings.openRouterApiKey;
     } else {
-      // Free tier (default)
-      apiKey = FREE_TIER_KEY;
+      // Free tier - get provisioned key from backend
+      isFreeTier = true;
+      apiKey = await getFreeTierApiKey() || '';
+      if (!apiKey) {
+        log.debug(' Failed to get free tier API key - provisioning may have failed');
+      }
     }
   } else {
     apiKey = provider.apiKey || '';
@@ -100,7 +103,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   const imageModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_IMAGE_MODEL;
   const videoModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_FULL_VIDEO_MODEL;
 
-  log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, textModel=${textModel}, imageModel=${imageModel}, supportsVision=${!isOpenRouter ? (provider.visionMode !== 'disabled') : true}`);
+  log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, isFreeTier=${isFreeTier}, textModel=${textModel}, imageModel=${imageModel}, supportsVision=${!isOpenRouter ? (provider.visionMode !== 'disabled') : true}`);
 
   return {
     type: provider.type || 'openrouter',
@@ -113,6 +116,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
     videoModel,
     supportsVision: isOpenRouter ? true : (provider.visionMode !== 'disabled'),
     trackCosts: provider.trackCosts !== false && isOpenRouter,
+    isFreeTier,
   };
 }
 
@@ -915,7 +919,7 @@ async function callApi(
 
       // Check for rate limit / budget exhaustion errors (402, 429)
       // Only set exhausted state if we're on free tier
-      if ((response.status === 402 || response.status === 429) && config.apiKey === FREE_TIER_KEY) {
+      if ((response.status === 402 || response.status === 429) && config.isFreeTier) {
         await setApiErrorState({
           exhausted: true,
           message: 'Free tier daily limit reached. Add your own API key for unlimited usage.',
@@ -928,7 +932,7 @@ async function callApi(
     }
 
     // Clear any previous error state on successful request (if on free tier)
-    if (config.apiKey === FREE_TIER_KEY) {
+    if (config.isFreeTier) {
       const errorState = await getApiErrorState();
       if (errorState?.exhausted) {
         await setApiErrorState(null);
