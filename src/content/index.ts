@@ -26,7 +26,24 @@ let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 let qualityModeEnabled = false;
 const QUALITY_MODE_THRESHOLD = 21;
 
+// Check if extension context is still valid
+function isExtensionValid(): boolean {
+  try {
+    return !!chrome.runtime?.id;
+  } catch {
+    return false;
+  }
+}
+
 function sendHeartbeat(): void {
+  if (!isExtensionValid()) {
+    if (heartbeatIntervalId) {
+      clearInterval(heartbeatIntervalId);
+      heartbeatIntervalId = null;
+    }
+    return;
+  }
+
   chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
     // Ignore errors (extension might be updating)
     if (chrome.runtime.lastError) {
@@ -36,6 +53,8 @@ function sendHeartbeat(): void {
 }
 
 async function updateBlurThreshold(): Promise<void> {
+  if (!isExtensionValid()) return;
+
   try {
     const response = await sendMessage({ type: 'GET_GLOBAL_SESSION' });
     if (response && 'phase' in response) {
@@ -771,6 +790,8 @@ function imageElementToBase64(img: HTMLImageElement): string | null {
 
 // Main processing function
 async function processPosts(): Promise<void> {
+  if (!isExtensionValid()) return;
+
   const t0 = performance.now();
 
   // Scrape all visible posts using appropriate scraper
@@ -970,15 +991,24 @@ function logScoreDistribution(scores: EngagementScore[]): void {
 
 // Send message to background script
 async function sendMessage(message: unknown): Promise<unknown> {
+  if (!isExtensionValid()) {
+    return null;
+  }
+
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Tolerance: Message error:', chrome.runtime.lastError);
-        resolve(null);
-      } else {
-        resolve(response);
-      }
-    });
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          // Silent fail - extension might be reloading
+          resolve(null);
+        } else {
+          resolve(response);
+        }
+      });
+    } catch {
+      // Extension context invalidated
+      resolve(null);
+    }
   });
 }
 
