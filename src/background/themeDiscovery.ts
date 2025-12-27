@@ -101,7 +101,7 @@ async function callDiscoveryApi(prompt: string): Promise<DiscoveryResult | null>
         'X-Title': 'Tolerance Theme Discovery',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: 'openai/gpt-oss-120b:exacto',
         messages: [
           {
             role: 'user',

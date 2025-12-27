@@ -44,13 +44,13 @@ export async function getApiErrorState(): Promise<ApiErrorState | null> {
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'anthropic/claude-haiku-4.5': { input: 1, output: 5 },
   'anthropic/claude-sonnet-4.5': { input: 3, output: 15 },
-  'openai/gpt-oss-120b': { input: 0.039, output: 0.19 },
+  'openai/gpt-oss-120b:exacto': { input: 0.039, output: 0.19 },
   'z-ai/glm-4.6v': { input: 0.3, output: 0.9 },
   'meta-llama/llama-4-scout': { input: 0.11, output: 0.34},
 };
 
 // Default models for OpenRouter
-const DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b';
+const DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b:exacto';
 const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
