@@ -373,7 +373,7 @@ export interface Settings {
     // Blur thresholds per phase (score at which content gets blurred)
     blurThresholds: {
       normal: number;      // Default: 100 (no blur)
-      reduced: number;     // Default: 55
+      reduced: number;     // Default: 65
       windDown: number;    // Default: 45
       minimal: number;     // Default: 30
     };

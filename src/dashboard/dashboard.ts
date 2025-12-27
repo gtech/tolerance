@@ -1685,7 +1685,7 @@ async function saveCustomThresholds(): Promise<void> {
 
   // Read all slider values
   const blurNormal = parseInt((document.getElementById('blur-normal') as HTMLInputElement)?.value || '100', 10);
-  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || '55', 10);
+  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || '65', 10);
   const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || '45', 10);
   const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || '30', 10);
 
