@@ -626,22 +626,68 @@
       </div>
     </header>
 
+    <!-- Trusted Sources (Whitelist) Section - Moved to top -->
+    <div class="settings-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+      <h2 style="margin-bottom: 8px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Trusted Sources</h2>
+      <p style="color: #666; font-size: 13px; margin-bottom: 16px;">Posts from these sources won't be blurred. <strong style="color: #7dcea0;">Tip:</strong> Right-click any post to quickly trust that author.</p>
+
+      <!-- Add new entry form -->
+      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <input type="text" id="whitelist-source" placeholder="@username or u/username" style="flex: 1; min-width: 180px;" />
+        <select id="whitelist-platform" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px;">
+          <option value="twitter">Twitter/X</option>
+          <option value="reddit">Reddit</option>
+          <option value="instagram">Instagram</option>
+          <option value="youtube">YouTube</option>
+        </select>
+        <input type="text" id="whitelist-reason" placeholder="Reason (optional)" style="width: 200px;" />
+        <button id="add-whitelist-btn" class="btn-primary" style="padding: 8px 16px;">Add</button>
+      </div>
+
+      <!-- Whitelist entries -->
+      <div id="whitelist-list" style="background: #141414; border-radius: 8px; padding: 12px;">
+        <div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>
+      </div>
+    </div>
+
+    <!-- API Setup Section - Moved to top -->
+    <div id="api-setup" class="settings-section" style="background: #1a1a1a; border: 2px solid #3d2d4a; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+      <h2 id="api-setup-title" style="margin-bottom: 16px; color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">⚙️ API Configuration</h2>
+
+      <!-- API Tier Selection -->
+      <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; color: #888; margin-bottom: 12px;">Choose how to access the AI scoring API:</div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-free-label">
+            <input type="radio" name="api-tier" value="free" id="tier-free" style="margin-top: 2px;" />
+            <div>
+              <div style="font-weight: 500; color: #fff;">Free Tier</div>
+              <div style="font-size: 12px; color: #888; margin-top: 2px;">Try without setup - limited daily usage</div>
+            </div>
+          </label>
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-own-key-label">
+            <input type="radio" name="api-tier" value="own-key" id="tier-own-key" style="margin-top: 2px;" />
+            <div>
+              <div style="font-weight: 500; color: #fff;">Own API Key</div>
+              <div style="font-size: 12px; color: #888; margin-top: 2px;">Unlimited usage with your OpenRouter key</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Own Key Section - shown when own-key selected -->
+      <div id="own-key-section" class="setting-row" style="border-bottom: none; padding-bottom: 0; display: none;">
+        <div>
+          <div class="setting-label" style="font-size: 16px;">OpenRouter API Key</div>
+          <div class="setting-description">Get your key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></div>
+        </div>
+        <input type="text" id="api-key" placeholder="sk-or-..." style="width: 280px;" />
+      </div>
+
+      <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
+    </div>
+
     <div class="grid">
-      <div class="card">
-        <h2>Total Posts Seen</h2>
-        <div class="big-number" id="total-posts">0</div>
-      </div>
-
-      <div class="card">
-        <h2>Total Sessions</h2>
-        <div class="big-number" id="total-sessions">0</div>
-      </div>
-
-      <div class="card">
-        <h2>Posts Reordered</h2>
-        <div class="big-number" id="posts-reordered">0</div>
-      </div>
-
       <!-- Threshold Controls Card -->
       <div class="card" style="grid-column: span 2;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -724,7 +770,23 @@
       </div>
     </div>
 
+    <!-- Stats Grid -->
     <div class="grid">
+      <div class="card">
+        <h2>Total Posts Seen</h2>
+        <div class="big-number" id="total-posts">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Total Sessions</h2>
+        <div class="big-number" id="total-sessions">0</div>
+      </div>
+
+      <div class="card">
+        <h2>Posts Reordered</h2>
+        <div class="big-number" id="posts-reordered">0</div>
+      </div>
+
       <div class="card">
         <h2>Engagement Distribution</h2>
         <div class="distribution-bars">
@@ -853,43 +915,6 @@
       <div style="color: #666; font-size: 12px; margin-top: 8px;">Restore default blur thresholds and phase timing</div>
     </div>
 
-    <!-- Setup Section - Always visible, prominent -->
-    <div id="api-setup" class="settings-section" style="background: #1a1a1a; border: 2px solid #3d2d4a; border-radius: 12px; padding: 24px; margin-top: 24px;">
-      <h2 id="api-setup-title" style="margin-bottom: 16px; color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">⚙️ API Configuration</h2>
-
-      <!-- API Tier Selection -->
-      <div style="margin-bottom: 20px;">
-        <div style="font-size: 13px; color: #888; margin-bottom: 12px;">Choose how to access the AI scoring API:</div>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-free-label">
-            <input type="radio" name="api-tier" value="free" id="tier-free" style="margin-top: 2px;" />
-            <div>
-              <div style="font-weight: 500; color: #fff;">Free Tier</div>
-              <div style="font-size: 12px; color: #888; margin-top: 2px;">Try without setup - limited daily usage</div>
-            </div>
-          </label>
-          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 14px 18px; background: #222; border: 2px solid #333; border-radius: 8px; cursor: pointer; flex: 1; min-width: 200px;" id="tier-own-key-label">
-            <input type="radio" name="api-tier" value="own-key" id="tier-own-key" style="margin-top: 2px;" />
-            <div>
-              <div style="font-weight: 500; color: #fff;">Own API Key</div>
-              <div style="font-size: 12px; color: #888; margin-top: 2px;">Unlimited usage with your OpenRouter key</div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <!-- Own Key Section - shown when own-key selected -->
-      <div id="own-key-section" class="setting-row" style="border-bottom: none; padding-bottom: 0; display: none;">
-        <div>
-          <div class="setting-label" style="font-size: 16px;">OpenRouter API Key</div>
-          <div class="setting-description">Get your key from <a href="https://openrouter.ai/keys" target="_blank" style="color: #4a9eff;">openrouter.ai/keys</a></div>
-        </div>
-        <input type="text" id="api-key" placeholder="sk-or-..." style="width: 280px;" />
-      </div>
-
-      <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
-    </div>
-
     <!-- Advanced API Settings -->
     <div class="settings-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-top: 24px;">
       <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Advanced API Settings</h2>
@@ -983,30 +1008,6 @@
           </label>
         </div>
         <div style="margin-top: 8px; font-size: 12px; color: #666;">Disable platforms to turn off Tolerance scoring on that site.</div>
-      </div>
-    </div>
-
-    <!-- Trusted Sources (Whitelist) Section -->
-    <div class="settings-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #222;">
-      <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Trusted Sources (Pre-Filter)</h2>
-      <p style="color: #666; font-size: 13px; margin-bottom: 16px;">Posts from these sources will never be blurred, but still get scored for reputation tracking.</p>
-
-      <!-- Add new entry form -->
-      <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-        <input type="text" id="whitelist-source" placeholder="@username or u/username" style="flex: 1; min-width: 180px;" />
-        <select id="whitelist-platform" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px;">
-          <option value="twitter">Twitter/X</option>
-          <option value="reddit">Reddit</option>
-          <option value="instagram">Instagram</option>
-          <option value="youtube">YouTube</option>
-        </select>
-        <input type="text" id="whitelist-reason" placeholder="Reason (optional)" style="width: 200px;" />
-        <button id="add-whitelist-btn" class="btn-primary" style="padding: 8px 16px;">Add</button>
-      </div>
-
-      <!-- Whitelist entries -->
-      <div id="whitelist-list" style="background: #141414; border-radius: 8px; padding: 12px;">
-        <div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>
       </div>
     </div>
 

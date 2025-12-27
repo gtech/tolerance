@@ -365,7 +365,7 @@ function populateSettings(settings: Settings): void {
 
 function populateCustomThresholds(settings: Settings): void {
   // Default values (calibrated defaults)
-  const defaultBlurThresholds = { normal: 100, reduced: 55, windDown: 45, minimal: 30 };
+  const defaultBlurThresholds = { normal: 100, reduced: 65, windDown: 45, minimal: 30 };
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   // Get custom values or use defaults
@@ -1736,7 +1736,7 @@ async function resetThresholdsToCalibrated(): Promise<void> {
   const existing = await getSettings();
 
   // Reset to calibrated defaults
-  const defaultBlurThresholds = { normal: 100, reduced: 55, windDown: 45, minimal: 30 };
+  const defaultBlurThresholds = { normal: 100, reduced: 65, windDown: 45, minimal: 30 };
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   const settings: Settings = {

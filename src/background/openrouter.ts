@@ -544,7 +544,7 @@ export async function describeImages(
     };
     if (config.type === 'openrouter') {
       requestBody.provider = {
-        // order: ['Groq', 'Cerebras'],
+        order: ['Groq', 'Cerebras'],
         allow_fallbacks: true,
       };
     }
@@ -872,7 +872,7 @@ async function callApi(
     if (config.type === 'openrouter') {
       requestBody.temperature = 0.3;
       requestBody.provider = {
-        // order: ['Groq', 'Cerebras'],
+        order: ['Groq', 'Cerebras'],
         allow_fallbacks: true,
       };
       // Only add JSON mode for OpenRouter non-vision requests
