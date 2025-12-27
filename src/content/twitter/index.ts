@@ -506,7 +506,10 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   // Use native title tooltip instead of custom one (more reliable)
   const titleParts: string[] = [];
   if (info.scoringFailed) {
-    titleParts.push('Free tier exhausted. Click to upgrade to Pro.');
+    const isOwnKey = currentSettings?.apiTier === 'own-key';
+    titleParts.push(isOwnKey
+      ? 'Error receiving score.'
+      : 'Free tier exhausted. Click to upgrade to Pro.');
   } else if (info.reason) {
     titleParts.push(info.reason);
   }

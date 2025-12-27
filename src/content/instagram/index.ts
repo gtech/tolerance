@@ -563,7 +563,10 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Add tooltip with reason
   if (scoringFailed) {
-    badge.title = 'Free tier exhausted. Click to upgrade to Pro.';
+    const isOwnKey = currentSettings?.apiTier === 'own-key';
+    badge.title = isOwnKey
+      ? 'Error receiving score.'
+      : 'Free tier exhausted. Click to upgrade to Pro.';
     badge.style.cursor = 'pointer';
     badge.style.pointerEvents = 'auto';
     badge.addEventListener('click', (e) => {

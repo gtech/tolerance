@@ -412,7 +412,10 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   if (info.scoringFailed) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
-    reasonDiv.textContent = 'Free tier exhausted. Click to upgrade to Pro.';
+    const isOwnKey = currentSettings?.apiTier === 'own-key';
+    reasonDiv.textContent = isOwnKey
+      ? 'Error receiving score.'
+      : 'Free tier exhausted. Click to upgrade to Pro.';
     tooltip.appendChild(reasonDiv);
 
     // Make badge clickable and open account page
