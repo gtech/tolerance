@@ -784,9 +784,9 @@ function imageElementToBase64(img: HTMLImageElement): string | null {
 
     ctx.drawImage(img, 0, 0, width, height);
     return canvas.toDataURL('image/jpeg', 0.8);
-  } catch (e) {
-    // Canvas tainted by cross-origin image
-    log.debug(` Canvas export failed: ${e}`);
+  } catch {
+    // Canvas tainted by cross-origin image - expected for Reddit images
+    // The fetchImageAsBase64 path will be used instead via background script
     return null;
   }
 }
