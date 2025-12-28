@@ -167,7 +167,7 @@ export async function endSession(): Promise<void> {
 // Score caching
 const SCORE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export async function getCachedScores(postIds: string[]): Promise<Map<string, EngagementScore>> {
+export async function getCachedScores(postIds: string[], requireApiScore = true): Promise<Map<string, EngagementScore>> {
   const db = await getDB();
   const result = new Map<string, EngagementScore>();
   const now = Date.now();
@@ -175,7 +175,11 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   for (const id of postIds) {
     const cached = await db.get('scores', id);
     if (cached && now - cached.timestamp < SCORE_TTL_MS) {
-      result.set(id, cached);
+      // Only return as cached if it has an API score (unless requireApiScore is false)
+      // This prevents old/broken cache entries from blocking re-scoring
+      if (!requireApiScore || cached.apiScore !== undefined) {
+        result.set(id, cached);
+      }
     }
   }
 

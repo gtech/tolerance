@@ -44,7 +44,8 @@ export async function scorePosts(
   }
 
   // Check cache first
-  const cached = await getCachedScores(postIds);
+  // When API is enabled, only consider scores with apiScore as cached (re-score broken entries)
+  const cached = await getCachedScores(postIds, apiEnabled);
   const uncached = posts.filter(p => !cached.has(p.id));
   const t2 = performance.now();
 
@@ -223,7 +224,8 @@ export async function scoreTweets(
   const t1 = performance.now();
 
   // Check cache first
-  const cached = await getCachedScores(tweetIds);
+  // When API is enabled, only consider scores with apiScore as cached
+  const cached = await getCachedScores(tweetIds, apiEnabled);
   const uncached = tweets.filter(t => !cached.has(t.id));
   const t2 = performance.now();
 
@@ -796,7 +798,8 @@ export async function scoreVideos(
   const t1 = performance.now();
 
   // Check cache first
-  const cached = await getCachedScores(videoIds);
+  // When API is enabled, only consider scores with apiScore as cached
+  const cached = await getCachedScores(videoIds, apiEnabled);
   const uncached = videos.filter(v => !cached.has(v.id));
   const t2 = performance.now();
 
@@ -917,7 +920,8 @@ export async function scoreInstagramPosts(
   const t1 = performance.now();
 
   // Check cache first
-  const cached = await getCachedScores(postIds);
+  // When API is enabled, only consider scores with apiScore as cached
+  const cached = await getCachedScores(postIds, apiEnabled);
   const uncached = posts.filter(p => !cached.has(p.id));
   const t2 = performance.now();
 
