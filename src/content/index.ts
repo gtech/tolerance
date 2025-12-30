@@ -378,7 +378,7 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     reasonDiv.textContent = isOwnKey
       ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro.';
+      : 'Free tier exhausted. Click to upgrade to Pro. Or add your own API key in the dashboard.';
     tooltip.appendChild(reasonDiv);
 
     // Make badge clickable and open account page

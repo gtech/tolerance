@@ -32,6 +32,17 @@ interface CalibrationFeedbackResult {
 let currentSettings: Settings = DEFAULT_SETTINGS;
 
 async function init(): Promise<void> {
+  // Set up dashboard links FIRST - before any async operations
+  // This ensures the link works even if background script is slow/failing
+  const dashboardLink = document.getElementById('dashboard-link');
+  if (dashboardLink) {
+    dashboardLink.addEventListener('click', openDashboard);
+  }
+
+  // Set up feedback buttons and quality mode toggle early too
+  setupFeedbackButtons();
+  setupQualityModeToggle();
+
   // Get current state
   const result = await chrome.runtime.sendMessage({ type: 'GET_STATE' }) as StateResult;
 
@@ -50,22 +61,11 @@ async function init(): Promise<void> {
   // Get global session for boredom phase
   await updateBoredomPhase();
 
-  // Set up dashboard links
-  const dashboardLink = document.getElementById('dashboard-link');
-  if (dashboardLink) {
-    dashboardLink.addEventListener('click', openDashboard);
-  }
-
+  // Setup link may be dynamically added by updateApiStatus, so check again
   const setupLink = document.getElementById('setup-link');
   if (setupLink) {
     setupLink.addEventListener('click', openDashboardToApiSection);
   }
-
-  // Set up feedback buttons
-  setupFeedbackButtons();
-
-  // Set up quality mode toggle
-  setupQualityModeToggle();
 }
 
 function openDashboard(e: Event): void {
