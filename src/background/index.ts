@@ -59,20 +59,23 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.alarms.create('narrativeDiscovery', { periodInMinutes: 1440 }); // 24 hours
 
   // Create context menu for whitelisting authors
-  chrome.contextMenus.create({
-    id: 'tolerance-trust-author',
-    title: 'Trust this author (never blur)',
-    contexts: ['all'],
-    documentUrlPatterns: [
-      '*://old.reddit.com/*',
-      '*://www.reddit.com/*',
-      '*://reddit.com/*',
-      '*://twitter.com/*',
-      '*://x.com/*',
-      '*://www.youtube.com/*',
-      '*://www.instagram.com/*',
-    ],
-  });
+  // Guard for Firefox where contextMenus may not be available
+  if (chrome.contextMenus) {
+    chrome.contextMenus.create({
+      id: 'tolerance-trust-author',
+      title: 'Trust this author (never blur)',
+      contexts: ['all'],
+      documentUrlPatterns: [
+        '*://old.reddit.com/*',
+        '*://www.reddit.com/*',
+        '*://reddit.com/*',
+        '*://twitter.com/*',
+        '*://x.com/*',
+        '*://www.youtube.com/*',
+        '*://www.instagram.com/*',
+      ],
+    });
+  }
 
   // Open dashboard on first install to prompt API key setup
   if (details.reason === 'install') {
@@ -88,7 +91,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 // Handle context menu clicks for author whitelisting
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+// Guard for Firefox where contextMenus may not be immediately available
+if (chrome.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== 'tolerance-trust-author' || !tab?.id) return;
 
   try {
@@ -142,7 +147,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   } catch (err) {
     log.debug('Context menu error:', err);
   }
-});
+  });
+}
 
 // Handle alarms
 chrome.alarms.onAlarm.addListener(async (alarm) => {
