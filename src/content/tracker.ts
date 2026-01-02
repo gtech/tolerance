@@ -6,6 +6,11 @@ import { log } from '../shared/constants';
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 
 function sendHeartbeat(): void {
+  // Don't count time when tab is not visible
+  if (document.visibilityState !== 'visible') {
+    return;
+  }
+
   try {
     chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
       // Ignore errors (extension might be updating/disabled)

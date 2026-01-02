@@ -44,6 +44,11 @@ function sendHeartbeat(): void {
     return;
   }
 
+  // Don't count time when tab is not visible
+  if (document.visibilityState !== 'visible') {
+    return;
+  }
+
   chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
     // Ignore errors (extension might be updating)
     if (chrome.runtime.lastError) {
