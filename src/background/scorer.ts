@@ -192,11 +192,13 @@ export async function scorePosts(
     }
   }
 
-  // Combine cached and new scores
+  // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const post of posts) {
     const cachedScore = cached.get(post.id);
     if (cachedScore) {
+      // Re-check whitelist for cached scores (user may have whitelisted after caching)
+      cachedScore.whitelisted = isWhitelisted(post.author, 'reddit', settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === post.id);
@@ -375,11 +377,13 @@ export async function scoreTweets(
     }
   }
 
-  // Combine cached and new scores
+  // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const tweet of tweets) {
     const cachedScore = cached.get(tweet.id);
     if (cachedScore) {
+      // Re-check whitelist for cached scores (user may have whitelisted after caching)
+      cachedScore.whitelisted = isWhitelisted(tweet.author, 'twitter', settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === tweet.id);
@@ -866,11 +870,13 @@ export async function scoreVideos(
     }
   }
 
-  // Combine cached and new scores
+  // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const video of videos) {
     const cachedScore = cached.get(video.id);
     if (cachedScore) {
+      // Re-check whitelist for cached scores (user may have whitelisted after caching)
+      cachedScore.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === video.id);
@@ -1062,11 +1068,13 @@ export async function scoreInstagramPosts(
     }
   }
 
-  // Combine cached and new scores
+  // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const post of posts) {
     const cachedScore = cached.get(post.id);
     if (cachedScore) {
+      // Re-check whitelist for cached scores (user may have whitelisted after caching)
+      cachedScore.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === post.id);
