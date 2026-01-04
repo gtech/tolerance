@@ -96,15 +96,25 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       return null;
     }
 
-    // Get channel name - try new and legacy selectors
-    const channelElement = element.querySelector(
-      '.yt-content-metadata-view-model__metadata-row a[href^="/@"], ' +  // New model (channel link)
-      'a[href^="/@"], ' +                                                 // Any channel link
-      '#channel-name, ' +                                                 // Legacy
-      '.ytd-channel-name, ' +                                             // Legacy
-      '[id*="channel"]'                                                   // Fallback
-    );
-    const channel = channelElement?.textContent?.trim() || '';
+    // Get channel name - prefer @handle from href for consistent matching with whitelist
+    let channel = '';
+    const channelLink = element.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
+    if (channelLink) {
+      // Extract @handle from href (e.g., "/@MKBHD" -> "MKBHD")
+      const href = channelLink.getAttribute('href');
+      const handleMatch = href?.match(/^\/@([^/?]+)/);
+      if (handleMatch) {
+        channel = handleMatch[1];
+      } else {
+        // Fallback to text content
+        channel = channelLink.textContent?.trim() || '';
+      }
+    }
+    // Legacy fallback selectors
+    if (!channel) {
+      const legacyChannel = element.querySelector('#channel-name, .ytd-channel-name, [id*="channel"]');
+      channel = legacyChannel?.textContent?.trim() || '';
+    }
 
     // Get metadata (views and date) - try new and legacy selectors
     const metadataElement = element.querySelector(

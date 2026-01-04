@@ -986,29 +986,27 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
   );
   if (!videoContainer) return null;
 
-  // Try to find channel name from various YouTube layouts
-  // New layout: yt-formatted-string in channel link
+  // Prefer extracting @handle from href for consistent matching with scraper
+  const channelAnchor = videoContainer.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
+  if (channelAnchor) {
+    const href = channelAnchor.getAttribute('href');
+    if (href) {
+      const match = href.match(/^\/@([^/?]+)/);
+      if (match) return match[1];
+    }
+  }
+
+  // Fallback to text content from channel name elements
   const channelLink = videoContainer.querySelector(
-    'a[href^="/@"] yt-formatted-string, ' +         // New format
-    'ytd-channel-name a, ' +                         // Channel name link
-    'a.yt-formatted-string[href^="/@"], ' +          // Direct link
-    '.ytd-channel-name yt-formatted-string'          // Fallback
+    'a[href^="/@"] yt-formatted-string, ' +
+    'ytd-channel-name a, ' +
+    'a.yt-formatted-string[href^="/@"], ' +
+    '.ytd-channel-name yt-formatted-string'
   ) as HTMLElement | null;
 
   if (channelLink) {
     const text = channelLink.textContent?.trim();
     if (text) return text;
-  }
-
-  // Try from href
-  const channelAnchor = videoContainer.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
-  if (channelAnchor) {
-    const href = channelAnchor.getAttribute('href');
-    if (href) {
-      // Extract @username from href
-      const match = href.match(/^\/@([^/]+)/);
-      if (match) return match[1];
-    }
   }
 
   return null;
