@@ -42,82 +42,69 @@ function isStreaming(): boolean {
 }
 
 /**
- * Get the latest assistant message element
+ * Get the latest assistant message container that has finished streaming
  */
 function getLatestAssistantMessage(): Element | null {
-  // Claude.ai uses .font-claude-response for assistant messages
-  // Find the last one that has completed streaming
-  const allResponses = document.querySelectorAll('.font-claude-response');
+  // Find message containers that have finished streaming
+  // Structure: div[data-is-streaming="false"] > div.font-claude-response > div > div.standard-markdown
+  const streamingContainers = document.querySelectorAll('[data-is-streaming="false"]');
 
-  if (allResponses.length === 0) {
-    log('No .font-claude-response elements found');
+  if (streamingContainers.length === 0) {
+    log('No completed streaming containers found');
     return null;
   }
 
-  // Get the last response element
-  const lastResponse = allResponses[allResponses.length - 1];
+  // Get the last completed container
+  const lastContainer = streamingContainers[streamingContainers.length - 1];
 
-  // Check if it's done streaming by looking at parent's data-is-streaming
-  const streamingParent = lastResponse.closest('[data-is-streaming]');
-  if (streamingParent?.getAttribute('data-is-streaming') === 'true') {
-    log('Latest response is still streaming');
+  // Find the .font-claude-response inside (but not the hidden one in CoT)
+  const fontClaudeResponse = lastContainer.querySelector('.font-claude-response');
+  if (!fontClaudeResponse) {
+    log('No .font-claude-response in container');
     return null;
   }
 
-  log('Found assistant message (.font-claude-response)');
-  return lastResponse;
+  // Skip if this is the hidden CoT inner element
+  const style = (fontClaudeResponse as HTMLElement).style;
+  if (style.display === 'none') {
+    log('Skipping hidden font-claude-response (CoT inner)');
+    return null;
+  }
+
+  log('Found assistant message container');
+  return fontClaudeResponse;
 }
 
 /**
  * Extract text content from a message element (excluding CoT/thinking)
  */
 function extractMessageText(element: Element): string {
-  // Claude renders markdown in .standard-markdown or .progressive-markdown
-  // The response has multiple .standard-markdown elements:
-  // 1. Inside a collapsible (the "thinking" / CoT) - we want to SKIP this
-  // 2. The actual response - we want THIS one
+  // The CoT is inside div.ease-out.transition-all.flex-col
+  // The response .standard-markdown is NOT inside that container
 
-  // Find all markdown containers that are direct children of .font-claude-response > div
-  // The response structure is: .font-claude-response > div > .standard-markdown
-  // The thinking structure is: .font-claude-response > div.flex-col > ... > .standard-markdown
+  // Find all .standard-markdown elements
+  const allMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
+  log(`Found ${allMarkdown.length} total markdown containers`);
 
-  // Strategy: Find .standard-markdown elements and check if their parent is a simple div
-  // (not the complex flex-col thinking container)
-  const allMarkdown = element.querySelectorAll(':scope > div > .standard-markdown, :scope > div > .progressive-markdown');
+  // Find the one that is NOT inside the CoT container
+  for (let i = allMarkdown.length - 1; i >= 0; i--) {
+    const md = allMarkdown[i];
 
-  log(`Found ${allMarkdown.length} direct markdown containers`);
-
-  if (allMarkdown.length > 0) {
-    // Take the last direct child markdown (the response, not thinking)
-    const responseMarkdown = allMarkdown[allMarkdown.length - 1];
-
-    // Get text from paragraphs, preserving structure
-    const paragraphs = responseMarkdown.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
-    if (paragraphs.length > 0) {
-      const texts: string[] = [];
-      paragraphs.forEach(p => {
-        const text = p.textContent?.trim();
-        if (text) texts.push(text);
-      });
-      log(`Extracted ${texts.length} paragraphs from response`);
-      return texts.join('\n\n');
-    }
-  }
-
-  // Fallback: Try to find any .standard-markdown not inside a button or collapsed section
-  const fallbackMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
-  for (let i = fallbackMarkdown.length - 1; i >= 0; i--) {
-    const md = fallbackMarkdown[i];
-    // Skip if inside a button (the thinking summary) or collapsed section
-    if (md.closest('button') || md.closest('[style*="height: 0"]') || md.closest('[style*="opacity: 0"]')) {
-      continue;
-    }
-    // Check if parent has flex-col (thinking container)
-    const parent = md.parentElement;
-    if (parent?.className.includes('flex-col')) {
+    // Skip if inside the CoT container (has flex-col class in ancestor)
+    const cotContainer = md.closest('.flex-col');
+    if (cotContainer) {
+      log(`Skipping markdown ${i} - inside CoT (flex-col container)`);
       continue;
     }
 
+    // Skip if inside a hidden element
+    const hiddenParent = md.closest('[style*="display: none"]');
+    if (hiddenParent) {
+      log(`Skipping markdown ${i} - inside hidden element`);
+      continue;
+    }
+
+    // This should be the response
     const paragraphs = md.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
     if (paragraphs.length > 0) {
       const texts: string[] = [];
@@ -125,15 +112,13 @@ function extractMessageText(element: Element): string {
         const text = p.textContent?.trim();
         if (text) texts.push(text);
       });
-      log(`Fallback: Extracted ${texts.length} paragraphs`);
+      log(`Extracted ${texts.length} paragraphs from response markdown`);
       return texts.join('\n\n');
     }
   }
 
-  // Last resort fallback
-  log('Using last resort text extraction');
-  const textContent = element.textContent || '';
-  return textContent.trim();
+  log('No valid response markdown found');
+  return '';
 }
 
 /**
@@ -232,18 +217,10 @@ function escapeHTML(text: string): string {
  * Process a completed response
  */
 async function processResponse(messageElement: Element): Promise<void> {
-  if (processedMessages.has(messageElement)) {
-    log('Message already processed, skipping');
-    return;
-  }
-
   if (!initialLoadComplete) {
-    log('Initial load not complete, skipping existing message');
-    processedMessages.add(messageElement);
+    log('Initial load not complete, skipping');
     return;
   }
-
-  processedMessages.add(messageElement);
 
   log('Processing NEW response...');
   isFiltering = true;
@@ -285,7 +262,7 @@ async function processResponse(messageElement: Element): Promise<void> {
 /**
  * Watch for streaming to complete
  */
-let wasStreaming = false;
+let currentStreamingContainer: Element | null = null;
 let checkInterval: ReturnType<typeof setInterval> | null = null;
 
 function startWatching(): void {
@@ -294,18 +271,31 @@ function startWatching(): void {
   log('Starting response watcher');
 
   checkInterval = setInterval(() => {
-    const currentlyStreaming = isStreaming();
+    // Find any container that is currently streaming
+    const streamingContainer = document.querySelector('[data-is-streaming="true"]');
 
-    // Detect transition from streaming to not streaming
-    if (wasStreaming && !currentlyStreaming) {
+    if (streamingContainer && streamingContainer !== currentStreamingContainer) {
+      // New streaming started
+      currentStreamingContainer = streamingContainer;
+      log('New response streaming detected');
+    } else if (!streamingContainer && currentStreamingContainer) {
+      // Streaming just completed
       log('Streaming completed, processing response');
-      const message = getLatestAssistantMessage();
-      if (message) {
-        processResponse(message);
-      }
-    }
 
-    wasStreaming = currentlyStreaming;
+      // Check if this container was already processed
+      if (!processedMessages.has(currentStreamingContainer)) {
+        const message = getLatestAssistantMessage();
+        if (message) {
+          // Mark the container as processed
+          processedMessages.add(currentStreamingContainer);
+          processResponse(message);
+        }
+      } else {
+        log('Container already processed, skipping');
+      }
+
+      currentStreamingContainer = null;
+    }
   }, 500); // Check every 500ms
 }
 
@@ -334,49 +324,49 @@ function sendHeartbeat(): void {
 function init(): void {
   log('Initializing Claude filter');
 
-  // Mark all existing messages as already processed (don't filter on page load)
-  const existingMessages = document.querySelectorAll('.font-claude-response');
-  existingMessages.forEach(msg => {
-    processedMessages.add(msg);
+  // Mark all existing streaming containers as already processed (don't filter on page load)
+  const existingContainers = document.querySelectorAll('[data-is-streaming]');
+  existingContainers.forEach(container => {
+    processedMessages.add(container);
   });
-  log(`Marked ${existingMessages.length} existing messages as processed`);
+  log(`Marked ${existingContainers.length} existing message containers as processed`);
 
   // After a short delay, mark initial load as complete
   setTimeout(() => {
     initialLoadComplete = true;
-    log('Initial load complete, now watching for new responses');
+    log('Initial load complete, now watching for NEW responses only');
   }, 2000);
 
   // Start watching for responses
   startWatching();
 
-  // Also use MutationObserver for more reliable detection
+  // MutationObserver watches for attribute changes on data-is-streaming
   const observer = new MutationObserver((mutations) => {
-    // Look for new assistant messages being added
     for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (node instanceof Element) {
-          // Check if this or a child is an assistant message (.font-claude-response)
-          const assistantMsg =
-            node.matches?.('.font-claude-response')
-              ? node
-              : node.querySelector?.('.font-claude-response');
+      // Watch for data-is-streaming attribute changes
+      if (mutation.type === 'attributes' && mutation.attributeName === 'data-is-streaming') {
+        const target = mutation.target as Element;
+        const isStreaming = target.getAttribute('data-is-streaming');
 
-          if (assistantMsg && !processedMessages.has(assistantMsg)) {
-            // Wait a bit for streaming to complete
-            setTimeout(() => {
-              if (!isStreaming()) {
-                processResponse(assistantMsg);
-              }
-            }, 1000);
-          }
+        if (isStreaming === 'false' && !processedMessages.has(target)) {
+          log('MutationObserver: streaming completed on container');
+          processedMessages.add(target);
+
+          // Small delay to ensure DOM is fully updated
+          setTimeout(() => {
+            const message = getLatestAssistantMessage();
+            if (message) {
+              processResponse(message);
+            }
+          }, 100);
         }
       }
     }
   });
 
   observer.observe(document.body, {
-    childList: true,
+    attributes: true,
+    attributeFilter: ['data-is-streaming'],
     subtree: true,
   });
 
