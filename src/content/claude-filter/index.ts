@@ -66,22 +66,49 @@ function getLatestAssistantMessage(): Element | null {
 }
 
 /**
- * Extract text content from a message element
+ * Extract text content from a message element (excluding CoT/thinking)
  */
 function extractMessageText(element: Element): string {
   // Claude renders markdown in .standard-markdown or .progressive-markdown
-  // Extract text from paragraphs to get clean content
-  const markdownContainer = element.querySelector('.standard-markdown, .progressive-markdown');
+  // The response has multiple .standard-markdown elements:
+  // 1. Inside a collapsible (the "thinking" / CoT) - we want to SKIP this
+  // 2. The actual response - we want THIS one
 
-  if (markdownContainer) {
+  // Find all markdown containers
+  const allMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
+
+  // Find the response markdown (not inside the collapsible thinking section)
+  // The thinking is inside an element with overflow-hidden and height: 0
+  // The response is a more direct child
+  let responseMarkdown: Element | null = null;
+
+  for (const md of allMarkdown) {
+    // Skip if inside a collapsed/collapsible container (the thinking section)
+    const collapsible = md.closest('.overflow-hidden');
+    const thinkingContainer = md.closest('[class*="ease-out"][class*="transition-all"][class*="flex-col"]');
+
+    // If not inside a collapsible thinking section, this is likely the response
+    if (!collapsible && !thinkingContainer) {
+      responseMarkdown = md;
+      break;
+    }
+  }
+
+  // If we didn't find one outside collapsibles, use the last one (usually the response)
+  if (!responseMarkdown && allMarkdown.length > 0) {
+    responseMarkdown = allMarkdown[allMarkdown.length - 1];
+  }
+
+  if (responseMarkdown) {
     // Get text from paragraphs, preserving structure
-    const paragraphs = markdownContainer.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
+    const paragraphs = responseMarkdown.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
     if (paragraphs.length > 0) {
       const texts: string[] = [];
       paragraphs.forEach(p => {
         const text = p.textContent?.trim();
         if (text) texts.push(text);
       });
+      log(`Extracted ${texts.length} paragraphs from response`);
       return texts.join('\n\n');
     }
   }
