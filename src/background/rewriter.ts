@@ -157,7 +157,7 @@ export async function rewriteResponse(text: string): Promise<string> {
         'X-Title': 'Tolerance Claude Filter',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-8b-instruct', // Fast and cheap
+        model: 'openai/gpt-oss-120b', // Better output quality
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text },
