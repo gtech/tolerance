@@ -272,6 +272,18 @@ function populateSettings(settings: Settings): void {
     }
   }
 
+  // Claude filter toggle
+  const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  const claudeFilterStatus = document.getElementById('claude-filter-status');
+  if (claudeFilterEnabled) {
+    const enabled = settings.claudeFilterEnabled ?? false;
+    claudeFilterEnabled.checked = enabled;
+    if (claudeFilterStatus) {
+      claudeFilterStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+      claudeFilterStatus.style.color = enabled ? '#7dcea0' : '#888';
+    }
+  }
+
   if (apiKeyInput && settings.openRouterApiKey) {
     apiKeyInput.value = settings.openRouterApiKey;
   }
@@ -749,6 +761,19 @@ function setupEventListeners(): void {
     });
   }
 
+  // Claude filter toggle
+  const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  if (claudeFilterEnabled) {
+    claudeFilterEnabled.addEventListener('change', () => {
+      const statusEl = document.getElementById('claude-filter-status');
+      if (statusEl) {
+        statusEl.textContent = claudeFilterEnabled.checked ? 'Enabled' : 'Disabled';
+        statusEl.style.color = claudeFilterEnabled.checked ? '#7dcea0' : '#888';
+      }
+      saveSettings();
+    });
+  }
+
   // Whitelist management
   const addWhitelistBtn = document.getElementById('add-whitelist-btn');
   if (addWhitelistBtn) {
@@ -836,6 +861,7 @@ async function saveSettings(): Promise<void> {
   const platformYoutubeInput = document.getElementById('platform-youtube') as HTMLInputElement;
   const platformInstagramInput = document.getElementById('platform-instagram') as HTMLInputElement;
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
+  const claudeFilterEnabledInput = document.getElementById('claude-filter-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
 
   // API tier selection
@@ -888,6 +914,7 @@ async function saveSettings(): Promise<void> {
       enabled: true,
     },
     productivityCardEnabled: productivityCardEnabledInput?.checked ?? false,
+    claudeFilterEnabled: claudeFilterEnabledInput?.checked ?? false,
     rescueTimeApiKey: rescueTimeInput?.value || undefined,
     todoistUrl: todoistInput?.value || undefined,
     jobSearchLink: jobSearchInput?.value || undefined,

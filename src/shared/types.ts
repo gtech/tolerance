@@ -366,6 +366,8 @@ export interface Settings {
     blurIntensity: number;         // Blur amount in pixels (default: 8)
     hoverRevealDelay: number;      // Seconds to hover before revealing (default: 3)
   };
+  // Claude de-validation filter - strip sycophancy from Claude responses
+  claudeFilterEnabled?: boolean;
   // Pre-filter whitelist - trusted sources that bypass blur transform
   whitelist?: WhitelistEntry[];
   // Custom threshold overrides (user-adjustable, resets to calibrated defaults)

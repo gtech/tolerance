@@ -83,6 +83,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/claude-filter/index.ts'],
+    outfile: 'dist/claude-filter.js',
+    format: 'iife', // Content scripts need IIFE (Claude.ai response filter)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/background/index.ts'],
     outfile: 'dist/background.js',
     format: isFirefox ? 'iife' : 'esm', // Firefox background scripts need IIFE

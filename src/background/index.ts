@@ -34,6 +34,7 @@ import {
 import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
+import { rewriteResponse, recordClaudeHeartbeat } from './rewriter';
 import { getProductivityStats } from './rescuetime';
 import {
   discoverEmergingNarratives,
@@ -201,6 +202,26 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   if (message.type === 'SOCIAL_MEDIA_HEARTBEAT') {
     recordHeartbeat().then(() => {
       sendResponse({ type: 'HEARTBEAT_ACK' });
+    });
+    return true;
+  }
+
+  // Handle CLAUDE_HEARTBEAT from claude.ai content script
+  if (message.type === 'CLAUDE_HEARTBEAT') {
+    recordClaudeHeartbeat().then(() => {
+      sendResponse({ type: 'HEARTBEAT_ACK' });
+    });
+    return true;
+  }
+
+  // Handle REWRITE_RESPONSE from claude.ai content script
+  if (message.type === 'REWRITE_RESPONSE') {
+    const { text } = message as { type: string; text: string };
+    rewriteResponse(text).then((rewritten) => {
+      sendResponse({ rewritten });
+    }).catch((error) => {
+      log.error('Rewrite error:', error);
+      sendResponse({ rewritten: text }); // Return original on error
     });
     return true;
   }

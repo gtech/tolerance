@@ -25,6 +25,7 @@
     "*://www.instagram.com/*",
     "*://www.facebook.com/*",
     "*://www.tiktok.com/*",
+    "*://claude.ai/*",
     "*://openrouter.ai/*",
     "*://api.openai.com/*",
     "*://api.anthropic.com/*",
@@ -89,6 +90,15 @@
       ],
       "js": [
         "youtube.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://claude.ai/*"
+      ],
+      "js": [
+        "claude-filter.js"
       ],
       "run_at": "document_idle"
     }
