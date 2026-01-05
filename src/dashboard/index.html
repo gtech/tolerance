@@ -1090,7 +1090,44 @@
         </label>
       </div>
       <div style="font-size: 12px; color: #666; padding: 12px; background: #141414; border-radius: 6px;">
-        When enabled, Claude's responses will be rewritten to remove sycophantic phrases ("Great question!", "You're absolutely right!") and add time-based break suggestions after 30+ minutes.
+        When enabled, Claude's responses will be rewritten to remove sycophantic phrases ("Great question!", "You're absolutely right!") and add time-based break suggestions based on the thresholds below.
+      </div>
+
+      <!-- Claude Filter Thresholds -->
+      <div style="margin-top: 16px; padding: 16px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">
+        <div style="font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Filter Thresholds (minutes)</div>
+
+        <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+          <div>
+            <div class="setting-label">Skip Filter Until: <span id="claude-skip-value">30</span> min</div>
+            <div class="setting-description">No filtering at all before this time</div>
+          </div>
+          <input type="range" id="claude-skip" min="0" max="60" step="5" value="30" style="width: 180px;" />
+        </div>
+
+        <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+          <div>
+            <div class="setting-label">Gentle Reminder: <span id="claude-gentle-value">30</span> min</div>
+            <div class="setting-description">Start adding light break suggestions</div>
+          </div>
+          <input type="range" id="claude-gentle" min="15" max="90" step="5" value="30" style="width: 180px;" />
+        </div>
+
+        <div class="setting-row" style="border-bottom: 1px solid #222; padding: 12px 0;">
+          <div>
+            <div class="setting-label">Medium Reminder: <span id="claude-medium-value">60</span> min</div>
+            <div class="setting-description">More direct break suggestions</div>
+          </div>
+          <input type="range" id="claude-medium" min="30" max="120" step="5" value="60" style="width: 180px;" />
+        </div>
+
+        <div class="setting-row" style="padding: 12px 0;">
+          <div>
+            <div class="setting-label">Strong Reminder: <span id="claude-strong-value">90</span> min</div>
+            <div class="setting-description">Direct wrap-up suggestions</div>
+          </div>
+          <input type="range" id="claude-strong" min="45" max="180" step="5" value="90" style="width: 180px;" />
+        </div>
       </div>
 
       <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Testing</h2>

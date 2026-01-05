@@ -78,10 +78,25 @@ export async function incrementClaudeMessageCount(): Promise<void> {
   await chrome.storage.local.set({ [CLAUDE_SESSION_KEY]: session });
 }
 
+// Default thresholds for Claude filter
+export const DEFAULT_CLAUDE_FILTER_THRESHOLDS = {
+  skipFilter: 30,      // Don't filter at all before 30 min
+  gentleReminder: 30,  // Start gentle reminders at 30 min
+  mediumReminder: 60,  // Medium reminder at 60 min
+  strongReminder: 90,  // Strong reminder at 90 min
+};
+
+interface ClaudeFilterThresholds {
+  skipFilter: number;
+  gentleReminder: number;
+  mediumReminder: number;
+  strongReminder: number;
+}
+
 /**
  * Build the rewriting prompt based on session state
  */
-function buildRewritePrompt(minutes: number): string {
+function buildRewritePrompt(minutes: number, thresholds: ClaudeFilterThresholds): string {
   const baseRules = `You are a filter that rewrites AI assistant responses.
 
 Your job is to make responses more neutral and less sycophantic while preserving all substantive content.
@@ -96,15 +111,15 @@ Rules:
 
   let timeRules = '';
 
-  if (minutes > 30 && minutes <= 60) {
+  if (minutes > thresholds.gentleReminder && minutes <= thresholds.mediumReminder) {
     timeRules = `
 7. At the very end, add a brief, natural one-liner like: "This has been a good session. Remember to take a break when you need one."`;
-  } else if (minutes > 60 && minutes <= 90) {
+  } else if (minutes > thresholds.mediumReminder && minutes <= thresholds.strongReminder) {
     timeRules = `
 7. At the very end, add a gentle suggestion like: "You've been at this for a while. Might be worth stepping away to let things settle before continuing."`;
-  } else if (minutes > 90) {
+  } else if (minutes > thresholds.strongReminder) {
     timeRules = `
-7. At the very end, add a direct suggestion like: "You've been here over 90 minutes. Consider wrapping up this session and coming back fresh."`;
+7. At the very end, add a direct suggestion like: "You've been here over ${thresholds.strongReminder} minutes. Consider wrapping up this session and coming back fresh."`;
   }
 
   return baseRules + timeRules + `
@@ -122,6 +137,15 @@ export async function rewriteResponse(text: string): Promise<string> {
   // Check if filter is enabled
   if (!settings.claudeFilterEnabled) {
     log.info('Claude filter disabled, returning original (enable in Dashboard → Advanced Settings)');
+    return text;
+  }
+
+  // Get thresholds from settings or use defaults
+  const thresholds = settings.claudeFilterThresholds || DEFAULT_CLAUDE_FILTER_THRESHOLDS;
+
+  // Skip filtering entirely if under the skipFilter threshold
+  if (session.totalMinutes < thresholds.skipFilter) {
+    log.info(`Claude filter: skipping (${session.totalMinutes.toFixed(0)} min < ${thresholds.skipFilter} min threshold)`);
     return text;
   }
 
@@ -143,7 +167,7 @@ export async function rewriteResponse(text: string): Promise<string> {
   log.info(`Claude filter: rewriting ${text.length} chars (session: ${session.totalMinutes.toFixed(0)} min)`);
 
   // Build prompt based on session time
-  const systemPrompt = buildRewritePrompt(session.totalMinutes);
+  const systemPrompt = buildRewritePrompt(session.totalMinutes, thresholds);
 
   log.debug(`Rewriting response (${session.totalMinutes.toFixed(0)} min session)`);
 

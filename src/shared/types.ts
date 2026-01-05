@@ -368,6 +368,13 @@ export interface Settings {
   };
   // Claude de-validation filter - strip sycophancy from Claude responses
   claudeFilterEnabled?: boolean;
+  // Claude filter time thresholds (minutes)
+  claudeFilterThresholds?: {
+    skipFilter: number;    // Don't filter at all before this (default: 30)
+    gentleReminder: number; // Add gentle break suggestion (default: 30)
+    mediumReminder: number; // Stronger suggestion (default: 60)
+    strongReminder: number; // Direct wrap-up suggestion (default: 90)
+  };
   // Pre-filter whitelist - trusted sources that bypass blur transform
   whitelist?: WhitelistEntry[];
   // Custom threshold overrides (user-adjustable, resets to calibrated defaults)
