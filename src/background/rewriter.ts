@@ -121,7 +121,7 @@ export async function rewriteResponse(text: string): Promise<string> {
 
   // Check if filter is enabled
   if (!settings.claudeFilterEnabled) {
-    log.debug('Claude filter disabled, returning original');
+    log.info('Claude filter disabled, returning original (enable in Dashboard → Advanced Settings)');
     return text;
   }
 
@@ -129,14 +129,18 @@ export async function rewriteResponse(text: string): Promise<string> {
   let apiKey: string | undefined;
   if (settings.apiTier === 'own-key' && settings.openRouterApiKey) {
     apiKey = settings.openRouterApiKey;
+    log.debug('Using own API key for Claude filter');
   } else {
     apiKey = await getFreeTierApiKey();
+    log.debug('Using free tier API key for Claude filter');
   }
 
   if (!apiKey) {
-    log.debug('No API key available, returning original');
+    log.info('No API key available for Claude filter, returning original');
     return text;
   }
+
+  log.info(`Claude filter: rewriting ${text.length} chars (session: ${session.totalMinutes.toFixed(0)} min)`);
 
   // Build prompt based on session time
   const systemPrompt = buildRewritePrompt(session.totalMinutes);
