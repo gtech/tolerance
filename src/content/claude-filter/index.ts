@@ -18,6 +18,9 @@ const processedMessages = new WeakSet<Element>();
 // Track if we're currently filtering (to show indicator)
 let isFiltering = false;
 
+// Track if we've completed initial load (don't filter existing messages)
+let initialLoadComplete = false;
+
 // Heartbeat for session tracking
 const HEARTBEAT_INTERVAL = 30_000;
 
@@ -74,32 +77,20 @@ function extractMessageText(element: Element): string {
   // 1. Inside a collapsible (the "thinking" / CoT) - we want to SKIP this
   // 2. The actual response - we want THIS one
 
-  // Find all markdown containers
-  const allMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
+  // Find all markdown containers that are direct children of .font-claude-response > div
+  // The response structure is: .font-claude-response > div > .standard-markdown
+  // The thinking structure is: .font-claude-response > div.flex-col > ... > .standard-markdown
 
-  // Find the response markdown (not inside the collapsible thinking section)
-  // The thinking is inside an element with overflow-hidden and height: 0
-  // The response is a more direct child
-  let responseMarkdown: Element | null = null;
+  // Strategy: Find .standard-markdown elements and check if their parent is a simple div
+  // (not the complex flex-col thinking container)
+  const allMarkdown = element.querySelectorAll(':scope > div > .standard-markdown, :scope > div > .progressive-markdown');
 
-  for (const md of allMarkdown) {
-    // Skip if inside a collapsed/collapsible container (the thinking section)
-    const collapsible = md.closest('.overflow-hidden');
-    const thinkingContainer = md.closest('[class*="ease-out"][class*="transition-all"][class*="flex-col"]');
+  log(`Found ${allMarkdown.length} direct markdown containers`);
 
-    // If not inside a collapsible thinking section, this is likely the response
-    if (!collapsible && !thinkingContainer) {
-      responseMarkdown = md;
-      break;
-    }
-  }
+  if (allMarkdown.length > 0) {
+    // Take the last direct child markdown (the response, not thinking)
+    const responseMarkdown = allMarkdown[allMarkdown.length - 1];
 
-  // If we didn't find one outside collapsibles, use the last one (usually the response)
-  if (!responseMarkdown && allMarkdown.length > 0) {
-    responseMarkdown = allMarkdown[allMarkdown.length - 1];
-  }
-
-  if (responseMarkdown) {
     // Get text from paragraphs, preserving structure
     const paragraphs = responseMarkdown.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
     if (paragraphs.length > 0) {
@@ -113,7 +104,34 @@ function extractMessageText(element: Element): string {
     }
   }
 
-  // Fallback: get all text content
+  // Fallback: Try to find any .standard-markdown not inside a button or collapsed section
+  const fallbackMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
+  for (let i = fallbackMarkdown.length - 1; i >= 0; i--) {
+    const md = fallbackMarkdown[i];
+    // Skip if inside a button (the thinking summary) or collapsed section
+    if (md.closest('button') || md.closest('[style*="height: 0"]') || md.closest('[style*="opacity: 0"]')) {
+      continue;
+    }
+    // Check if parent has flex-col (thinking container)
+    const parent = md.parentElement;
+    if (parent?.className.includes('flex-col')) {
+      continue;
+    }
+
+    const paragraphs = md.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
+    if (paragraphs.length > 0) {
+      const texts: string[] = [];
+      paragraphs.forEach(p => {
+        const text = p.textContent?.trim();
+        if (text) texts.push(text);
+      });
+      log(`Fallback: Extracted ${texts.length} paragraphs`);
+      return texts.join('\n\n');
+    }
+  }
+
+  // Last resort fallback
+  log('Using last resort text extraction');
   const textContent = element.textContent || '';
   return textContent.trim();
 }
@@ -215,11 +233,19 @@ function escapeHTML(text: string): string {
  */
 async function processResponse(messageElement: Element): Promise<void> {
   if (processedMessages.has(messageElement)) {
+    log('Message already processed, skipping');
     return;
   }
+
+  if (!initialLoadComplete) {
+    log('Initial load not complete, skipping existing message');
+    processedMessages.add(messageElement);
+    return;
+  }
+
   processedMessages.add(messageElement);
 
-  log('Processing response...');
+  log('Processing NEW response...');
   isFiltering = true;
 
   // Show indicator
@@ -307,6 +333,19 @@ function sendHeartbeat(): void {
  */
 function init(): void {
   log('Initializing Claude filter');
+
+  // Mark all existing messages as already processed (don't filter on page load)
+  const existingMessages = document.querySelectorAll('.font-claude-response');
+  existingMessages.forEach(msg => {
+    processedMessages.add(msg);
+  });
+  log(`Marked ${existingMessages.length} existing messages as processed`);
+
+  // After a short delay, mark initial load as complete
+  setTimeout(() => {
+    initialLoadComplete = true;
+    log('Initial load complete, now watching for new responses');
+  }, 2000);
 
   // Start watching for responses
   startWatching();
