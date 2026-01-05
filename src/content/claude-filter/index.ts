@@ -76,13 +76,38 @@ function getLatestAssistantMessage(): Element | null {
 }
 
 /**
+ * Check if an element is inside the CoT container (relative to the response container)
+ */
+function isInsideCoT(md: Element, responseContainer: Element): boolean {
+  // Walk up from the markdown to the response container
+  // If we encounter a flex-col div with "ease-out" and "transition-all" classes, it's CoT
+  let current = md.parentElement;
+
+  while (current && current !== responseContainer) {
+    const classes = current.className || '';
+    // The CoT container has these specific classes together
+    if (classes.includes('flex-col') && classes.includes('ease-out') && classes.includes('transition-all')) {
+      return true;
+    }
+    // Also check for hidden content (collapsed CoT)
+    const style = (current as HTMLElement).style;
+    if (style?.display === 'none') {
+      return true;
+    }
+    current = current.parentElement;
+  }
+
+  return false;
+}
+
+/**
  * Extract text content from a message element (excluding CoT/thinking)
  */
 function extractMessageText(element: Element): string {
   // The CoT is inside div.ease-out.transition-all.flex-col
   // The response .standard-markdown is NOT inside that container
 
-  // Find all .standard-markdown elements
+  // Find all .standard-markdown elements within the response container
   const allMarkdown = element.querySelectorAll('.standard-markdown, .progressive-markdown');
   log(`Found ${allMarkdown.length} total markdown containers`);
 
@@ -90,17 +115,9 @@ function extractMessageText(element: Element): string {
   for (let i = allMarkdown.length - 1; i >= 0; i--) {
     const md = allMarkdown[i];
 
-    // Skip if inside the CoT container (has flex-col class in ancestor)
-    const cotContainer = md.closest('.flex-col');
-    if (cotContainer) {
-      log(`Skipping markdown ${i} - inside CoT (flex-col container)`);
-      continue;
-    }
-
-    // Skip if inside a hidden element
-    const hiddenParent = md.closest('[style*="display: none"]');
-    if (hiddenParent) {
-      log(`Skipping markdown ${i} - inside hidden element`);
+    // Skip if inside the CoT container (check relative to this element)
+    if (isInsideCoT(md, element)) {
+      log(`Skipping markdown ${i} - inside CoT`);
       continue;
     }
 
