@@ -842,6 +842,27 @@
         </div>
       </div>
 
+      <!-- Custom Theme Creation -->
+      <div class="card">
+        <h2>Create Custom Theme</h2>
+        <p style="color: #888; font-size: 13px; margin-bottom: 12px;">
+          Add your own narrative theme with custom keywords to detect and filter.
+        </p>
+        <div class="form-group">
+          <label>Theme Name</label>
+          <input type="text" id="custom-theme-name" placeholder="e.g., Political Drama" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="custom-theme-desc" rows="2" placeholder="What kind of content does this theme represent?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Keywords (comma-separated)</label>
+          <input type="text" id="custom-theme-keywords" placeholder="e.g., election, politician, congress, scandal" />
+        </div>
+        <button id="save-custom-theme-btn" class="btn-primary" style="width: 100%;">Create Theme</button>
+      </div>
+
       <div class="card">
         <h2>Emerging Narratives <span id="emerging-badge" class="badge" style="display: none;">0</span></h2>
         <div id="emerging-list" class="emerging-list">

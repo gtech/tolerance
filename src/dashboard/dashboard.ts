@@ -1211,6 +1211,62 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
   }).join('');
 }
 
+/**
+ * Save a custom narrative theme created by the user
+ */
+async function saveCustomTheme(): Promise<void> {
+  const nameInput = document.getElementById('custom-theme-name') as HTMLInputElement;
+  const descInput = document.getElementById('custom-theme-desc') as HTMLTextAreaElement;
+  const keywordsInput = document.getElementById('custom-theme-keywords') as HTMLInputElement;
+
+  const name = nameInput?.value?.trim();
+  const description = descInput?.value?.trim();
+  const keywordsRaw = keywordsInput?.value?.trim();
+
+  if (!name) {
+    alert('Please enter a theme name');
+    return;
+  }
+  if (!keywordsRaw) {
+    alert('Please enter at least one keyword');
+    return;
+  }
+
+  const keywords = keywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
+
+  if (keywords.length === 0) {
+    alert('Please enter at least one valid keyword');
+    return;
+  }
+
+  const theme: NarrativeTheme = {
+    id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    description: description || name,
+    keywords,
+    isSystemTheme: false,
+    active: true,
+    discoveredAt: Date.now(),
+  };
+
+  try {
+    await chrome.runtime.sendMessage({ type: 'UPDATE_NARRATIVE_THEME', theme });
+
+    // Clear form
+    nameInput.value = '';
+    descInput.value = '';
+    keywordsInput.value = '';
+
+    // Refresh themes display
+    await loadNarrativeData();
+
+    console.log('Custom theme saved:', theme.name);
+  } catch (error) {
+    console.error('Failed to save custom theme:', error);
+    alert('Failed to save theme. Please try again.');
+  }
+}
+
 function setupNarrativeEventListeners(): void {
   // Time selector buttons
   document.querySelectorAll('.time-btn').forEach(btn => {
@@ -1225,6 +1281,12 @@ function setupNarrativeEventListeners(): void {
       await loadNarrativeTrends(days);
     });
   });
+
+  // Custom theme creation button
+  const saveCustomThemeBtn = document.getElementById('save-custom-theme-btn');
+  if (saveCustomThemeBtn) {
+    saveCustomThemeBtn.addEventListener('click', saveCustomTheme);
+  }
 
   // Trigger discovery button
   const discoveryBtn = document.getElementById('trigger-discovery-btn');
