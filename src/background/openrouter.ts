@@ -2,8 +2,8 @@ import { log } from '../shared/constants';
 // API client for engagement scoring
 // Supports OpenRouter and any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, etc.)
 
-import { getSettings } from './storage';
-import { ApiProviderConfig } from '../shared/types';
+import { getSettings, getNarrativeThemes } from './storage';
+import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
 
@@ -12,6 +12,7 @@ export interface ScoreResponse {
   reason: string;
   cost: number; // USD
   fullResponse?: unknown; // Full API response for debugging
+  narrativeMatches?: string[]; // Theme IDs that matched (from LLM detection)
 }
 
 export interface ApiUsage {
@@ -147,6 +148,7 @@ export interface BatchScoreResult {
   postId?: string;
   score: number;
   reason: string;
+  narratives?: number[]; // Indices of matched themes (1-based from prompt)
 }
 
 // Score multiple text posts in a single API call
@@ -159,6 +161,11 @@ export async function scoreTextPostsBatch(
   if (posts.length === 0) {
     return new Map();
   }
+
+  // Load active narrative themes for LLM detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+  log.debug(` Loaded ${activeThemes.length} active narrative themes`);
 
   // Build batch prompt - platform-agnostic
   const postsDescription = posts.map((p, i) => {
@@ -173,6 +180,14 @@ ${sourceLabel}
 ${scoreText}, Comments: ${p.numComments}`;
   }).join('\n\n');
 
+  // Build narrative section if themes are active
+  const narrativeSection = activeThemes.length > 0 ? `
+
+Also check if each post matches any of these narrative themes:
+${activeThemes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
+
+Include "narratives": [<theme_numbers>] in your response (empty array [] if none match).` : '';
+
   const prompt = `Analyze these social media posts for engagement manipulation tactics.
 
 ${postsDescription}
@@ -181,9 +196,10 @@ For EACH post, rate 1-10 how much it uses psychological manipulation:
 - 1-3: Informative, neutral, or genuinely interesting content
 - 4-6: Some engagement optimization (catchy title, emotional hook)
 - 7-10: Heavy manipulation (outrage bait, curiosity gaps, tribal triggers)
+${narrativeSection}
 
 Respond with ONLY a JSON array, one object per post in order:
-[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
+[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"${activeThemes.length > 0 ? ', "narratives": []' : ''}}, ...]`;
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -251,19 +267,30 @@ Respond with ONLY a JSON array, one object per post in order:
                       (item as unknown as { post_id?: string }).post_id;
         const reason = item.reason || '';
 
+        // Convert narrative indices to theme IDs
+        const narrativeMatches: string[] = [];
+        if (item.narratives && Array.isArray(item.narratives)) {
+          for (const idx of item.narratives) {
+            // Indices are 1-based in the prompt
+            const theme = activeThemes[idx - 1];
+            if (theme) {
+              narrativeMatches.push(theme.id);
+            }
+          }
+        }
+
+        const scoreResponse: ScoreResponse = {
+          score: Math.min(10, Math.max(1, item.score)),
+          reason,
+          cost: costPerPost,
+          narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
+        };
+
         if (itemId && posts.some(p => p.id === itemId)) {
-          results.set(itemId, {
-            score: Math.min(10, Math.max(1, item.score)),
-            reason,
-            cost: costPerPost,
-          });
+          results.set(itemId, scoreResponse);
         } else if (i < posts.length) {
           // Fall back to matching by order
-          results.set(posts[i].id, {
-            score: Math.min(10, Math.max(1, item.score)),
-            reason,
-            cost: costPerPost,
-          });
+          results.set(posts[i].id, scoreResponse);
         }
       }
     } else {
@@ -291,6 +318,10 @@ export async function scoreTextPostsBatchWithGalleries(
     return new Map();
   }
 
+  // Load active narrative themes for LLM detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+
   // Build batch prompt including gallery descriptions
   const postsDescription = posts.map((p, i) => {
     const isTwitter = p.platform === 'twitter' || p.subreddit.startsWith('@');
@@ -307,6 +338,14 @@ ${sourceLabel}
 ${scoreText}, Comments: ${p.numComments}${galleryInfo}`;
   }).join('\n\n');
 
+  // Build narrative section if themes are active
+  const narrativeSection = activeThemes.length > 0 ? `
+
+Also check if each post matches any of these narrative themes:
+${activeThemes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
+
+Include "narratives": [<theme_numbers>] in your response (empty array [] if none match).` : '';
+
   const prompt = `Analyze these social media posts for engagement manipulation tactics.
 
 ${postsDescription}
@@ -317,9 +356,10 @@ For EACH post, rate 1-10 how much it uses psychological manipulation:
 - 7-10: Heavy manipulation (outrage bait, curiosity gaps, tribal triggers)
 
 For posts with image descriptions, consider whether the images add to or detract from the manipulation assessment.
+${narrativeSection}
 
 Respond with ONLY a JSON array, one object per post in order:
-[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
+[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"${activeThemes.length > 0 ? ', "narratives": []' : ''}}, ...]`;
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -374,18 +414,29 @@ Respond with ONLY a JSON array, one object per post in order:
                       (item as unknown as { post_id?: string }).post_id;
         const reason = item.reason || '';
 
+        // Convert narrative indices to theme IDs
+        const narrativeMatches: string[] = [];
+        if (item.narratives && Array.isArray(item.narratives)) {
+          for (const idx of item.narratives) {
+            // Indices are 1-based in the prompt
+            const theme = activeThemes[idx - 1];
+            if (theme) {
+              narrativeMatches.push(theme.id);
+            }
+          }
+        }
+
+        const scoreResponse: ScoreResponse = {
+          score: Math.min(10, Math.max(1, item.score)),
+          reason,
+          cost: costPerPost,
+          narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
+        };
+
         if (itemId && posts.some(p => p.id === itemId)) {
-          results.set(itemId, {
-            score: Math.min(10, Math.max(1, item.score)),
-            reason,
-            cost: costPerPost,
-          });
+          results.set(itemId, scoreResponse);
         } else if (i < posts.length) {
-          results.set(posts[i].id, {
-            score: Math.min(10, Math.max(1, item.score)),
-            reason,
-            cost: costPerPost,
-          });
+          results.set(posts[i].id, scoreResponse);
         }
       }
     }

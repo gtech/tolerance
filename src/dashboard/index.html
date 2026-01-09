@@ -846,19 +846,15 @@
       <div class="card">
         <h2>Create Custom Theme</h2>
         <p style="color: #888; font-size: 13px; margin-bottom: 12px;">
-          Add your own narrative theme with custom keywords to detect and filter.
+          Describe what kind of content you want to filter. The AI will intelligently detect matching posts.
         </p>
         <div class="form-group">
           <label>Theme Name</label>
           <input type="text" id="custom-theme-name" placeholder="e.g., Political Drama" />
         </div>
         <div class="form-group">
-          <label>Description</label>
-          <textarea id="custom-theme-desc" rows="2" placeholder="What kind of content does this theme represent?"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Keywords (comma-separated)</label>
-          <input type="text" id="custom-theme-keywords" placeholder="e.g., election, politician, congress, scandal" />
+          <label>Description (for AI detection)</label>
+          <textarea id="custom-theme-desc" rows="4" placeholder="Describe the type of content this theme represents. Be specific about tone, topics, and patterns you want to detect. Example: 'Content promoting fear and uncertainty about job security, including discussions of mass layoffs, AI replacing workers, or economic doom without actionable solutions.'"></textarea>
         </div>
         <button id="save-custom-theme-btn" class="btn-primary" style="width: 100%;">Create Theme</button>
       </div>

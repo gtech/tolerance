@@ -352,36 +352,24 @@ export const SEED_NARRATIVE_THEMES: NarrativeTheme[] = [
   {
     id: 'doom',
     name: 'Doom / Hopelessness',
-    description: 'Content promoting despair, learned helplessness, economic collapse fears, or nihilism. Often frames situations as irreversible and action as pointless.',
-    keywords: [
-      ...DOOM_KEYWORDS.economic,
-      ...DOOM_KEYWORDS.political,
-      ...DOOM_KEYWORDS.existential,
-    ],
+    description: 'Content promoting hopelessness, inevitable collapse, or learned helplessness. Posts that suggest nothing can be done, systems are irreparably broken, or the future is bleak without solutions. Includes economic collapse fears, political despair, and nihilistic framing that discourages action.',
+    keywords: [], // LLM detection via description
     isSystemTheme: true,
     active: true,
   },
   {
     id: 'conspiracy',
     name: 'Conspiracy / Manipulation',
-    description: 'Content suggesting hidden forces control events, "they don\'t want you to know" framing, or coordinated cover-ups without evidence.',
-    keywords: [
-      ...CONSPIRACY_KEYWORDS.hidden_forces,
-      ...CONSPIRACY_KEYWORDS.coordinated,
-      ...CONSPIRACY_KEYWORDS.revelation,
-    ],
+    description: 'Content suggesting hidden forces control events without evidence. Includes "they don\'t want you to know" framing, claims of coordinated cover-ups, secret agendas, or shadowy groups manipulating society. Often uses phrases like "wake up", "exposed", "leaked", or "what they\'re hiding".',
+    keywords: [], // LLM detection via description
     isSystemTheme: true,
     active: true,
   },
   {
     id: 'identity',
     name: 'Identity / Isolation',
-    description: 'Content promoting alienation, identity-based grievance, or "forever alone" narratives. Often frames social connection as impossible.',
-    keywords: [
-      ...IDENTITY_KEYWORDS.alienation,
-      ...IDENTITY_KEYWORDS.grievance,
-      ...IDENTITY_KEYWORDS.hopelessness,
-    ],
+    description: 'Content promoting alienation, identity-based grievance, or chronic loneliness as inevitable. Posts framing social connection as impossible, "forever alone" narratives, or content that reinforces feeling persecuted or misunderstood based on identity. Often discourages trying to connect.',
+    keywords: [], // LLM detection via description
     isSystemTheme: true,
     active: true,
   },

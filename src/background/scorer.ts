@@ -11,12 +11,8 @@ import {
   isWhitelisted,
 } from '../shared/types';
 import {
-  OUTRAGE_KEYWORDS,
-  CURIOSITY_GAP_KEYWORDS,
-  TRIBAL_KEYWORDS,
   SUBREDDIT_CATEGORIES,
   scoreToBucket,
-  NARRATIVE_KEYWORDS,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
@@ -442,6 +438,16 @@ async function enrichTextPostsBatch(
       score.apiReason = apiResult.reason;
       score.bucket = scoreToBucket(apiScore);
 
+      // Apply narrative detection from LLM response
+      if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+        // Use first matched theme as primary detection (LLM confidence = high)
+        score.factors.narrative = {
+          themeId: apiResult.narrativeMatches[0],
+          confidence: 'high',
+          matchedKeywords: [], // LLM detection doesn't use keywords
+        };
+      }
+
       // Log calibration data (with full post info for fine-tuning)
       await logCalibration(post.id, score.heuristicScore, apiScore, {
         // Core content
@@ -505,6 +511,15 @@ async function enrichTextPostsBatchWithGalleries(
       score.apiScore = apiScore;
       score.apiReason = apiResult.reason;
       score.bucket = scoreToBucket(apiScore);
+
+      // Apply narrative detection from LLM response
+      if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+        score.factors.narrative = {
+          themeId: apiResult.narrativeMatches[0],
+          confidence: 'high',
+          matchedKeywords: [],
+        };
+      }
 
       await logCalibration(post.id, score.heuristicScore, apiScore, {
         permalink: post.permalink,
@@ -728,43 +743,6 @@ function calculateFactors(post: Omit<RedditPost, 'element'>): ScoreFactors {
     keywordFlags: [],
     viralVelocity: 0,
   };
-}
-
-// Narrative theme detection - checks against active themes
-function detectNarrative(
-  title: string,
-  themes: NarrativeTheme[]
-): NarrativeDetection | undefined {
-  const titleLower = title.toLowerCase();
-
-  let bestMatch: NarrativeDetection | undefined;
-  let maxScore = 0;
-
-  for (const theme of themes) {
-    if (!theme.active) continue;
-
-    let themeScore = 0;
-    const matchedKeywords: string[] = [];
-
-    for (const keyword of theme.keywords) {
-      if (titleLower.includes(keyword.toLowerCase())) {
-        themeScore++;
-        matchedKeywords.push(keyword);
-      }
-    }
-
-    if (themeScore > maxScore && themeScore >= 1) {
-      maxScore = themeScore;
-      const confidence = themeScore >= 3 ? 'high' : themeScore >= 2 ? 'medium' : 'low';
-      bestMatch = {
-        themeId: theme.id,
-        confidence,
-        matchedKeywords,
-      };
-    }
-  }
-
-  return bestMatch;
 }
 
 // Cached themes to avoid fetching on every post

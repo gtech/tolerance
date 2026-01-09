@@ -8,8 +8,8 @@
 export interface NarrativeTheme {
   id: string;              // 'doom', 'conspiracy', 'identity', or user-generated ID
   name: string;            // Display name
-  description: string;     // What this narrative looks like
-  keywords: string[];      // Detection keywords (can grow)
+  description: string;     // Natural language description for LLM detection
+  keywords?: string[];     // Optional - legacy keyword detection (deprecated)
   isSystemTheme: boolean;  // true for seed themes, false for discovered
   active: boolean;         // Whether to detect this theme
   discoveredAt?: number;   // When this theme was first detected

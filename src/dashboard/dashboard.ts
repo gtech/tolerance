@@ -1217,33 +1217,24 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
 async function saveCustomTheme(): Promise<void> {
   const nameInput = document.getElementById('custom-theme-name') as HTMLInputElement;
   const descInput = document.getElementById('custom-theme-desc') as HTMLTextAreaElement;
-  const keywordsInput = document.getElementById('custom-theme-keywords') as HTMLInputElement;
 
   const name = nameInput?.value?.trim();
   const description = descInput?.value?.trim();
-  const keywordsRaw = keywordsInput?.value?.trim();
 
   if (!name) {
     alert('Please enter a theme name');
     return;
   }
-  if (!keywordsRaw) {
-    alert('Please enter at least one keyword');
-    return;
-  }
-
-  const keywords = keywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(k => k.length > 0);
-
-  if (keywords.length === 0) {
-    alert('Please enter at least one valid keyword');
+  if (!description) {
+    alert('Please enter a description. This is how the AI identifies matching content.');
     return;
   }
 
   const theme: NarrativeTheme = {
     id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     name,
-    description: description || name,
-    keywords,
+    description,
+    keywords: [], // LLM-based detection uses description, not keywords
     isSystemTheme: false,
     active: true,
     discoveredAt: Date.now(),
@@ -1255,7 +1246,6 @@ async function saveCustomTheme(): Promise<void> {
     // Clear form
     nameInput.value = '';
     descInput.value = '';
-    keywordsInput.value = '';
 
     // Refresh themes display
     await loadNarrativeData();
