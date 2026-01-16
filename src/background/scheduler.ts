@@ -1,13 +1,6 @@
-import { log } from '../shared/constants';
+import { log, scoreToBucket } from '../shared/constants';
 import { EngagementScore, SchedulerConfig } from '../shared/types';
 import { getSettings, getCounterStrategies, getSessionMinutes, getCurrentPhase } from './storage';
-
-// Map narrative confidence to numeric score for threshold comparison
-const confidenceToScore: Record<string, number> = {
-  low: 33,
-  medium: 66,
-  high: 100,
-};
 
 // Get effective high-engagement ratio based on progressive boredom
 // Returns a ratio (0-1) that decreases as social media time increases today
@@ -52,16 +45,14 @@ export async function getScheduledOrder(
     return { orderedIds: postIds, hiddenIds: [] }; // Return original order if disabled
   }
 
-  // Load counter-strategies for narrative suppression/boosting
+  // Load counter-strategies for narrative score modification
   const strategies = await getCounterStrategies();
   const enabledStrategies = strategies.filter(s => s.enabled);
 
-  // Separate posts by bucket, applying narrative suppression
+  // Separate posts by bucket, applying narrative score modifiers
   const high: string[] = [];
   const medium: string[] = [];
   const low: string[] = [];
-  const boosted: string[] = []; // Posts matching surface keywords
-  const suppressed: string[] = []; // Posts suppressed by narrative strategies
 
   for (const id of postIds) {
     const score = scores.get(id);
@@ -70,50 +61,23 @@ export async function getScheduledOrder(
       continue;
     }
 
-    // Check for narrative suppression
+    // Calculate effective score, applying narrative modifier if applicable
+    let effectiveScore = score.apiScore ?? score.heuristicScore;
     const narrativeDetection = score.factors?.narrative;
-    let isSuppressed = false;
 
     if (narrativeDetection && enabledStrategies.length > 0) {
       const strategy = enabledStrategies.find(s => s.themeId === narrativeDetection.themeId);
-      if (strategy) {
-        const confidenceScore = confidenceToScore[narrativeDetection.confidence] || 0;
-        if (confidenceScore >= strategy.suppressThreshold) {
-          suppressed.push(id);
-          isSuppressed = true;
-          log.debug(`: Suppressed post ${id} (${narrativeDetection.themeId}, confidence: ${narrativeDetection.confidence})`);
-        }
+      if (strategy && strategy.scoreModifier !== 0) {
+        const originalScore = effectiveScore;
+        effectiveScore = Math.max(0, Math.min(100, effectiveScore + strategy.scoreModifier));
+        log.debug(`: Modified post ${id} score: ${originalScore} → ${effectiveScore} (${strategy.scoreModifier > 0 ? '+' : ''}${strategy.scoreModifier}, theme: ${narrativeDetection.themeId})`);
       }
     }
 
-    if (isSuppressed) continue;
+    // Determine bucket based on effective score
+    const effectiveBucket = scoreToBucket(effectiveScore);
 
-    // Check for boosting via surface keywords in title
-    // This requires the post title, which we don't have here directly
-    // We check keyword flags instead (they contain matched keywords)
-    let isBoosted = false;
-    if (enabledStrategies.length > 0 && score.factors?.keywordFlags) {
-      for (const strategy of enabledStrategies) {
-        if (strategy.surfaceKeywords.length > 0) {
-          // Check if any surface keyword appears in the title
-          // We'd need the title for this, but we can check if any keyword flag contains surface keywords
-          const titleKeywords = score.factors.keywordFlags.join(' ').toLowerCase();
-          for (const surfaceKw of strategy.surfaceKeywords) {
-            if (titleKeywords.includes(surfaceKw.toLowerCase())) {
-              boosted.push(id);
-              isBoosted = true;
-              log.debug(`: Boosted post ${id} (matched surface keyword: ${surfaceKw})`);
-              break;
-            }
-          }
-          if (isBoosted) break;
-        }
-      }
-    }
-
-    if (isBoosted) continue;
-
-    switch (score.bucket) {
+    switch (effectiveBucket) {
       case 'high':
         high.push(id);
         break;
@@ -137,16 +101,14 @@ export async function getScheduledOrder(
   }
 
   // Debug: log bucket distribution
-  log.debug(` Scheduler: Buckets - high: ${high.length}, medium: ${medium.length}, low: ${low.length}, boosted: ${boosted.length}, suppressed: ${suppressed.length}`);
+  log.debug(` Scheduler: Buckets - high: ${high.length}, medium: ${medium.length}, low: ${low.length}`);
   log.debug(` Scheduler: High posts: ${high.map(id => {
     const s = scores.get(id);
     return `${id.slice(0,6)}(${s?.apiScore ?? s?.heuristicScore})`;
   }).join(', ')}`);
 
   // Interleave according to fixed interval schedule with effective ratio
-  // Boosted posts are mixed into the medium pool
-  const mediumWithBoosted = [...boosted, ...medium];
-  const { ordered, hidden } = interleave(high, mediumWithBoosted, low, config, effectiveRatio);
+  const { ordered, hidden } = interleave(high, medium, low, config, effectiveRatio);
 
   // Debug: log result order with scores
   log.debug(` Scheduler: Result order (first 15): ${ordered.slice(0, 15).map(id => {
@@ -154,10 +116,7 @@ export async function getScheduledOrder(
     return s?.apiScore ?? s?.heuristicScore ?? '?';
   }).join(', ')}`);
 
-  // Add suppressed posts to hidden list
-  const allHidden = [...hidden, ...suppressed];
-
-  return { orderedIds: ordered, hiddenIds: allHidden };
+  return { orderedIds: ordered, hiddenIds: hidden };
 }
 
 // Interleave posts to create fixed interval pattern

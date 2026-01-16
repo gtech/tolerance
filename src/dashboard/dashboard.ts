@@ -1177,6 +1177,8 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
 
   container.innerHTML = strategies.map(strategy => {
     const theme = currentNarrativeThemes.find(t => t.id === strategy.themeId);
+    const modifierSign = strategy.scoreModifier >= 0 ? '+' : '';
+    const modifierLabel = strategy.scoreModifier > 0 ? 'Suppress' : strategy.scoreModifier < 0 ? 'Surface' : 'No change';
     return `
       <div class="strategy-item" data-id="${strategy.id}">
         <div class="strategy-header">
@@ -1194,17 +1196,21 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
             <div class="dialectic-label">Thesis</div>
             <div class="dialectic-text">${escapeHtml(strategy.thesis.slice(0, 100))}${strategy.thesis.length > 100 ? '...' : ''}</div>
           </div>
+          ${strategy.antithesis ? `
           <div class="dialectic-col">
             <div class="dialectic-label">Antithesis</div>
             <div class="dialectic-text">${escapeHtml(strategy.antithesis.slice(0, 100))}${strategy.antithesis.length > 100 ? '...' : ''}</div>
           </div>
+          ` : ''}
+          ${strategy.synthesis ? `
           <div class="dialectic-col">
             <div class="dialectic-label">Synthesis</div>
             <div class="dialectic-text">${escapeHtml(strategy.synthesis.slice(0, 100))}${strategy.synthesis.length > 100 ? '...' : ''}</div>
           </div>
+          ` : ''}
         </div>
         <div class="strategy-meta">
-          Suppression: ${strategy.suppressThreshold}% | Keywords: ${strategy.surfaceKeywords.join(', ') || 'None'}
+          ${modifierLabel}: ${modifierSign}${strategy.scoreModifier} points
         </div>
       </div>
     `;
@@ -1357,12 +1363,13 @@ function setupNarrativeEventListeners(): void {
   document.getElementById('cancel-strategy-btn')?.addEventListener('click', closeStrategyModal);
   document.getElementById('save-strategy-btn')?.addEventListener('click', saveStrategy);
 
-  // Suppression slider value display
-  const suppressSlider = document.getElementById('strategy-suppress') as HTMLInputElement;
-  const suppressValue = document.getElementById('suppress-value');
-  if (suppressSlider && suppressValue) {
-    suppressSlider.addEventListener('input', () => {
-      suppressValue.textContent = suppressSlider.value;
+  // Score modifier slider value display
+  const modifierSlider = document.getElementById('strategy-modifier') as HTMLInputElement;
+  const modifierValue = document.getElementById('modifier-value');
+  if (modifierSlider && modifierValue) {
+    modifierSlider.addEventListener('input', () => {
+      const val = parseInt(modifierSlider.value, 10);
+      modifierValue.textContent = val >= 0 ? `+${val}` : String(val);
     });
   }
 
@@ -1406,14 +1413,13 @@ async function openStrategyModal(strategyId: string | null): Promise<void> {
       .join('');
   }
 
-  // Reset form
+  // Get form elements
   const thesisEl = document.getElementById('strategy-thesis') as HTMLTextAreaElement;
   const antithesisEl = document.getElementById('strategy-antithesis') as HTMLTextAreaElement;
   const synthesisEl = document.getElementById('strategy-synthesis') as HTMLTextAreaElement;
-  const suppressEl = document.getElementById('strategy-suppress') as HTMLInputElement;
-  const keywordsEl = document.getElementById('strategy-keywords') as HTMLInputElement;
-  const notesEl = document.getElementById('strategy-notes') as HTMLTextAreaElement;
-  const suppressValueEl = document.getElementById('suppress-value');
+  const modifierEl = document.getElementById('strategy-modifier') as HTMLInputElement;
+  const modifierValueEl = document.getElementById('modifier-value');
+  const dialecticalDetails = document.querySelector('.dialectical-section') as HTMLDetailsElement;
 
   if (strategyId) {
     // Edit existing strategy
@@ -1425,12 +1431,17 @@ async function openStrategyModal(strategyId: string | null): Promise<void> {
     if (strategy) {
       if (themeSelect) themeSelect.value = strategy.themeId;
       if (thesisEl) thesisEl.value = strategy.thesis;
-      if (antithesisEl) antithesisEl.value = strategy.antithesis;
-      if (synthesisEl) synthesisEl.value = strategy.synthesis;
-      if (suppressEl) suppressEl.value = String(strategy.suppressThreshold);
-      if (suppressValueEl) suppressValueEl.textContent = String(strategy.suppressThreshold);
-      if (keywordsEl) keywordsEl.value = strategy.surfaceKeywords.join(', ');
-      if (notesEl) notesEl.value = strategy.notes || '';
+      if (antithesisEl) antithesisEl.value = strategy.antithesis || '';
+      if (synthesisEl) synthesisEl.value = strategy.synthesis || '';
+      if (modifierEl) modifierEl.value = String(strategy.scoreModifier);
+      if (modifierValueEl) {
+        const val = strategy.scoreModifier;
+        modifierValueEl.textContent = val >= 0 ? `+${val}` : String(val);
+      }
+      // Expand dialectical section if there's content
+      if (dialecticalDetails && (strategy.antithesis || strategy.synthesis)) {
+        dialecticalDetails.open = true;
+      }
     }
   } else {
     // New strategy - auto-fill thesis from first theme
@@ -1438,10 +1449,9 @@ async function openStrategyModal(strategyId: string | null): Promise<void> {
     if (thesisEl && firstTheme) thesisEl.value = firstTheme.description;
     if (antithesisEl) antithesisEl.value = '';
     if (synthesisEl) synthesisEl.value = '';
-    if (suppressEl) suppressEl.value = '50';
-    if (suppressValueEl) suppressValueEl.textContent = '50';
-    if (keywordsEl) keywordsEl.value = '';
-    if (notesEl) notesEl.value = '';
+    if (modifierEl) modifierEl.value = '20';
+    if (modifierValueEl) modifierValueEl.textContent = '+20';
+    if (dialecticalDetails) dialecticalDetails.open = false;
   }
 
   modal.style.display = 'flex';
@@ -1458,21 +1468,20 @@ async function saveStrategy(): Promise<void> {
   const thesisEl = document.getElementById('strategy-thesis') as HTMLTextAreaElement;
   const antithesisEl = document.getElementById('strategy-antithesis') as HTMLTextAreaElement;
   const synthesisEl = document.getElementById('strategy-synthesis') as HTMLTextAreaElement;
-  const suppressEl = document.getElementById('strategy-suppress') as HTMLInputElement;
-  const keywordsEl = document.getElementById('strategy-keywords') as HTMLInputElement;
-  const notesEl = document.getElementById('strategy-notes') as HTMLTextAreaElement;
+  const modifierEl = document.getElementById('strategy-modifier') as HTMLInputElement;
+
+  const antithesis = antithesisEl?.value?.trim() || '';
+  const synthesis = synthesisEl?.value?.trim() || '';
 
   const strategy: CounterStrategy = {
     id: editingStrategyId || `strategy_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     themeId: themeSelect?.value || '',
     thesis: thesisEl?.value || '',
-    antithesis: antithesisEl?.value || '',
-    synthesis: synthesisEl?.value || '',
-    suppressThreshold: parseInt(suppressEl?.value || '50', 10),
-    surfaceKeywords: (keywordsEl?.value || '').split(',').map(k => k.trim()).filter(k => k),
+    antithesis: antithesis || undefined,
+    synthesis: synthesis || undefined,
+    scoreModifier: parseInt(modifierEl?.value || '20', 10),
     enabled: true,
     createdAt: Date.now(),
-    notes: notesEl?.value || '',
   };
 
   await chrome.runtime.sendMessage({ type: 'SAVE_COUNTER_STRATEGY', strategy });

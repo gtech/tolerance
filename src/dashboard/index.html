@@ -891,27 +891,21 @@
           <textarea id="strategy-thesis" placeholder="Auto-filled from theme description" readonly></textarea>
         </div>
         <div class="form-group">
-          <label>Antithesis (Direct Opposite)</label>
-          <textarea id="strategy-antithesis" placeholder="What is the direct opposite of this narrative?"></textarea>
+          <label>Score Modifier: <span id="modifier-value">+20</span> points</label>
+          <input type="range" id="strategy-modifier" min="-50" max="50" value="20">
+          <div class="setting-description">Positive = blur more (suppress). Negative = blur less (surface).</div>
         </div>
-        <div class="form-group">
-          <label>Synthesis (Nuanced Counter)</label>
-          <textarea id="strategy-synthesis" placeholder="What is a more nuanced, balanced perspective?"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Suppression Threshold: <span id="suppress-value">50</span>%</label>
-          <input type="range" id="strategy-suppress" min="0" max="100" value="50">
-          <div class="setting-description">Posts matching this theme above this threshold will be suppressed (0 = no suppression)</div>
-        </div>
-        <div class="form-group">
-          <label>Surface Keywords (boost counter-content)</label>
-          <input type="text" id="strategy-keywords" placeholder="hope, progress, nuance, both sides...">
-          <div class="setting-description">Comma-separated keywords for content to boost instead</div>
-        </div>
-        <div class="form-group">
-          <label>Notes (your reasoning)</label>
-          <textarea id="strategy-notes" placeholder="Why did you choose this counter? What helped you see past the narrative?"></textarea>
-        </div>
+        <details class="dialectical-section">
+          <summary style="cursor: pointer; color: #888; margin: 16px 0;">Add dialectical notes (optional)</summary>
+          <div class="form-group">
+            <label>Antithesis (optional)</label>
+            <textarea id="strategy-antithesis" placeholder="Direct opposite perspective"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Synthesis (optional)</label>
+            <textarea id="strategy-synthesis" placeholder="Nuanced, balanced view"></textarea>
+          </div>
+        </details>
         <div class="modal-actions">
           <button class="btn-secondary" id="cancel-strategy-btn">Cancel</button>
           <button class="btn-primary" id="save-strategy-btn">Save Strategy</button>

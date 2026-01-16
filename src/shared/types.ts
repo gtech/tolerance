@@ -48,13 +48,11 @@ export interface CounterStrategy {
   id: string;
   themeId: string;           // References NarrativeTheme.id
   thesis: string;            // The detected narrative (auto-filled from theme description)
-  antithesis: string;        // User-defined direct opposite
-  synthesis: string;         // User-defined nuanced counter
-  suppressThreshold: number; // 0-100 (0 = no suppression)
-  surfaceKeywords: string[]; // Keywords for counter-content to boost
+  antithesis?: string;       // Optional: direct opposite perspective
+  synthesis?: string;        // Optional: nuanced, balanced view
+  scoreModifier: number;     // -50 to +50: points to add/subtract when narrative detected
   enabled: boolean;
   createdAt: number;
-  notes?: string;            // User's reasoning/brainstorming
 }
 
 // ==========================================
