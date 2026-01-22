@@ -1239,17 +1239,3 @@ export async function resetApiUsage(): Promise<void> {
     },
   });
 }
-
-// Validate API key
-export async function validateApiKey(apiKey: string): Promise<boolean> {
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/models', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}

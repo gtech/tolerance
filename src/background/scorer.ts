@@ -5,8 +5,6 @@ import {
   YouTubeVideo,
   InstagramPost,
   EngagementScore,
-  ScoreFactors,
-  NarrativeDetection,
   NarrativeTheme,
   isWhitelisted,
 } from '../shared/types';
@@ -17,6 +15,23 @@ import {
 import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
+
+// Create a neutral score - API will provide the real score
+function createNeutralScore(postId: string): EngagementScore {
+  return {
+    postId,
+    heuristicScore: 50,
+    heuristicConfidence: 'low',
+    bucket: 'medium',
+    factors: {
+      engagementRatio: 0,
+      commentDensity: 0,
+      keywordFlags: [],
+      viralVelocity: 0,
+    },
+    timestamp: Date.now(),
+  };
+}
 
 // Main scoring function - API-first approach
 export async function scorePosts(
@@ -56,7 +71,7 @@ export async function scorePosts(
   const mediaPostsForApi: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[] = [];
 
   for (const post of uncached) {
-    const score = calculateHeuristicScore(post, themes);
+    const score = createNeutralScore(post.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(post.author, 'reddit', settings.whitelist);
     newScores.push(score);
@@ -234,7 +249,7 @@ export async function scoreTweets(
   const tweetsForApi: { tweet: Omit<Tweet, 'element'>; score: EngagementScore }[] = [];
 
   for (const tweet of uncached) {
-    const score = calculateTweetHeuristicScore(tweet, themes);
+    const score = createNeutralScore(tweet.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(tweet.author, 'twitter', settings.whitelist);
     newScores.push(score);
@@ -388,27 +403,6 @@ export async function scoreTweets(
   }
 
   return allScores;
-}
-
-// Heuristic scoring for tweets - DISABLED, API-only mode
-function calculateTweetHeuristicScore(
-  tweet: Omit<Tweet, 'element'>,
-  _themes: NarrativeTheme[]
-): EngagementScore {
-  // Return neutral score - API will provide the real score
-  return {
-    postId: tweet.id,
-    heuristicScore: 50,
-    heuristicConfidence: 'low',
-    bucket: 'medium',
-    factors: {
-      engagementRatio: 0,
-      commentDensity: tweet.likeCount > 0 ? tweet.numComments / tweet.likeCount : 0,
-      keywordFlags: [],
-      viralVelocity: 0,
-    },
-    timestamp: Date.now(),
-  };
 }
 
 // Batch enrich text posts with API scores
@@ -645,106 +639,6 @@ async function enrichWithApiScore(
   }
 }
 
-// Title pattern analysis for engagement signals
-function analyzeTitlePatterns(
-  title: string,
-  postScore: number
-): { points: number; confidence: number; flags: string[] } {
-  let points = 0;
-  let confidence = 0;
-  const flags: string[] = [];
-
-  // Caps ratio - excessive caps indicates shouting/clickbait
-  const letters = title.replace(/[^a-zA-Z]/g, '');
-  const capsCount = (title.match(/[A-Z]/g) || []).length;
-  const capsRatio = letters.length > 0 ? capsCount / letters.length : 0;
-  if (capsRatio > 0.3 && letters.length > 10) {
-    points += 10;
-    confidence += 1;
-    flags.push(`pattern:caps_${Math.round(capsRatio * 100)}%`);
-  }
-
-  // Punctuation density - !!!, ???, or mixed
-  const exclamations = (title.match(/!/g) || []).length;
-  const questions = (title.match(/\?/g) || []).length;
-  if (exclamations >= 2 || questions >= 2 || (exclamations >= 1 && questions >= 1)) {
-    points += 8;
-    confidence += 1;
-    flags.push('pattern:punctuation_heavy');
-  }
-
-  // Short sensational titles with high engagement
-  if (title.length < 40 && postScore > 1000) {
-    points += 5;
-    flags.push('pattern:short_viral');
-  }
-
-  // Rhetorical question patterns
-  const rhetoricalPatterns = [
-    /^why (do|does|is|are|can't|won't|don't)/i,
-    /^how (is|are|can|could|do|does)/i,
-    /^what (if|would|is wrong|happened)/i,
-    /anyone else/i,
-    /am i the only/i,
-    /does anyone/i,
-  ];
-  for (const pattern of rhetoricalPatterns) {
-    if (pattern.test(title)) {
-      points += 5;
-      confidence += 1;
-      flags.push('pattern:rhetorical_question');
-      break;
-    }
-  }
-
-  // Emotional intensifiers
-  const intensifiers = [
-    'absolutely', 'literally', 'completely', 'totally', 'insanely',
-    'incredibly', 'extremely', 'ridiculously', 'perfectly', 'genuinely',
-  ];
-  const titleLower = title.toLowerCase();
-  for (const word of intensifiers) {
-    if (titleLower.includes(word)) {
-      points += 3;
-      flags.push(`pattern:intensifier_${word}`);
-      break;
-    }
-  }
-
-  return { points, confidence, flags };
-}
-
-// Heuristic scoring - DISABLED, API-only mode
-// Returns neutral score, all real scoring happens via API
-function calculateHeuristicScore(
-  post: Omit<RedditPost, 'element'>,
-  _themes: NarrativeTheme[]
-): EngagementScore {
-  // Return neutral score - API will provide the real score
-  return {
-    postId: post.id,
-    heuristicScore: 50, // Neutral - will be replaced by API
-    heuristicConfidence: 'low',
-    bucket: 'medium',
-    factors: {
-      engagementRatio: post.upvoteRatio || 0,
-      commentDensity: post.numComments / Math.max(1, post.score ?? 1),
-      keywordFlags: [],
-      viralVelocity: 0,
-    },
-    timestamp: Date.now(),
-  };
-}
-
-function calculateFactors(post: Omit<RedditPost, 'element'>): ScoreFactors {
-  return {
-    engagementRatio: post.upvoteRatio || 0,
-    commentDensity: post.score > 0 ? post.numComments / post.score : 0,
-    keywordFlags: [],
-    viralVelocity: 0,
-  };
-}
-
 // Cached themes to avoid fetching on every post
 let cachedThemes: NarrativeTheme[] | null = null;
 let themeCacheTime = 0;
@@ -792,7 +686,7 @@ export async function scoreVideos(
   const videosForApi: { video: Omit<YouTubeVideo, 'element'>; score: EngagementScore }[] = [];
 
   for (const video of uncached) {
-    const score = calculateVideoHeuristicScore(video, themes);
+    const score = createNeutralScore(video.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
     newScores.push(score);
@@ -865,27 +759,6 @@ export async function scoreVideos(
   return allScores;
 }
 
-// Heuristic scoring for YouTube videos - DISABLED, API-only mode
-function calculateVideoHeuristicScore(
-  video: Omit<YouTubeVideo, 'element'>,
-  _themes: NarrativeTheme[]
-): EngagementScore {
-  // Return neutral score - API will provide the real score
-  return {
-    postId: video.id,
-    heuristicScore: 50,
-    heuristicConfidence: 'low',
-    bucket: 'medium',
-    factors: {
-      engagementRatio: 0,
-      commentDensity: 0,
-      keywordFlags: [],
-      viralVelocity: 0,
-    },
-    timestamp: Date.now(),
-  };
-}
-
 // Score Instagram posts - adapts Instagram content to the scoring system
 // Uses video model (Gemini) for reels/videos, similar to YouTube
 export async function scoreInstagramPosts(
@@ -916,7 +789,7 @@ export async function scoreInstagramPosts(
   const postsForApi: { post: Omit<InstagramPost, 'element'>; score: EngagementScore }[] = [];
 
   for (const post of uncached) {
-    const score = calculateInstagramHeuristicScore(post, themes);
+    const score = createNeutralScore(post.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
     newScores.push(score);
@@ -1061,25 +934,4 @@ export async function scoreInstagramPosts(
   }
 
   return allScores;
-}
-
-// Heuristic scoring for Instagram posts - DISABLED, API-only mode
-function calculateInstagramHeuristicScore(
-  post: Omit<InstagramPost, 'element'>,
-  _themes: NarrativeTheme[]
-): EngagementScore {
-  // Return neutral score - API will provide the real score
-  return {
-    postId: post.id,
-    heuristicScore: 50,
-    heuristicConfidence: 'low',
-    bucket: 'medium',
-    factors: {
-      engagementRatio: 0,
-      commentDensity: post.likeCount ? post.commentCount / post.likeCount : 0,
-      keywordFlags: [],
-      viralVelocity: 0,
-    },
-    timestamp: Date.now(),
-  };
 }
