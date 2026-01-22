@@ -367,6 +367,15 @@ export async function scoreTweets(
           score.apiScore = apiScore;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
+
+          // Apply narrative detection from LLM response
+          if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+            score.factors.narrative = {
+              themeId: apiResult.narrativeMatches[0],
+              confidence: 'high',
+              matchedKeywords: [],
+            };
+          }
         }
       } catch (err) {
         console.error('Tweet media API scoring failed:', err);
@@ -605,6 +614,15 @@ async function enrichWithApiScore(
       // Update bucket based on API score (more accurate)
       score.bucket = scoreToBucket(apiScore);
 
+      // Apply narrative detection from LLM response
+      if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+        score.factors.narrative = {
+          themeId: apiResult.narrativeMatches[0],
+          confidence: 'high',
+          matchedKeywords: [],
+        };
+      }
+
       // Log calibration data for analysis (with full post info for fine-tuning)
       await logCalibration(post.id, score.heuristicScore, apiScore, {
         // Core content
@@ -836,6 +854,15 @@ export async function scoreInstagramPosts(
           score.apiScore = apiScore;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'instagram');
+
+          // Apply narrative detection from LLM response
+          if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+            score.factors.narrative = {
+              themeId: apiResult.narrativeMatches[0],
+              confidence: 'high',
+              matchedKeywords: [],
+            };
+          }
         }
       } catch (err) {
         console.error('Instagram text API scoring failed:', err);
@@ -898,6 +925,15 @@ export async function scoreInstagramPosts(
           score.apiScore = apiScore;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'instagram');
+
+          // Apply narrative detection from LLM response
+          if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+            score.factors.narrative = {
+              themeId: apiResult.narrativeMatches[0],
+              confidence: 'high',
+              matchedKeywords: [],
+            };
+          }
         }
       } catch (err) {
         console.error('Instagram media API scoring failed:', err);
