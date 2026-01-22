@@ -183,10 +183,14 @@ ${scoreText}, Comments: ${p.numComments}`;
   // Build narrative section if themes are active
   const narrativeSection = activeThemes.length > 0 ? `
 
-Also check if each post matches any of these narrative themes:
+IMPORTANT: Also check if each post matches any of these narrative themes:
 ${activeThemes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
 
-Include "narratives": [<theme_numbers>] in your response (empty array [] if none match).` : '';
+You MUST include "narratives" in every response object. Use the theme numbers (1, 2, 3...) for matches, or empty array [] if none match.` : '';
+
+  const exampleFormat = activeThemes.length > 0
+    ? `[{"id": "abc123", "score": 5, "reason": "example reason", "narratives": [1, 3]}, {"id": "def456", "score": 2, "reason": "neutral content", "narratives": []}, ...]`
+    : `[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   const prompt = `Analyze these social media posts for engagement manipulation tactics.
 
@@ -199,7 +203,7 @@ For EACH post, rate 1-10 how much it uses psychological manipulation:
 ${narrativeSection}
 
 Respond with ONLY a JSON array, one object per post in order:
-[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"${activeThemes.length > 0 ? ', "narratives": []' : ''}}, ...]`;
+${exampleFormat}`;
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -348,10 +352,14 @@ ${scoreText}, Comments: ${p.numComments}${galleryInfo}`;
   // Build narrative section if themes are active
   const narrativeSection = activeThemes.length > 0 ? `
 
-Also check if each post matches any of these narrative themes:
+IMPORTANT: Also check if each post matches any of these narrative themes:
 ${activeThemes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
 
-Include "narratives": [<theme_numbers>] in your response (empty array [] if none match).` : '';
+You MUST include "narratives" in every response object. Use the theme numbers (1, 2, 3...) for matches, or empty array [] if none match.` : '';
+
+  const exampleFormat = activeThemes.length > 0
+    ? `[{"id": "abc123", "score": 5, "reason": "example reason", "narratives": [1, 3]}, {"id": "def456", "score": 2, "reason": "neutral content", "narratives": []}, ...]`
+    : `[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"}, ...]`;
 
   const prompt = `Analyze these social media posts for engagement manipulation tactics.
 
@@ -366,7 +374,7 @@ For posts with image descriptions, consider whether the images add to or detract
 ${narrativeSection}
 
 Respond with ONLY a JSON array, one object per post in order:
-[{"id": "<post_id>", "score": <1-10>, "reason": "<15 words max>"${activeThemes.length > 0 ? ', "narratives": []' : ''}}, ...]`;
+${exampleFormat}`;
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
