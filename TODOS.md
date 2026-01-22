@@ -1,3 +1,6 @@
+- Code cleanup and refactor
+
+
 # Upcoming Features
 
 ## Prompt to create arbitrary cognitive filters

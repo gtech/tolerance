@@ -151,6 +151,39 @@ export interface BatchScoreResult {
   narratives?: number[]; // Indices of matched themes (1-based from prompt)
 }
 
+// Helper: Build the narrative detection section for prompts
+function buildNarrativePromptSection(activeThemes: NarrativeTheme[]): string {
+  if (activeThemes.length === 0) return '';
+
+  return `
+
+IMPORTANT: Also check if this post matches any of these narrative themes:
+${activeThemes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
+
+You MUST include "narratives" in your response. Use the theme numbers (1, 2, 3...) for matches, or empty array [] if none match.`;
+}
+
+// Helper: Convert 1-based narrative indices from LLM to theme IDs
+function convertNarrativeIndicesToThemeIds(
+  indices: number[] | undefined,
+  activeThemes: NarrativeTheme[]
+): string[] {
+  if (!indices || !Array.isArray(indices) || indices.length === 0) {
+    return [];
+  }
+
+  const themeIds: string[] = [];
+  for (const idx of indices) {
+    // Indices are 1-based in the prompt
+    const theme = activeThemes[idx - 1];
+    if (theme) {
+      themeIds.push(theme.id);
+      log.debug(` Matched narrative index ${idx} to theme "${theme.name}" (${theme.id})`);
+    }
+  }
+  return themeIds;
+}
+
 // Score multiple text posts in a single API call
 export async function scoreTextPostsBatch(
   posts: PostForScoring[]
@@ -480,11 +513,20 @@ export async function scoreTextPost(
     return null;
   }
 
+  // Load active narrative themes for detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+  const narrativeSection = buildNarrativePromptSection(activeThemes);
+
   const isTwitter = subreddit.startsWith('@');
   const scoreLabel = isTwitter ? 'Likes' : 'Upvotes';
   const scoreText = score !== null ? `${scoreLabel}: ${score}` : `${scoreLabel}: (not yet visible)`;
   const sourceLabel = isTwitter ? `Author: ${subreddit}` : `Subreddit: r/${subreddit}`;
   const contentLabel = isTwitter ? 'Tweet' : 'Title';
+
+  const jsonFormat = activeThemes.length > 0
+    ? '{"score": <1-10>, "reason": "<15 words max>", "narratives": [<matching theme numbers or empty>]}'
+    : '{"score": <1-10>, "reason": "<15 words max>"}';
 
   const prompt = `Analyze this social media post for engagement manipulation tactics.
 
@@ -498,10 +540,10 @@ Rate from 1-10 how much this post uses psychological manipulation to drive engag
 - 7-10: Heavy manipulation (outrage bait, curiosity gaps, tribal triggers, misleading framing)
 
 Consider: clickbait patterns, emotional manipulation, us-vs-them framing, manufactured outrage, curiosity gaps ("You won't believe..."), and sensationalism.
+${narrativeSection}
+Respond with ONLY valid JSON: ${jsonFormat}`;
 
-Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
-
-  return callOpenRouter(prompt);
+  return callOpenRouter(prompt, undefined, undefined, 'text-single', 1, activeThemes);
 }
 
 // Fetch all images from a Reddit gallery
@@ -657,6 +699,15 @@ export async function scoreImagePost(
     return null;
   }
 
+  // Load active narrative themes for detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+  const narrativeSection = buildNarrativePromptSection(activeThemes);
+
+  const jsonFormat = activeThemes.length > 0
+    ? '{"score": <1-10>, "reason": "<15 words max>", "narratives": [<matching theme numbers or empty>]}'
+    : '{"score": <1-10>, "reason": "<15 words max>"}';
+
   // Determine platform - explicit parameter takes precedence
   const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
   const platformName = platform === 'instagram' ? 'Instagram' :
@@ -703,10 +754,10 @@ Rate from 1-10 how much this post uses psychological manipulation to drive engag
 - 7-10: Heavy manipulation (outrage imagery, misleading visual, rage-bait, engagement farming)
 
 Consider: Do the images match the ${contentLabel.toLowerCase()}? Are they designed to provoke strong emotional reactions? Does it use misleading framing?
+${narrativeSection}
+Respond with ONLY valid JSON: ${jsonFormat}`;
 
-Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
-
-    return callOpenRouter(prompt, undefined, undefined, 'image', 1);
+    return callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes);
   }
 
   // Single image: use vision model from config
@@ -732,10 +783,10 @@ Rate from 1-10 how much this post uses psychological manipulation to drive engag
 - 7-10: Heavy manipulation (outrage imagery, misleading visual, rage-bait, engagement farming)
 
 Consider: ${hasText ? `Does the image match the ${contentLabel.toLowerCase()}? ` : ''}Is it designed to provoke strong emotional reactions? Does it use misleading framing?
+${narrativeSection}
+Respond with ONLY valid JSON: ${jsonFormat}`;
 
-Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
-
-  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1);
+  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes);
 }
 
 // Score a video/gif post using thumbnail
@@ -755,6 +806,15 @@ export async function scoreVideoPost(
     return null;
   }
 
+  // Load active narrative themes for detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+  const narrativeSection = buildNarrativePromptSection(activeThemes);
+
+  const jsonFormat = activeThemes.length > 0
+    ? '{"score": <1-10>, "reason": "<15 words max>", "narratives": [<matching theme numbers or empty>]}'
+    : '{"score": <1-10>, "reason": "<15 words max>"}';
+
   // Determine platform - explicit parameter takes precedence
   const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
   const platformName = platform === 'instagram' ? 'Instagram' :
@@ -768,7 +828,6 @@ export async function scoreVideoPost(
 
   // Use image model from config for thumbnail-based scoring
   const config = await getProviderConfig();
-
 
   // Use thumbnail URL directly - external-preview URLs work as-is
   // Only transform regular preview.redd.it (not external-preview.redd.it)
@@ -801,10 +860,10 @@ Rate from 1-10 how much this post uses psychological manipulation to drive engag
 - 7-10: Heavy manipulation (outrage footage, misleading edit, rage-bait, engagement farming)
 
 Consider: Does the thumbnail suggest clickbait? Is it designed to provoke strong emotional reactions?
+${narrativeSection}
+Respond with ONLY valid JSON: ${jsonFormat}`;
 
-Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
-
-  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1);
+  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes);
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -821,6 +880,15 @@ export async function scoreInstagramVideo(
   if (!apiConfigured) {
     return null;
   }
+
+  // Load active narrative themes for detection
+  const allThemes = await getNarrativeThemes();
+  const activeThemes = allThemes.filter(t => t.active && t.description);
+  const narrativeSection = buildNarrativePromptSection(activeThemes);
+
+  const jsonFormat = activeThemes.length > 0
+    ? '{"score": <1-10>, "reason": "<15 words max>", "narratives": [<matching theme numbers or empty>]}'
+    : '{"score": <1-10>, "reason": "<15 words max>"}';
 
   log.debug(` scoreInstagramVideo - author=@${author}, caption="${caption.slice(0, 50)}...", videoUrl=${videoUrl}`);
 
@@ -844,11 +912,11 @@ Rate from 1-10 how much this video uses psychological manipulation to drive enga
 - 7-10: Heavy manipulation (outrage content, rage-bait, misleading edits, engagement farming, shock value)
 
 Consider: Does the video use attention-grabbing tactics? Quick cuts designed to hold attention? Controversial or divisive content? Engagement hooks ("wait for it", "comment if you agree")?
-
-Respond with ONLY valid JSON: {"score": <1-10>, "reason": "<15 words max>"}`;
+${narrativeSection}
+Respond with ONLY valid JSON: ${jsonFormat}`;
 
   // Use the Gemini video model for full video analysis
-  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1);
+  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1, activeThemes);
 }
 
 // Call type for tracking
@@ -861,7 +929,8 @@ async function callApi(
   model: string,
   imageUrl?: string,
   callType: ApiCallType = 'text-single',
-  postCount: number = 1
+  postCount: number = 1,
+  activeThemes?: NarrativeTheme[]
 ): Promise<ScoreResponse | null> {
   const callStart = performance.now();
   log.debug(` callApi START at t=${callStart.toFixed(0)}, model=${model}, endpoint=${config.endpoint}`);
@@ -1063,11 +1132,16 @@ async function callApi(
     try {
       const parsed = JSON.parse(content);
       if (typeof parsed.score === 'number') {
+        // Convert narrative indices to theme IDs if themes provided
+        const narrativeMatches = activeThemes
+          ? convertNarrativeIndicesToThemeIds(parsed.narratives, activeThemes)
+          : undefined;
         return {
           score: Math.min(10, Math.max(1, parsed.score)),
           reason: parsed.reason || '',
           cost,
           fullResponse: data,
+          narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
         };
       }
       return {
@@ -1091,11 +1165,16 @@ async function callApi(
       try {
         const parsed = JSON.parse(candidate);
         if (typeof parsed.score === 'number') {
+          // Convert narrative indices to theme IDs if themes provided
+          const narrativeMatches = activeThemes
+            ? convertNarrativeIndicesToThemeIds(parsed.narratives, activeThemes)
+            : undefined;
           return {
             score: Math.min(10, Math.max(1, parsed.score)),
             reason: parsed.reason || '',
             cost,
             fullResponse: data,
+            narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
           };
         }
         return {
@@ -1140,12 +1219,13 @@ async function callOpenRouter(
   model?: string,
   imageUrl?: string,
   callType: ApiCallType = 'text-single',
-  postCount: number = 1
+  postCount: number = 1,
+  activeThemes?: NarrativeTheme[]
 ): Promise<ScoreResponse | null> {
   const config = await getProviderConfig();
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
-  return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount);
+  return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
 }
 
 // Detailed API call tracking for benchmarking
