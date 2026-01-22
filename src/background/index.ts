@@ -16,6 +16,7 @@ import {
   getCalibrationStats,
   getNarrativeThemes,
   saveNarrativeTheme,
+  deleteNarrativeTheme,
   getEmergingNarratives,
   getCounterStrategies,
   saveCounterStrategy,
@@ -413,6 +414,11 @@ async function handleMessage(
     case 'UPDATE_NARRATIVE_THEME': {
       await saveNarrativeTheme(message.theme);
       return { success: true };
+    }
+
+    case 'DELETE_NARRATIVE_THEME': {
+      const deleted = await deleteNarrativeTheme(message.themeId);
+      return { success: deleted };
     }
 
     case 'GET_EMERGING_NARRATIVES': {

@@ -999,6 +999,9 @@ async function loadNarrativeData(): Promise<void> {
     } | null;
     currentNarrativeThemes = themesResult?.themes || [];
 
+    // Render themes list
+    renderThemesList(currentNarrativeThemes);
+
     // Load trends
     await loadNarrativeTrends(currentTrendDays);
 
@@ -1012,6 +1015,217 @@ async function loadNarrativeData(): Promise<void> {
     setupNarrativeEventListeners();
   } catch (error) {
     console.error('Failed to load narrative data:', error);
+  }
+}
+
+// ==========================================
+// Theme Management Functions
+// ==========================================
+
+let editingThemeId: string | null = null;
+
+function renderThemesList(themes: NarrativeTheme[]): void {
+  const container = document.getElementById('themes-list');
+  if (!container) return;
+
+  if (themes.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No narratives configured.</div>';
+    return;
+  }
+
+  // Sort: active first, then by name
+  const sortedThemes = [...themes].sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  container.innerHTML = sortedThemes.map(theme => {
+    const isSystem = theme.isSystemTheme;
+    const isActive = theme.active;
+    const description = theme.description || '(No description)';
+    const isLongDesc = description.length > 150;
+
+    return `
+      <div class="theme-item ${isActive ? '' : 'inactive'} ${isSystem ? 'system-theme' : ''}" data-id="${theme.id}">
+        <div class="theme-info">
+          <div class="theme-header">
+            <span class="theme-name">${escapeHtml(theme.name)}</span>
+            <span class="theme-badge ${isSystem ? 'system' : 'custom'}">${isSystem ? 'System' : 'Custom'}</span>
+            ${!isActive ? '<span class="theme-badge inactive-badge">Inactive</span>' : ''}
+          </div>
+          <div class="theme-description" data-full="${escapeHtml(description)}">${escapeHtml(description.slice(0, 150))}${isLongDesc ? '...' : ''}</div>
+          ${isLongDesc ? '<button class="theme-expand-btn" data-id="' + theme.id + '">Show more</button>' : ''}
+        </div>
+        <div class="theme-actions">
+          <div class="theme-toggle ${isActive ? 'active' : ''}" data-id="${theme.id}" title="${isActive ? 'Click to disable' : 'Click to enable'}"></div>
+          ${!isSystem ? `
+            <div class="theme-action-btns">
+              <button class="edit-theme-btn" data-id="${theme.id}">Edit</button>
+              <button class="delete-btn delete-theme-btn" data-id="${theme.id}">Delete</button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Set up event listeners for theme actions
+  setupThemeEventListeners();
+}
+
+function setupThemeEventListeners(): void {
+  const container = document.getElementById('themes-list');
+  if (!container) return;
+
+  // Toggle active state
+  container.querySelectorAll('.theme-toggle').forEach(toggle => {
+    toggle.addEventListener('click', async (e) => {
+      const target = e.currentTarget as HTMLElement;
+      const themeId = target.dataset.id;
+      if (themeId) {
+        await toggleThemeActive(themeId);
+      }
+    });
+  });
+
+  // Expand description
+  container.querySelectorAll('.theme-expand-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const themeItem = target.closest('.theme-item');
+      const descEl = themeItem?.querySelector('.theme-description') as HTMLElement;
+      if (descEl) {
+        const isExpanded = descEl.classList.contains('expanded');
+        if (isExpanded) {
+          descEl.classList.remove('expanded');
+          const fullText = descEl.dataset.full || '';
+          descEl.textContent = fullText.slice(0, 150) + (fullText.length > 150 ? '...' : '');
+          target.textContent = 'Show more';
+        } else {
+          descEl.classList.add('expanded');
+          descEl.textContent = descEl.dataset.full || '';
+          target.textContent = 'Show less';
+        }
+      }
+    });
+  });
+
+  // Edit theme
+  container.querySelectorAll('.edit-theme-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const themeId = target.dataset.id;
+      if (themeId) {
+        openEditThemeModal(themeId);
+      }
+    });
+  });
+
+  // Delete theme
+  container.querySelectorAll('.delete-theme-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const target = e.target as HTMLElement;
+      const themeId = target.dataset.id;
+      if (themeId) {
+        const theme = currentNarrativeThemes.find(t => t.id === themeId);
+        if (theme && confirm(`Delete narrative "${theme.name}"?\n\nThis will also delete any counter-strategies using this narrative. This cannot be undone.`)) {
+          await deleteTheme(themeId);
+        }
+      }
+    });
+  });
+}
+
+async function toggleThemeActive(themeId: string): Promise<void> {
+  const theme = currentNarrativeThemes.find(t => t.id === themeId);
+  if (!theme) return;
+
+  const updatedTheme: NarrativeTheme = {
+    ...theme,
+    active: !theme.active,
+  };
+
+  try {
+    await chrome.runtime.sendMessage({ type: 'UPDATE_NARRATIVE_THEME', theme: updatedTheme });
+    // Refresh the list
+    await loadNarrativeData();
+    console.log(`Narrative "${theme.name}" ${updatedTheme.active ? 'activated' : 'deactivated'}`);
+  } catch (error) {
+    console.error('Failed to toggle narrative:', error);
+    alert('Failed to update narrative. Please try again.');
+  }
+}
+
+async function deleteTheme(themeId: string): Promise<void> {
+  try {
+    await chrome.runtime.sendMessage({ type: 'DELETE_NARRATIVE_THEME', themeId });
+    // Refresh the list
+    await loadNarrativeData();
+    console.log('Narrative deleted:', themeId);
+  } catch (error) {
+    console.error('Failed to delete narrative:', error);
+    alert('Failed to delete narrative. Please try again.');
+  }
+}
+
+function openEditThemeModal(themeId: string): void {
+  const theme = currentNarrativeThemes.find(t => t.id === themeId);
+  if (!theme) return;
+
+  editingThemeId = themeId;
+
+  const modal = document.getElementById('edit-theme-modal');
+  const nameInput = document.getElementById('edit-theme-name') as HTMLInputElement;
+  const descInput = document.getElementById('edit-theme-desc') as HTMLTextAreaElement;
+
+  if (modal && nameInput && descInput) {
+    nameInput.value = theme.name;
+    descInput.value = theme.description || '';
+    modal.style.display = 'flex';
+  }
+}
+
+function closeEditThemeModal(): void {
+  const modal = document.getElementById('edit-theme-modal');
+  if (modal) modal.style.display = 'none';
+  editingThemeId = null;
+}
+
+async function saveEditedTheme(): Promise<void> {
+  if (!editingThemeId) return;
+
+  const theme = currentNarrativeThemes.find(t => t.id === editingThemeId);
+  if (!theme) return;
+
+  const nameInput = document.getElementById('edit-theme-name') as HTMLInputElement;
+  const descInput = document.getElementById('edit-theme-desc') as HTMLTextAreaElement;
+
+  const name = nameInput?.value?.trim();
+  const description = descInput?.value?.trim();
+
+  if (!name) {
+    alert('Please enter a narrative name');
+    return;
+  }
+  if (!description) {
+    alert('Please enter a description. This is how the AI identifies matching content.');
+    return;
+  }
+
+  const updatedTheme: NarrativeTheme = {
+    ...theme,
+    name,
+    description,
+  };
+
+  try {
+    await chrome.runtime.sendMessage({ type: 'UPDATE_NARRATIVE_THEME', theme: updatedTheme });
+    closeEditThemeModal();
+    await loadNarrativeData();
+    console.log('Narrative updated:', name);
+  } catch (error) {
+    console.error('Failed to update narrative:', error);
+    alert('Failed to update narrative. Please try again.');
   }
 }
 
@@ -1093,7 +1307,7 @@ function renderNarrativeTrends(trends: DailyNarrativeStats[]): void {
   }
 
   if (bars.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No active narrative themes.</div>';
+    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No active narratives.</div>';
   } else {
     container.innerHTML = bars.join('');
   }
@@ -1228,7 +1442,7 @@ async function saveCustomTheme(): Promise<void> {
   const description = descInput?.value?.trim();
 
   if (!name) {
-    alert('Please enter a theme name');
+    alert('Please enter a narrative name');
     return;
   }
   if (!description) {
@@ -1253,13 +1467,13 @@ async function saveCustomTheme(): Promise<void> {
     nameInput.value = '';
     descInput.value = '';
 
-    // Refresh themes display
+    // Refresh narratives display
     await loadNarrativeData();
 
-    console.log('Custom theme saved:', theme.name);
+    console.log('Custom narrative saved:', theme.name);
   } catch (error) {
-    console.error('Failed to save custom theme:', error);
-    alert('Failed to save theme. Please try again.');
+    console.error('Failed to save custom narrative:', error);
+    alert('Failed to save narrative. Please try again.');
   }
 }
 
@@ -1362,6 +1576,10 @@ function setupNarrativeEventListeners(): void {
   // Strategy modal
   document.getElementById('cancel-strategy-btn')?.addEventListener('click', closeStrategyModal);
   document.getElementById('save-strategy-btn')?.addEventListener('click', saveStrategy);
+
+  // Edit narrative modal
+  document.getElementById('cancel-edit-theme-btn')?.addEventListener('click', closeEditThemeModal);
+  document.getElementById('save-edit-theme-btn')?.addEventListener('click', saveEditedTheme);
 
   // Score modifier slider value display
   const modifierSlider = document.getElementById('strategy-modifier') as HTMLInputElement;

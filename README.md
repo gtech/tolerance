@@ -1,8 +1,8 @@
 # Tolerance
 
-**Make social media boring again.**
+**Feeds are toxic. Build Tolerance.**
 
-A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively uninteresting until you'd rather do literally anything else.
+A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively higher quality so you spend precisely the amount of time you wish to.
 
 [Website](https://tolerance.lol) · [Download](https://github.com/gtech/tolerance/releases)
 

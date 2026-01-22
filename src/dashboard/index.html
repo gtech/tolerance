@@ -519,6 +519,166 @@
       color: #555;
     }
 
+    /* Theme Management Styles */
+    .themes-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .theme-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 16px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 3px solid #2d4a3a;
+    }
+
+    .theme-item.inactive {
+      opacity: 0.5;
+      border-left-color: #333;
+    }
+
+    .theme-item.system-theme {
+      border-left-color: #4a3d2d;
+    }
+
+    .theme-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .theme-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .theme-name {
+      font-weight: 500;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .theme-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .theme-badge.system {
+      background: #4a3d2d;
+      color: #cea07d;
+    }
+
+    .theme-badge.custom {
+      background: #2d4a3a;
+      color: #7dcea0;
+    }
+
+    .theme-badge.inactive-badge {
+      background: #333;
+      color: #888;
+    }
+
+    .theme-description {
+      font-size: 12px;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      max-height: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .theme-description.expanded {
+      max-height: none;
+    }
+
+    .theme-expand-btn {
+      font-size: 11px;
+      color: #7dcea0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      margin-bottom: 8px;
+    }
+
+    .theme-expand-btn:hover {
+      text-decoration: underline;
+    }
+
+    .theme-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-left: 16px;
+    }
+
+    .theme-toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #333;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .theme-toggle.active {
+      background: #2d5a3d;
+    }
+
+    .theme-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: #666;
+      border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .theme-toggle.active::after {
+      transform: translateX(20px);
+      background: #7dcea0;
+    }
+
+    .theme-action-btns {
+      display: flex;
+      gap: 4px;
+    }
+
+    .theme-action-btns button {
+      padding: 4px 8px;
+      font-size: 11px;
+      background: #2a2a2a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .theme-action-btns button:hover {
+      border-color: #555;
+      color: #ccc;
+    }
+
+    .theme-action-btns button.delete-btn:hover {
+      border-color: #a04040;
+      color: #ff8888;
+    }
+
     /* Modal Styles */
     .modal {
       position: fixed;
@@ -842,21 +1002,21 @@
         </div>
       </div>
 
-      <!-- Custom Theme Creation -->
+      <!-- Custom Narrative Creation -->
       <div class="card">
-        <h2>Create Custom Theme</h2>
+        <h2>Create Custom Narrative</h2>
         <p style="color: #888; font-size: 13px; margin-bottom: 12px;">
           Describe what kind of content you want to filter. The AI will intelligently detect matching posts.
         </p>
         <div class="form-group">
-          <label>Theme Name</label>
+          <label>Narrative Name</label>
           <input type="text" id="custom-theme-name" placeholder="Politics / Kardashians / etc." />
         </div>
         <div class="form-group">
           <label>Description (for AI detection)</label>
-          <textarea id="custom-theme-desc" rows="4" placeholder="Describe the type of content this theme represents. Be specific about tone, topics, and patterns you want to detect. Example: 'Content promoting fear and uncertainty about job security, including discussions of mass layoffs, AI replacing workers, or economic doom without actionable solutions.'"></textarea>
+          <textarea id="custom-theme-desc" rows="4" placeholder="Describe the type of content this narrative represents. Be specific about tone, topics, and patterns you want to detect. Example: 'Content promoting fear and uncertainty about job security, including discussions of mass layoffs, AI replacing workers, or economic doom without actionable solutions.'"></textarea>
         </div>
-        <button id="save-custom-theme-btn" class="btn-primary" style="width: 100%;">Create Theme</button>
+        <button id="save-custom-theme-btn" class="btn-primary" style="width: 100%;">Create Narrative</button>
       </div>
 
       <div class="card">
@@ -867,6 +1027,36 @@
         <button class="btn-secondary" id="trigger-discovery-btn" style="margin-top: 12px; width: 100%;">
           Run Discovery (<span id="unclassified-count">0</span> unclassified posts)
         </button>
+      </div>
+    </div>
+
+    <!-- Manage Narratives Section -->
+    <div class="card" style="margin-top: 24px;">
+      <h2>Manage Narratives</h2>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">
+        View and manage all narratives. Toggle narratives on/off to control what the AI detects.
+      </p>
+      <div id="themes-list" class="themes-list">
+        <div class="empty-state" style="padding: 24px;">Loading narratives...</div>
+      </div>
+    </div>
+
+    <!-- Edit Narrative Modal -->
+    <div id="edit-theme-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h3>Edit Narrative</h3>
+        <div class="form-group">
+          <label>Narrative Name</label>
+          <input type="text" id="edit-theme-name" />
+        </div>
+        <div class="form-group">
+          <label>Description (for AI detection)</label>
+          <textarea id="edit-theme-desc" rows="4"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="cancel-edit-theme-btn">Cancel</button>
+          <button class="btn-primary" id="save-edit-theme-btn">Save Changes</button>
+        </div>
       </div>
     </div>
 

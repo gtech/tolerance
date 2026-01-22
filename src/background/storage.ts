@@ -430,6 +430,31 @@ export async function saveNarrativeTheme(theme: NarrativeTheme): Promise<void> {
   await chrome.storage.local.set({ narrativeThemes: themes });
 }
 
+// Delete a narrative theme by ID
+export async function deleteNarrativeTheme(themeId: string): Promise<boolean> {
+  const themes = await getNarrativeThemes();
+  const index = themes.findIndex(t => t.id === themeId);
+
+  if (index >= 0) {
+    // Don't allow deleting system themes
+    if (themes[index].isSystemTheme) {
+      return false;
+    }
+    themes.splice(index, 1);
+    await chrome.storage.local.set({ narrativeThemes: themes });
+
+    // Cascade: delete any counter-strategies referencing this theme
+    const strategies = await getCounterStrategies();
+    const filteredStrategies = strategies.filter(s => s.themeId !== themeId);
+    if (filteredStrategies.length !== strategies.length) {
+      await chrome.storage.local.set({ counterStrategies: filteredStrategies });
+    }
+
+    return true;
+  }
+  return false;
+}
+
 // Get emerging (pending) narratives
 export async function getEmergingNarratives(): Promise<EmergingNarrative[]> {
   const result = await chrome.storage.local.get('emergingNarratives');
