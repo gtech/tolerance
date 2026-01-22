@@ -269,14 +269,21 @@ Respond with ONLY a JSON array, one object per post in order:
 
         // Convert narrative indices to theme IDs
         const narrativeMatches: string[] = [];
-        if (item.narratives && Array.isArray(item.narratives)) {
+        if (item.narratives && Array.isArray(item.narratives) && item.narratives.length > 0) {
+          log.debug(` Post ${itemId} has narratives:`, item.narratives);
           for (const idx of item.narratives) {
             // Indices are 1-based in the prompt
             const theme = activeThemes[idx - 1];
             if (theme) {
               narrativeMatches.push(theme.id);
+              log.debug(` Matched narrative index ${idx} to theme "${theme.name}" (${theme.id})`);
+            } else {
+              log.debug(` Narrative index ${idx} did not match any theme (activeThemes.length=${activeThemes.length})`);
             }
           }
+        } else if (activeThemes.length > 0 && reason.toLowerCase().includes('kardashian')) {
+          // Debug: LLM mentioned kardashian in reason but didn't return narrative match
+          log.debug(` Post ${itemId} mentions kardashian in reason but narratives=${JSON.stringify(item.narratives)}`);
         }
 
         const scoreResponse: ScoreResponse = {
