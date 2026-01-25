@@ -420,7 +420,7 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     reasonDiv.textContent = isOwnKey
       ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro.';
+      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.';
     tooltip.appendChild(reasonDiv);
 
     // Make badge clickable and open account page

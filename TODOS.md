@@ -1,5 +1,6 @@
 - Code cleanup and refactor
 
+- Fix the database, it's a mess. score and apiscore probably need to be scrapped.
 
 # Upcoming Features
 

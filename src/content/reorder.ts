@@ -78,6 +78,10 @@ export function reorderPosts(
     const wasReordered = originalPos !== position;
 
     // Create impression record
+    const narrativeThemeId = score?.factors?.narrative?.themeId;
+    if (narrativeThemeId) {
+      log.debug(`Reorder: Post ${postId} has narrative themeId: ${narrativeThemeId}`);
+    }
     impressions.push({
       timestamp: Date.now(),
       postId,
@@ -87,7 +91,7 @@ export function reorderPosts(
       originalPosition: originalPos,
       subreddit: post.subreddit,
       wasReordered,
-      narrativeThemeId: score?.factors?.narrative?.themeId,
+      narrativeThemeId,
     });
 
     fragment.appendChild(post.element);

@@ -770,9 +770,9 @@ export async function getEffectiveBlurThreshold(
   // This gives users 15 min of baseline experience before intervention starts
   const baseThresholds: Record<string, number> = {
     'normal': 100,     // No blurring - baseline experience for first 15 min
-    'reduced': 65,     // Only clearly high-engagement
-    'wind-down': 45,   // High + upper medium
-    'minimal': 35,     // Almost everything blurred after 75 min
+    'reduced': 75,     // Only clearly high-engagement (~20% blurred)
+    'wind-down': 65,   // High engagement (~26% blurred)
+    'minimal': 55,     // High + upper medium (~34% blurred)
   };
 
   const base = baseThresholds[phase] || 100;

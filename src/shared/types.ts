@@ -371,9 +371,9 @@ export interface Settings {
     // Blur thresholds per phase (score at which content gets blurred)
     blurThresholds: {
       normal: number;      // Default: 100 (no blur)
-      reduced: number;     // Default: 65
-      windDown: number;    // Default: 45
-      minimal: number;     // Default: 35
+      reduced: number;     // Default: 75
+      windDown: number;    // Default: 65
+      minimal: number;     // Default: 55
     };
     // Phase timing (minutes before transitioning)
     phaseTiming: {
@@ -472,7 +472,7 @@ export const DEFAULT_SETTINGS: Settings = {
     phaseThresholds: {
       normal: 15,    // First 15 min: baseline (no blur on Twitter/YouTube)
       reduced: 45,   // 15-45 min: reduced (high-engagement blurred)
-      windDown: 75,  // 45-75 min: wind down, then minimal (score >= 35 blurred)
+      windDown: 75,  // 45-75 min: wind down, then minimal (score >= 55 blurred)
     },
     phaseRatios: {
       normal: 0.33,  // 1 in 3 posts (2:1 ratio, matches Reddit)

@@ -514,7 +514,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     titleParts.push(isOwnKey
       ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro.');
+      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.');
   } else if (info.reason) {
     titleParts.push(info.reason);
   }

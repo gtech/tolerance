@@ -574,7 +574,7 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     badge.title = isOwnKey
       ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro.';
+      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.';
     badge.style.cursor = 'pointer';
     badge.style.pointerEvents = 'auto';
     badge.addEventListener('click', (e) => {

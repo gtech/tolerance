@@ -142,7 +142,7 @@ async function updateApiStatus(settings: Settings): Promise<void> {
   if (statusDot && statusText) {
     if (isExhausted) {
       statusDot.style.background = '#e74c3c';
-      statusText.textContent = 'Free Tier Exhausted';
+      statusText.textContent = 'Free Tier Exhausted (or use your own API key)';
       statusText.style.color = '#e74c3c';
     } else if (isApiConfigured) {
       statusDot.style.background = '#27ae60';
@@ -365,7 +365,7 @@ function populateSettings(settings: Settings): void {
 
 function populateCustomThresholds(settings: Settings): void {
   // Default values (calibrated defaults)
-  const defaultBlurThresholds = { normal: 100, reduced: 65, windDown: 45, minimal: 35 };
+  const defaultBlurThresholds = { normal: 100, reduced: 75, windDown: 65, minimal: 55 };
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   // Get custom values or use defaults
@@ -1964,9 +1964,9 @@ async function saveCustomThresholds(): Promise<void> {
 
   // Read all slider values
   const blurNormal = parseInt((document.getElementById('blur-normal') as HTMLInputElement)?.value || '100', 10);
-  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || '65', 10);
-  const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || '45', 10);
-  const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || '30', 10);
+  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || '75', 10);
+  const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || '65', 10);
+  const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || '55', 10);
 
   const timingNormal = parseInt((document.getElementById('timing-normal') as HTMLInputElement)?.value || '15', 10);
   const timingReduced = parseInt((document.getElementById('timing-reduced') as HTMLInputElement)?.value || '45', 10);
@@ -2015,7 +2015,7 @@ async function resetThresholdsToCalibrated(): Promise<void> {
   const existing = await getSettings();
 
   // Reset to calibrated defaults
-  const defaultBlurThresholds = { normal: 100, reduced: 65, windDown: 45, minimal: 35 };
+  const defaultBlurThresholds = { normal: 100, reduced: 75, windDown: 65, minimal: 55 };
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   const settings: Settings = {

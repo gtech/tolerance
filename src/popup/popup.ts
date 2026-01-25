@@ -97,7 +97,7 @@ async function updateApiStatus(settings: Settings): Promise<void> {
   if (apiDot && apiText) {
     if (isExhausted) {
       apiDot.className = 'api-dot disconnected';
-      apiText.textContent = 'Free Tier Exhausted';
+      apiText.textContent = 'Free Tier Exhausted (or use your own API key)';
       apiText.style.color = '#e74c3c';
     } else if (isApiConfigured) {
       apiDot.className = 'api-dot connected';

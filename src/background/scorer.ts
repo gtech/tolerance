@@ -449,6 +449,7 @@ async function enrichTextPostsBatch(
           confidence: 'high',
           matchedKeywords: [], // LLM detection doesn't use keywords
         };
+        log.debug(` Set narrative on score for post ${post.id}: themeId=${score.factors.narrative.themeId}`);
       }
 
       // Log calibration data (with full post info for fine-tuning)
