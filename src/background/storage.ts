@@ -772,7 +772,7 @@ export async function getEffectiveBlurThreshold(
     'normal': 100,     // No blurring - baseline experience for first 15 min
     'reduced': 75,     // Only clearly high-engagement (~20% blurred)
     'wind-down': 65,   // High engagement (~26% blurred)
-    'minimal': 55,     // High + upper medium (~34% blurred)
+    'minimal': 40,     // High + upper medium (~60% blurred)
   };
 
   const base = baseThresholds[phase] || 100;
