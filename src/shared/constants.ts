@@ -263,6 +263,22 @@ export const SCORE_THRESHOLDS = {
   },
 };
 
+// Default blur thresholds (score at or above this gets blurred)
+// Based on calibration data: these values blur ~20%, ~26%, ~60% of content respectively
+export const DEFAULT_BLUR_THRESHOLDS = {
+  normal: 100,    // No blurring - baseline experience
+  reduced: 75,    // ~20% blurred
+  windDown: 65,   // ~26% blurred
+  minimal: 40,    // ~60% blurred
+} as const;
+
+// Default phase timing (minutes)
+export const DEFAULT_PHASE_TIMING = {
+  normal: 15,     // First 15 min: no blur
+  reduced: 45,    // 15-45 min: reduced phase
+  windDown: 75,   // 45-75 min: wind-down phase, then minimal
+} as const;
+
 // Bucket boundaries
 export function scoreToBucket(score: number, platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' = 'reddit'): 'low' | 'medium' | 'high' {
   const thresholds = SCORE_THRESHOLDS[platform];

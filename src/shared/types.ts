@@ -369,17 +369,19 @@ export interface Settings {
   // Custom threshold overrides (user-adjustable, resets to calibrated defaults)
   customThresholds?: {
     // Blur thresholds per phase (score at which content gets blurred)
+    // See DEFAULT_BLUR_THRESHOLDS in constants.ts for default values
     blurThresholds: {
-      normal: number;      // Default: 100 (no blur)
-      reduced: number;     // Default: 75
-      windDown: number;    // Default: 65
-      minimal: number;     // Default: 40
+      normal: number;
+      reduced: number;
+      windDown: number;
+      minimal: number;
     };
     // Phase timing (minutes before transitioning)
+    // See DEFAULT_PHASE_TIMING in constants.ts for default values
     phaseTiming: {
-      normal: number;      // Default: 15 (minutes before reduced)
-      reduced: number;     // Default: 45 (minutes before wind-down)
-      windDown: number;    // Default: 75 (minutes before minimal)
+      normal: number;
+      reduced: number;
+      windDown: number;
     };
     // Whether custom values are active (vs using calibrated defaults)
     enabled: boolean;

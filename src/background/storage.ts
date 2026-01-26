@@ -17,7 +17,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_ADAPTIVE_SETTINGS,
 } from '../shared/types';
-import { SEED_NARRATIVE_THEMES } from '../shared/constants';
+import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS } from '../shared/constants';
 
 interface ToleranceDB extends DBSchema {
   sessions: {
@@ -765,17 +765,16 @@ export async function getEffectiveBlurThreshold(
     }
   }
 
-  // Base thresholds (score at or above this gets blurred)
-  // Normal phase = no intervention (threshold 100 = nothing blurred)
-  // This gives users 15 min of baseline experience before intervention starts
-  const baseThresholds: Record<string, number> = {
-    'normal': 100,     // No blurring - baseline experience for first 15 min
-    'reduced': 75,     // Only clearly high-engagement (~20% blurred)
-    'wind-down': 65,   // High engagement (~26% blurred)
-    'minimal': 40,     // High + upper medium (~60% blurred)
+  // Map phase names to threshold keys (phase uses 'wind-down', constants use 'windDown')
+  const phaseToKey: Record<string, keyof typeof DEFAULT_BLUR_THRESHOLDS> = {
+    'normal': 'normal',
+    'reduced': 'reduced',
+    'wind-down': 'windDown',
+    'minimal': 'minimal',
   };
 
-  const base = baseThresholds[phase] || 100;
+  const key = phaseToKey[phase] || 'normal';
+  const base = DEFAULT_BLUR_THRESHOLDS[key];
   // Apply adaptive offset (positive = gentler = higher threshold)
   const adjusted = base + adaptiveOffset;
 

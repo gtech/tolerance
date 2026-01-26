@@ -1,4 +1,5 @@
 import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
+import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
 
 interface CalibrationEntry {
   postId: string;
@@ -365,7 +366,7 @@ function populateSettings(settings: Settings): void {
 
 function populateCustomThresholds(settings: Settings): void {
   // Default values (calibrated defaults)
-  const defaultBlurThresholds = { normal: 100, reduced: 75, windDown: 65, minimal: 40 };
+  const defaultBlurThresholds = DEFAULT_BLUR_THRESHOLDS;
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   // Get custom values or use defaults
@@ -1963,10 +1964,10 @@ async function saveCustomThresholds(): Promise<void> {
   const existing = await getSettings();
 
   // Read all slider values
-  const blurNormal = parseInt((document.getElementById('blur-normal') as HTMLInputElement)?.value || '100', 10);
-  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || '75', 10);
-  const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || '65', 10);
-  const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || '40', 10);
+  const blurNormal = parseInt((document.getElementById('blur-normal') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.normal), 10);
+  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.reduced), 10);
+  const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.windDown), 10);
+  const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.minimal), 10);
 
   const timingNormal = parseInt((document.getElementById('timing-normal') as HTMLInputElement)?.value || '15', 10);
   const timingReduced = parseInt((document.getElementById('timing-reduced') as HTMLInputElement)?.value || '45', 10);
@@ -2015,7 +2016,7 @@ async function resetThresholdsToCalibrated(): Promise<void> {
   const existing = await getSettings();
 
   // Reset to calibrated defaults
-  const defaultBlurThresholds = { normal: 100, reduced: 75, windDown: 65, minimal: 40 };
+  const defaultBlurThresholds = DEFAULT_BLUR_THRESHOLDS;
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
 
   const settings: Settings = {
