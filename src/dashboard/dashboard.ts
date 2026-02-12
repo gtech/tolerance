@@ -250,6 +250,12 @@ function populateSettings(settings: Settings): void {
     qualityModeStatus.style.display = isQualityMode ? 'block' : 'none';
   }
 
+  // Blur Until Scored toggle
+  const blurUntilScoredToggle = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
+  if (blurUntilScoredToggle) {
+    blurUntilScoredToggle.checked = settings.blurUntilScored !== false;
+  }
+
   // Platform toggles
   const platformReddit = document.getElementById('platform-reddit') as HTMLInputElement;
   const platformTwitter = document.getElementById('platform-twitter') as HTMLInputElement;
@@ -626,6 +632,12 @@ function setupEventListeners(): void {
     });
   }
 
+  // Blur Until Scored toggle
+  const blurUntilScoredToggle = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
+  if (blurUntilScoredToggle) {
+    blurUntilScoredToggle.addEventListener('change', saveSettings);
+  }
+
   // API Tier selection
   const tierRadios = document.querySelectorAll('input[name="api-tier"]');
   const ownKeySection = document.getElementById('own-key-section');
@@ -838,6 +850,7 @@ async function saveSettings(): Promise<void> {
   const platformInstagramInput = document.getElementById('platform-instagram') as HTMLInputElement;
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
+  const blurUntilScoredInput = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
 
   // API tier selection
   const tierRadio = document.querySelector('input[name="api-tier"]:checked') as HTMLInputElement;
@@ -898,6 +911,7 @@ async function saveSettings(): Promise<void> {
       blurIntensity: parseInt(blurIntensityInput?.value || '8', 10),
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
+    blurUntilScored: blurUntilScoredInput?.checked ?? true,
   };
 
   await chrome.storage.local.set({ settings });

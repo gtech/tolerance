@@ -323,6 +323,8 @@ export interface Settings {
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
   // Quality Mode - blur everything above 20 (show only genuine content)
   qualityMode?: boolean;
+  // Blur Until Scored - blur posts while waiting for AI scoring (default: true)
+  blurUntilScored?: boolean;
   // Logging level for console output
   logLevel?: LogLevel;
   // Platform toggles - enable/disable Tolerance on each platform

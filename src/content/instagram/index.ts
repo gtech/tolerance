@@ -467,7 +467,9 @@ async function processPosts(): Promise<void> {
         log.debug(`Instagram: Using cached score for ${post.id}`);
         injectBadge(post, cached.score);
       } else {
-        applyPendingBlur(post);
+        if (currentSettings?.blurUntilScored !== false) {
+          applyPendingBlur(post);
+        }
         postsNeedingScoring.push(post);
       }
     }

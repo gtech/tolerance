@@ -1,6 +1,31 @@
 - Code cleanup and refactor
 
+- test suite with playwright:
+
+```
+""Browser extension testing - it's actually more tractable than you'd think:
+Playwright has first-class extension support now. You can load your unpacked extension and run real E2E tests:
+jsconst context = await chromium.launchPersistentContext('', {
+  headless: false, // extensions require headed mode
+  args: [
+    `--disable-extensions-except=${extensionPath}`,
+    `--load-extension=${extensionPath}`,
+  ],
+});
+Then you can navigate to Twitter/Reddit, check that your content scripts injected, verify blur behavior, etc.
+For Tolerance specifically, you could:
+
+Mock the OpenRouter API responses
+Load a test page with known "manipulative" vs "benign" content
+Assert that scoring works and blurring triggers at the right thresholds
+
+Not full coverage, but catches regressions in the core flow. Worth an afternoon to set up—future you will thank present you when a refactor breaks something subtle.""
+
+```
+
 - Fix the database, it's a mess. score and apiscore probably need to be scrapped.
+
+- Remove superfluous keywords in constants.ts
 
 # Upcoming Features
 

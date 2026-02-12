@@ -781,8 +781,10 @@ async function processVideos(): Promise<void> {
     lastProcessTime = Date.now();
 
     // Apply pending blur to all new videos immediately (blur until scored)
-    for (const video of newVideos) {
-      applyPendingBlur(video, 8);
+    if (currentSettings?.blurUntilScored !== false) {
+      for (const video of newVideos) {
+        applyPendingBlur(video, 8);
+      }
     }
 
     // Get scores from background

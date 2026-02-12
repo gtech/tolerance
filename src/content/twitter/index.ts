@@ -954,7 +954,7 @@ async function processTweets(): Promise<void> {
 
     // Apply pending blur to all new tweets immediately (blur until scored)
     const earlyTwitterSettings = currentSettings?.twitter;
-    if (earlyTwitterSettings?.blurHighEngagement && !earlyTwitterSettings?.reorderEnabled) {
+    if (earlyTwitterSettings?.blurHighEngagement && !earlyTwitterSettings?.reorderEnabled && currentSettings?.blurUntilScored !== false) {
       for (const tweet of newTweets) {
         applyPendingBlur(tweet, earlyTwitterSettings.blurIntensity ?? 8);
       }

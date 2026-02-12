@@ -829,11 +829,13 @@ async function processPosts(): Promise<void> {
       processedPostIds.add(post.id);
     }
 
-    // Apply pending blur synchronously
+    // Apply pending blur synchronously (if blurUntilScored is enabled)
     // Note: We used to delay for new Reddit, but this caused race conditions
     // where scoring completed before blur was applied, leaving permanent "Scoring..." overlay
-    for (const post of newPosts) {
-      applyPendingBlur(post);
+    if (currentSettings?.blurUntilScored !== false) {
+      for (const post of newPosts) {
+        applyPendingBlur(post);
+      }
     }
 
     // Serialize posts - for new Reddit, extract images directly from DOM
