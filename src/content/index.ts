@@ -815,8 +815,8 @@ async function processPosts(): Promise<void> {
     return;
   }
 
-  // Show loading indicator (but not on comments pages)
-  const showLoader = !isCommentsPage();
+  // Show loading indicator (but not on comments pages, and not if blurUntilScored is off)
+  const showLoader = !isCommentsPage() && currentSettings?.blurUntilScored !== false;
   if (showLoader) {
     showLoading();
   }
