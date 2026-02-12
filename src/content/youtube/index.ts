@@ -1097,6 +1097,13 @@ async function fetchImageAsBase64(url: string): Promise<string> {
   });
 }
 
+// Keep currentSettings in sync when changed from dashboard
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.settings?.newValue) {
+    currentSettings = changes.settings.newValue;
+  }
+});
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);

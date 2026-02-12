@@ -743,6 +743,13 @@ function startWithDelay(): void {
   setTimeout(init, HYDRATION_DELAY);
 }
 
+// Keep currentSettings in sync when changed from dashboard
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.settings?.newValue) {
+    currentSettings = changes.settings.newValue;
+  }
+});
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', startWithDelay);
 } else {
