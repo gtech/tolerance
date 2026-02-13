@@ -122,7 +122,7 @@ export async function getScheduledOrder(
 // Interleave posts to create fixed interval pattern
 // Instead of random high-dopamine posts, space them out predictably
 // Returns { ordered: visible posts in order, hidden: posts to hide }
-function interleave(
+export function interleave(
   high: string[],
   medium: string[],
   low: string[],
