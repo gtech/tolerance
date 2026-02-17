@@ -1,4 +1,4 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
+import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
 
 interface CalibrationEntry {
@@ -91,12 +91,7 @@ async function init(): Promise<void> {
 
 async function getState(): Promise<AppState> {
   const result = await chrome.storage.local.get('state');
-  return result.state || {
-    mode: 'baseline',
-    baselineStartDate: Date.now(),
-    baselineDurationDays: 7,
-    currentSessionId: null,
-  };
+  return result.state || DEFAULT_STATE;
 }
 
 async function getSettings(): Promise<Settings> {
