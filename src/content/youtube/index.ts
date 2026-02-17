@@ -1078,6 +1078,11 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
     }
   }
 
+  // On channel pages (youtube.com/@handle/...), videos don't have individual
+  // channel links since the whole page is the channel. Extract from URL.
+  const urlMatch = window.location.pathname.match(/^\/@([^/?]+)/);
+  if (urlMatch) return urlMatch[1];
+
   return null;
 }
 
