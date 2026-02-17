@@ -778,7 +778,7 @@ let lastRightClickedElement: HTMLElement | null = null;
 
 document.addEventListener('contextmenu', (e) => {
   lastRightClickedElement = e.target as HTMLElement;
-});
+}, true);
 
 // Extract author username from an Instagram post element
 function extractAuthorFromElement(element: HTMLElement | null): string | null {
@@ -823,7 +823,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } else {
       sendResponse({ sourceId: null, platform: null });
     }
-    return false;
+    return true;
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {

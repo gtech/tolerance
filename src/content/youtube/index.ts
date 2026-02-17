@@ -1019,25 +1019,16 @@ function findVideoIdFromElement(element: HTMLElement): string | null {
 // Track right-clicked element for context menu
 let lastRightClickedElement: HTMLElement | null = null;
 
+// Use capture phase so YouTube's stopPropagation() doesn't prevent us from
+// recording the right-click target
 document.addEventListener('contextmenu', (e) => {
   lastRightClickedElement = e.target as HTMLElement;
-});
+}, true);
 
-// Extract channel name from a video element
-function extractChannelFromElement(element: HTMLElement | null): string | null {
-  if (!element) return null;
-
-  // Walk up to find the video container (must match scraper selectors)
-  const videoContainer = element.closest(
-    'ytd-rich-item-renderer, ' +
-    'ytd-compact-video-renderer, ' +
-    'ytd-video-renderer, ' +
-    'yt-lockup-view-model'
-  );
-  if (!videoContainer) return null;
-
+// Try to extract channel name from a container element
+function extractChannelFromContainer(container: Element): string | null {
   // Prefer extracting @handle from href for consistent matching with scraper
-  const channelAnchor = videoContainer.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
+  const channelAnchor = container.querySelector('a[href^="/@"]') as HTMLAnchorElement | null;
   if (channelAnchor) {
     const href = channelAnchor.getAttribute('href');
     if (href) {
@@ -1047,7 +1038,7 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
   }
 
   // Fallback to text content from channel name elements
-  const channelLink = videoContainer.querySelector(
+  const channelLink = container.querySelector(
     '#channel-name a, ' +
     'ytd-channel-name a, ' +
     'a[href^="/@"] yt-formatted-string, ' +
@@ -1058,6 +1049,33 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
   if (channelLink) {
     const text = channelLink.textContent?.trim();
     if (text) return text;
+  }
+
+  return null;
+}
+
+// Extract channel name from a video element
+// YouTube nests yt-lockup-view-model inside ytd-rich-item-renderer, and
+// the channel link may be in the outer container. We try each container
+// level from outermost to innermost so we don't miss it.
+function extractChannelFromElement(element: HTMLElement | null): string | null {
+  if (!element) return null;
+
+  // Try containers from outermost to innermost — outer containers
+  // are more likely to contain the channel link
+  const containerSelectors = [
+    'ytd-rich-item-renderer',
+    'ytd-video-renderer',
+    'ytd-compact-video-renderer',
+    'yt-lockup-view-model',
+  ];
+
+  for (const selector of containerSelectors) {
+    const container = element.closest(selector);
+    if (container) {
+      const channel = extractChannelFromContainer(container);
+      if (channel) return channel;
+    }
   }
 
   return null;
@@ -1092,12 +1110,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'GET_CLICKED_AUTHOR') {
     // Return channel from the right-clicked element
     const channel = extractChannelFromElement(lastRightClickedElement);
+    log.debug(` GET_CLICKED_AUTHOR: element=${lastRightClickedElement?.tagName}, channel=${channel}`);
     if (channel) {
       sendResponse({ sourceId: channel, platform: 'youtube' });
     } else {
       sendResponse({ sourceId: null, platform: null });
     }
-    return false;
+    return true;
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {
