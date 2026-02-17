@@ -109,7 +109,7 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode) return true;
 
-  const displayScore = score.apiScore ?? score.heuristicScore;
+  const displayScore = score.apiScore;
   // Quality Mode uses aggressive threshold (20)
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
@@ -1052,7 +1052,7 @@ async function processTweets(): Promise<void> {
         if (score) {
           if (shouldBlurScore(score)) {
             // Blur tweets above threshold (threshold lowers as session progresses)
-            const displayScore = score.apiScore ?? score.heuristicScore;
+            const displayScore = score.apiScore;
             applyBlurToTweet(tweet, displayScore, score.apiReason, twitterSettings.blurIntensity);
           } else {
             // Remove blur for tweets below threshold
@@ -1074,7 +1074,7 @@ async function processTweets(): Promise<void> {
           originalPosition: impression.originalPosition,
         });
 
-        const displayScore = score.apiScore ?? score.heuristicScore;
+        const displayScore = score.apiScore;
         const scoringFailed = score.apiScore === undefined;
         injectScoreBadge(tweet, {
           score: displayScore,

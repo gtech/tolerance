@@ -14,6 +14,7 @@ import {
   getAllSessions,
   getCalibrationData,
   getCalibrationStats,
+  getAllPostContent,
   getNarrativeThemes,
   saveNarrativeTheme,
   deleteNarrativeTheme,
@@ -340,11 +341,13 @@ async function handleMessage(
     case 'GET_DASHBOARD_DATA': {
       const sessions = await getAllSessions();
       const calibration = await getCalibrationData();
+      const postContent = await getAllPostContent();
       const apiUsage = await getApiUsage();
       const calibrationStats = await getCalibrationStats('24h');
       log.debug('GET_DASHBOARD_DATA:', {
         sessionsCount: sessions.length,
         calibrationCount: calibration.length,
+        postContentCount: postContent.length,
         apiUsage,
         calibrationStats,
       });
@@ -352,6 +355,7 @@ async function handleMessage(
         type: 'DASHBOARD_DATA_RESULT',
         sessions,
         calibration,
+        postContent,
         apiUsage,
         calibrationStats,
       };

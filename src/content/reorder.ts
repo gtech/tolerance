@@ -25,14 +25,14 @@ export function reorderPosts(
     .map(el => {
       const id = el.getAttribute('data-fullname')?.replace('t3_', '') || '?';
       const s = scores.get(id);
-      return `${id.slice(0,6)}(${s?.apiScore ?? s?.heuristicScore ?? '?'})`;
+      return `${id.slice(0,6)}(${s?.apiScore ?? '?'})`;
     })
     .slice(0, 15);
   log.debug(`Reorder: Original DOM (${container.querySelectorAll('.thing.link:not(.promoted)').length} posts): ${originalDomOrder.join(', ')}`);
 
   const newOrderWithScores = newOrder.slice(0, 15).map(id => {
     const s = scores.get(id);
-    return `${id.slice(0,6)}(${s?.apiScore ?? s?.heuristicScore ?? '?'})`;
+    return `${id.slice(0,6)}(${s?.apiScore ?? '?'})`;
   });
   log.debug(`Reorder: Requested order (${newOrder.length} posts): ${newOrderWithScores.join(', ')}`);
 
@@ -85,7 +85,7 @@ export function reorderPosts(
     impressions.push({
       timestamp: Date.now(),
       postId,
-      score: score?.heuristicScore ?? 50,
+      score: score?.apiScore ?? 50,
       bucket: score?.bucket ?? 'medium',
       position,
       originalPosition: originalPos,
@@ -125,7 +125,7 @@ export function reorderPosts(
     .map(el => {
       const id = el.getAttribute('data-fullname')?.replace('t3_', '') || '?';
       const s = scores.get(id);
-      return `${id.slice(0,6)}(${s?.apiScore ?? s?.heuristicScore ?? '?'})`;
+      return `${id.slice(0,6)}(${s?.apiScore ?? '?'})`;
     })
     .slice(0, 15);
   log.debug(`Reorder: Final DOM (${container.querySelectorAll('.thing.link:not(.promoted)').length} visible posts): ${finalDomOrder.join(', ')}`);
@@ -143,7 +143,7 @@ export function recordImpressions(
     return {
       timestamp: Date.now(),
       postId: post.id,
-      score: score?.heuristicScore ?? 50,
+      score: score?.apiScore ?? 50,
       bucket: score?.bucket ?? 'medium',
       position: index,
       originalPosition: index,

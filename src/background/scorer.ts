@@ -5,32 +5,27 @@ import {
   YouTubeVideo,
   InstagramPost,
   EngagementScore,
+  PostContent,
   NarrativeTheme,
   isWhitelisted,
 } from '../shared/types';
 import {
-  SUBREDDIT_CATEGORIES,
   scoreToBucket,
 } from '../shared/constants';
-import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
+import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 import { getSubscriptionList, isSubscribed } from './subscriptions';
 
-// Create a neutral score - API will provide the real score
-function createNeutralScore(postId: string): EngagementScore {
+// Create a pending score — will be replaced by API result
+export function createPendingScore(postId: string): EngagementScore {
   return {
     postId,
-    heuristicScore: 50,
-    heuristicConfidence: 'low',
+    apiScore: 50,
     bucket: 'medium',
-    factors: {
-      engagementRatio: 0,
-      commentDensity: 0,
-      keywordFlags: [],
-      viralVelocity: 0,
-    },
+    factors: {},
     timestamp: Date.now(),
+    scoreFailed: true, // Will be cleared when API succeeds
   };
 }
 
@@ -57,13 +52,13 @@ export async function scorePosts(
 
   // Check cache first
   // When API is enabled, only consider scores with apiScore as cached (re-score broken entries)
-  const cached = await getCachedScores(postIds, apiEnabled);
+  const cached = await getCachedScores(postIds);
   const uncached = posts.filter(p => !cached.has(p.id));
   const t2 = performance.now();
 
   log.debug(` Reddit posts: ${posts.length} total, ${cached.size} cached, ${uncached.length} uncached`);
 
-  // Score uncached posts with heuristics
+  // Initialize scores for uncached posts
   const newScores: EngagementScore[] = [];
   const scoreMap = new Map<string, EngagementScore>();
 
@@ -72,14 +67,14 @@ export async function scorePosts(
   const mediaPostsForApi: { post: Omit<RedditPost, 'element'>; score: EngagementScore }[] = [];
 
   for (const post of uncached) {
-    const score = createNeutralScore(post.id);
+    const score = createPendingScore(post.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(post.author, 'reddit', settings.whitelist);
     newScores.push(score);
     scoreMap.set(post.id, score);
 
     // API-first: send ALL posts to API when configured
-    // Heuristic is only used as fallback when no API configured
+    // Send to API when configured
     if (apiEnabled) {
       const isMediaPost = (
         (post.mediaType === 'video' || post.mediaType === 'gif') ||
@@ -92,7 +87,7 @@ export async function scorePosts(
         textPostsForApi.push({ post, score });
       }
     }
-    // No API key = use heuristic score as-is (fallback for free tier users)
+    // No API key = score stays at default (50) with scoreFailed flag
   }
   const t3 = performance.now();
 
@@ -193,16 +188,24 @@ export async function scorePosts(
   const totalApiCalls = (textPostsForApi.length > 0 ? 1 : 0) + singleMedia.length + (galleries.length > 0 ? 1 : 0);
   log.debug(` Scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, heuristics: ${(t3-t2).toFixed(0)}ms, API: ${(t4-t3).toFixed(0)}ms, total: ${(t4-t0).toFixed(0)}ms (${uncached.length} uncached, ${totalApiCalls} API batches)`);
 
-  // Cache new scores (only those with API scores when API is enabled)
-  // Don't cache fallback heuristic scores when API failed - they might be from exhausted free tier
+  // Cache new scores (scoreFailed entries are cached but skipped on lookup)
   if (newScores.length > 0) {
-    const scoresToCache = apiEnabled
-      ? newScores.filter(s => s.apiScore !== undefined)  // Only cache if API succeeded
-      : newScores;  // Cache all if API not configured (heuristic only mode)
-    if (scoresToCache.length > 0) {
-      await cacheScores(scoresToCache);
-    }
+    await cacheScores(newScores);
   }
+
+  // Save post content for ML training data (setting-gated inside savePostContent)
+  await savePostContent(uncached.map(post => ({
+    postId: post.id,
+    platform: 'reddit' as const,
+    text: post.text,
+    title: post.title,
+    author: post.author,
+    subreddit: post.subreddit,
+    imageUrl: post.imageUrl,
+    thumbnailUrl: post.thumbnailUrl,
+    mediaType: post.mediaType,
+    timestamp: Date.now(),
+  })));
 
   // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
@@ -239,7 +242,7 @@ export async function scoreTweets(
 
   // Check cache first
   // When API is enabled, only consider scores with apiScore as cached
-  const cached = await getCachedScores(tweetIds, apiEnabled);
+  const cached = await getCachedScores(tweetIds);
   const uncached = tweets.filter(t => !cached.has(t.id));
   const t2 = performance.now();
 
@@ -250,7 +253,7 @@ export async function scoreTweets(
   const tweetsForApi: { tweet: Omit<Tweet, 'element'>; score: EngagementScore }[] = [];
 
   for (const tweet of uncached) {
-    const score = createNeutralScore(tweet.id);
+    const score = createPendingScore(tweet.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(tweet.author, 'twitter', settings.whitelist);
     newScores.push(score);
@@ -302,6 +305,7 @@ export async function scoreTweets(
         if (apiResult) {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
+          score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
         }
@@ -366,6 +370,7 @@ export async function scoreTweets(
         if (apiResult) {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
+          score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
 
@@ -388,22 +393,31 @@ export async function scoreTweets(
 
   log.debug(` Tweet scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    const scoresToCache = apiEnabled
-      ? newScores.filter(s => s.apiScore !== undefined)
-      : newScores;
-    if (scoresToCache.length > 0) {
-      await cacheScores(scoresToCache);
-    }
+    await cacheScores(newScores);
   }
+
+  // Save post content for ML training data
+  await savePostContent(uncached.map(tweet => ({
+    postId: tweet.id,
+    platform: 'twitter' as const,
+    text: tweet.text,
+    author: tweet.author,
+    subreddit: `@${tweet.author}`,
+    imageUrl: tweet.imageUrl,
+    thumbnailUrl: tweet.thumbnailUrl,
+    mediaType: tweet.mediaType,
+    quotedText: tweet.isQuoteTweet && tweet.quotedTweet
+      ? `[Quote from @${tweet.quotedTweet.author}]: ${tweet.quotedTweet.text}`
+      : undefined,
+    timestamp: Date.now(),
+  })));
 
   // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const tweet of tweets) {
     const cachedScore = cached.get(tweet.id);
     if (cachedScore) {
-      // Re-check whitelist for cached scores (user may have whitelisted after caching)
       cachedScore.whitelisted = isWhitelisted(tweet.author, 'twitter', settings.whitelist);
       allScores.push(cachedScore);
     } else {
@@ -439,22 +453,22 @@ async function enrichTextPostsBatch(
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
       score.apiScore = apiScore;
+      score.scoreFailed = false;
       score.apiReason = apiResult.reason;
       score.bucket = scoreToBucket(apiScore);
 
       // Apply narrative detection from LLM response
       if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
-        // Use first matched theme as primary detection (LLM confidence = high)
         score.factors.narrative = {
           themeId: apiResult.narrativeMatches[0],
           confidence: 'high',
-          matchedKeywords: [], // LLM detection doesn't use keywords
+          matchedKeywords: [],
         };
         log.debug(` Set narrative on score for post ${post.id}: themeId=${score.factors.narrative.themeId}`);
       }
 
       // Log calibration data (with full post info for fine-tuning)
-      await logCalibration(post.id, score.heuristicScore, apiScore, {
+      await logCalibration(post.id, apiScore, {
         // Core content
         permalink: post.permalink,
         title: post.title,
@@ -474,11 +488,10 @@ async function enrichTextPostsBatch(
         thumbnailUrl: post.thumbnailUrl,
         // API response
         apiReason: apiResult.reason,
-        heuristicFactors: score.factors.keywordFlags,
       });
 
       log.debug(
-        `Batch API enrichment for post=${post.id}, heuristic=${score.heuristicScore}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
+        `Batch API enrichment for post=${post.id}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
       );
     }
   }
@@ -514,6 +527,7 @@ async function enrichTextPostsBatchWithGalleries(
     if (apiResult) {
       const apiScore = apiResult.score * 10;
       score.apiScore = apiScore;
+      score.scoreFailed = false;
       score.apiReason = apiResult.reason;
       score.bucket = scoreToBucket(apiScore);
 
@@ -526,7 +540,7 @@ async function enrichTextPostsBatchWithGalleries(
         };
       }
 
-      await logCalibration(post.id, score.heuristicScore, apiScore, {
+      await logCalibration(post.id, apiScore, {
         permalink: post.permalink,
         title: post.title,
         subreddit: post.subreddit,
@@ -541,11 +555,10 @@ async function enrichTextPostsBatchWithGalleries(
         imageUrl: post.imageUrl,
         thumbnailUrl: post.thumbnailUrl,
         apiReason: apiResult.reason,
-        heuristicFactors: score.factors.keywordFlags,
       });
 
       log.debug(
-        `Tolerance: Batch API enrichment for post=${post.id}, heuristic=${score.heuristicScore}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
+        `Batch API enrichment for post=${post.id}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
       );
     }
   }
@@ -612,8 +625,8 @@ async function enrichWithApiScore(
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
       score.apiScore = apiScore;
+      score.scoreFailed = false;
       score.apiReason = apiResult.reason;
-      // Update bucket based on API score (more accurate)
       score.bucket = scoreToBucket(apiScore);
 
       // Apply narrative detection from LLM response
@@ -626,7 +639,7 @@ async function enrichWithApiScore(
       }
 
       // Log calibration data for analysis (with full post info for fine-tuning)
-      await logCalibration(post.id, score.heuristicScore, apiScore, {
+      await logCalibration(post.id, apiScore, {
         // Core content
         permalink: post.permalink,
         title: post.title,
@@ -647,11 +660,10 @@ async function enrichWithApiScore(
         // API response
         apiReason: apiResult.reason,
         apiFullResponse: apiResult.fullResponse,
-        heuristicFactors: score.factors.keywordFlags,
       });
 
       log.debug(
-        `Tolerance: API enrichment for uncertain post=${post.id}, heuristic=${score.heuristicScore}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
+        `API enrichment for post=${post.id}, api=${apiScore}, bucket=${score.bucket}, reason="${apiResult.reason}"`
       );
     }
   } catch (error) {
@@ -695,7 +707,7 @@ export async function scoreVideos(
 
   // Check cache first
   // When API is enabled, only consider scores with apiScore as cached
-  const cached = await getCachedScores(videoIds, apiEnabled);
+  const cached = await getCachedScores(videoIds);
   const uncached = videos.filter(v => !cached.has(v.id));
   const t2 = performance.now();
 
@@ -710,7 +722,7 @@ export async function scoreVideos(
   const subsList = subsOnlyMode ? await getSubscriptionList() : null;
 
   for (const video of uncached) {
-    const score = createNeutralScore(video.id);
+    const score = createPendingScore(video.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
 
@@ -750,6 +762,7 @@ export async function scoreVideos(
         if (result) {
           const apiScore = result.score * 10;
           score.apiScore = apiScore;
+          score.scoreFailed = false;
           score.apiReason = result.reason;
           score.bucket = scoreToBucket(apiScore, 'youtube');
         }
@@ -764,22 +777,26 @@ export async function scoreVideos(
 
   // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    const scoresToCache = apiEnabled
-      ? newScores.filter(s => s.apiScore !== undefined)
-      : newScores;
-    if (scoresToCache.length > 0) {
-      await cacheScores(scoresToCache);
-    }
+    await cacheScores(newScores);
   }
+
+  // Save post content for ML training data
+  await savePostContent(uncached.map(video => ({
+    postId: video.id,
+    platform: 'youtube' as const,
+    text: video.title,
+    title: video.title,
+    author: video.channel,
+    thumbnailUrl: video.thumbnailUrl,
+    timestamp: Date.now(),
+  })));
 
   // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const video of videos) {
     const cachedScore = cached.get(video.id);
     if (cachedScore) {
-      // Re-check whitelist for cached scores (user may have whitelisted after caching)
       cachedScore.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
-      // Subscriptions-only mode: mark subscribed sources as whitelisted
       if (subsOnlyMode && !cachedScore.whitelisted && subsList) {
         cachedScore.whitelisted = isSubscribed(video.channel, 'youtube', subsList);
       }
@@ -812,18 +829,18 @@ export async function scoreInstagramPosts(
 
   // Check cache first
   // When API is enabled, only consider scores with apiScore as cached
-  const cached = await getCachedScores(postIds, apiEnabled);
+  const cached = await getCachedScores(postIds);
   const uncached = posts.filter(p => !cached.has(p.id));
   const t2 = performance.now();
 
-  // Score uncached posts with heuristics
+  // Initialize scores for uncached posts
   const newScores: EngagementScore[] = [];
 
   // Collect posts for API scoring
   const postsForApi: { post: Omit<InstagramPost, 'element'>; score: EngagementScore }[] = [];
 
   for (const post of uncached) {
-    const score = createNeutralScore(post.id);
+    const score = createPendingScore(post.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
     newScores.push(score);
@@ -868,6 +885,7 @@ export async function scoreInstagramPosts(
         if (apiResult) {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
+          score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'instagram');
 
@@ -939,6 +957,7 @@ export async function scoreInstagramPosts(
         if (apiResult) {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
+          score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'instagram');
 
@@ -961,22 +980,27 @@ export async function scoreInstagramPosts(
 
   log.debug(` Instagram scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
-    const scoresToCache = apiEnabled
-      ? newScores.filter(s => s.apiScore !== undefined)
-      : newScores;
-    if (scoresToCache.length > 0) {
-      await cacheScores(scoresToCache);
-    }
+    await cacheScores(newScores);
   }
+
+  // Save post content for ML training data
+  await savePostContent(uncached.map(post => ({
+    postId: post.id,
+    platform: 'instagram' as const,
+    text: post.caption,
+    author: post.authorUsername,
+    imageUrl: post.imageUrl,
+    thumbnailUrl: post.thumbnailUrl,
+    mediaType: post.mediaType,
+    timestamp: Date.now(),
+  })));
 
   // Combine cached and new scores, applying whitelist to all
   const allScores: EngagementScore[] = [];
   for (const post of posts) {
     const cachedScore = cached.get(post.id);
     if (cachedScore) {
-      // Re-check whitelist for cached scores (user may have whitelisted after caching)
       cachedScore.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
       allScores.push(cachedScore);
     } else {

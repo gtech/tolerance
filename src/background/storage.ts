@@ -4,6 +4,7 @@ import {
   SessionLog,
   PostImpression,
   EngagementScore,
+  PostContent,
   AppState,
   Settings,
   NarrativeTheme,
@@ -34,32 +35,41 @@ interface ToleranceDB extends DBSchema {
     key: string; // postId
     value: {
       postId: string;
-      heuristicScore: number;
       apiScore: number;
       timestamp: number;
     };
   };
+  postContent: {
+    key: string; // postId
+    value: PostContent;
+  };
 }
 
 const DB_NAME = 'tolerance';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<ToleranceDB>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<ToleranceDB>> {
   if (!dbPromise) {
     dbPromise = openDB<ToleranceDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // Sessions store
-        const sessionStore = db.createObjectStore('sessions', { keyPath: 'sessionId' });
-        sessionStore.createIndex('by-start', 'startTime');
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          // Sessions store
+          const sessionStore = db.createObjectStore('sessions', { keyPath: 'sessionId' });
+          sessionStore.createIndex('by-start', 'startTime');
 
-        // Scores cache store
-        const scoresStore = db.createObjectStore('scores', { keyPath: 'postId' });
-        scoresStore.createIndex('by-timestamp', 'timestamp');
+          // Scores cache store
+          const scoresStore = db.createObjectStore('scores', { keyPath: 'postId' });
+          scoresStore.createIndex('by-timestamp', 'timestamp');
 
-        // Calibration data (heuristic vs API comparison)
-        db.createObjectStore('calibration', { keyPath: 'postId' });
+          // Calibration data
+          db.createObjectStore('calibration', { keyPath: 'postId' });
+        }
+        if (oldVersion < 2) {
+          // Post content store (deduplicated by postId)
+          db.createObjectStore('postContent', { keyPath: 'postId' });
+        }
       },
     });
   }
@@ -167,19 +177,15 @@ export async function endSession(): Promise<void> {
 // Score caching
 const SCORE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export async function getCachedScores(postIds: string[], requireApiScore = true): Promise<Map<string, EngagementScore>> {
+export async function getCachedScores(postIds: string[]): Promise<Map<string, EngagementScore>> {
   const db = await getDB();
   const result = new Map<string, EngagementScore>();
   const now = Date.now();
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
-    if (cached && now - cached.timestamp < SCORE_TTL_MS) {
-      // Only return as cached if it has an API score (unless requireApiScore is false)
-      // This prevents old/broken cache entries from blocking re-scoring
-      if (!requireApiScore || cached.apiScore !== undefined) {
-        result.set(id, cached);
-      }
+    if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed) {
+      result.set(id, cached);
     }
   }
 
@@ -207,10 +213,9 @@ export async function clearScoreCache(): Promise<number> {
   return count;
 }
 
-// Calibration data (for comparing heuristics vs API and fine-tuning)
+// Calibration data (for fine-tuning)
 export async function logCalibration(
   postId: string,
-  heuristicScore: number,
   apiScore: number,
   metadata?: {
     // Core content
@@ -233,7 +238,6 @@ export async function logCalibration(
     // API response data
     apiReason?: string;
     apiFullResponse?: unknown;
-    heuristicFactors?: string[];
   }
 ): Promise<void> {
   const db = await getDB();
@@ -248,7 +252,6 @@ export async function logCalibration(
 
   await db.put('calibration', {
     postId,
-    heuristicScore,
     apiScore,
     timestamp: Date.now(),
     // Core content
@@ -271,7 +274,6 @@ export async function logCalibration(
     // API response data
     apiReason: storeReason ? metadata?.apiReason : undefined,
     apiFullResponse: storeReason ? metadata?.apiFullResponse : undefined,
-    heuristicFactors: metadata?.heuristicFactors,
   });
 
   // Cleanup old entries if maxEntries is set
@@ -290,6 +292,26 @@ export async function logCalibration(
       log.debug(`: Pruned ${toDelete.length} old calibration entries`);
     }
   }
+}
+
+// Post content storage (for ML training data)
+export async function savePostContent(posts: PostContent[]): Promise<void> {
+  const settings = await getSettings();
+  if (!settings.calibration?.storePostContent) return;
+
+  const db = await getDB();
+  const tx = db.transaction('postContent', 'readwrite');
+
+  for (const post of posts) {
+    await tx.store.put(post);
+  }
+
+  await tx.done;
+}
+
+export async function getAllPostContent(): Promise<PostContent[]> {
+  const db = await getDB();
+  return db.getAll('postContent');
 }
 
 // Analytics queries

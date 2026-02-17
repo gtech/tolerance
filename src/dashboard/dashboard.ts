@@ -3,7 +3,6 @@ import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constan
 
 interface CalibrationEntry {
   postId: string;
-  heuristicScore: number;
   apiScore: number;
   timestamp: number;
   permalink?: string;
@@ -11,7 +10,6 @@ interface CalibrationEntry {
   subreddit?: string;
   apiReason?: string;
   apiFullResponse?: unknown;
-  heuristicFactors?: string[];
 }
 
 interface ApiUsage {
@@ -23,6 +21,7 @@ interface ApiUsage {
 interface DashboardData {
   sessions: SessionLog[];
   calibration: CalibrationEntry[];
+  postContent?: unknown[];
   apiUsage: ApiUsage;
 }
 
@@ -325,6 +324,18 @@ function populateSettings(settings: Settings): void {
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
   if (logLevelSelect) {
     logLevelSelect.value = settings.logLevel ?? 'error';
+  }
+
+  // Store post content toggle
+  const storePostContentInput = document.getElementById('store-post-content') as HTMLInputElement;
+  const storePostContentStatus = document.getElementById('store-post-content-status');
+  if (storePostContentInput) {
+    const enabled = settings.calibration?.storePostContent ?? false;
+    storePostContentInput.checked = enabled;
+    if (storePostContentStatus) {
+      storePostContentStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+      storePostContentStatus.style.color = enabled ? '#7dcea0' : '#888';
+    }
   }
 
   // Provider configuration
@@ -809,6 +820,19 @@ function setupEventListeners(): void {
     logLevelSelect.addEventListener('change', saveSettings);
   }
 
+  // Store post content toggle
+  const storePostContentInput = document.getElementById('store-post-content') as HTMLInputElement;
+  if (storePostContentInput) {
+    storePostContentInput.addEventListener('change', () => {
+      const statusEl = document.getElementById('store-post-content-status');
+      if (statusEl) {
+        statusEl.textContent = storePostContentInput.checked ? 'Enabled' : 'Disabled';
+        statusEl.style.color = storePostContentInput.checked ? '#7dcea0' : '#888';
+      }
+      saveSettings();
+    });
+  }
+
   // Test boredom slider - saves to separate storage key for testing
   const testBoredomInput = document.getElementById('test-boredom') as HTMLInputElement;
   const testBoredomValue = document.getElementById('test-boredom-value');
@@ -912,6 +936,10 @@ async function saveSettings(): Promise<void> {
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,
+    calibration: {
+      ...existing.calibration,
+      storePostContent: (document.getElementById('store-post-content') as HTMLInputElement)?.checked ?? false,
+    },
   };
 
   await chrome.storage.local.set({ settings });
@@ -934,6 +962,7 @@ async function exportData(): Promise<void> {
       exportDate: new Date().toISOString(),
       sessions: result.sessions,
       calibration: result.calibration,
+      postContent: result.postContent,
       apiUsage: result.apiUsage,
     };
 

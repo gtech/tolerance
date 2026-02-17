@@ -93,7 +93,7 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Whitelisted sources bypass blur
   if (score.whitelisted) return false;
 
-  const displayScore = score.apiScore ?? score.heuristicScore;
+  const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
 }
@@ -919,7 +919,7 @@ async function processPosts(): Promise<void> {
       const post = postMap.get(impression.postId);
       const score = scores.get(impression.postId);
       if (post && score) {
-        const displayScore = score.apiScore ?? score.heuristicScore;
+        const displayScore = score.apiScore;
         const scoringFailed = score.apiScore === undefined;
 
         // Apply or remove blur based on score

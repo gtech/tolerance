@@ -62,7 +62,7 @@ export async function getScheduledOrder(
     }
 
     // Calculate effective score, applying narrative modifier if applicable
-    let effectiveScore = score.apiScore ?? score.heuristicScore;
+    let effectiveScore = score.apiScore;
     const narrativeDetection = score.factors?.narrative;
 
     if (narrativeDetection && enabledStrategies.length > 0) {
@@ -104,7 +104,7 @@ export async function getScheduledOrder(
   log.debug(` Scheduler: Buckets - high: ${high.length}, medium: ${medium.length}, low: ${low.length}`);
   log.debug(` Scheduler: High posts: ${high.map(id => {
     const s = scores.get(id);
-    return `${id.slice(0,6)}(${s?.apiScore ?? s?.heuristicScore})`;
+    return `${id.slice(0,6)}(${s?.apiScore})`;
   }).join(', ')}`);
 
   // Interleave according to fixed interval schedule with effective ratio
@@ -113,7 +113,7 @@ export async function getScheduledOrder(
   // Debug: log result order with scores
   log.debug(` Scheduler: Result order (first 15): ${ordered.slice(0, 15).map(id => {
     const s = scores.get(id);
-    return s?.apiScore ?? s?.heuristicScore ?? '?';
+    return s?.apiScore ?? '?';
   }).join(', ')}`);
 
   return { orderedIds: ordered, hiddenIds: hidden };

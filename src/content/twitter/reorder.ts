@@ -81,7 +81,7 @@ export function reorderTweets(
     impressions.push({
       timestamp: Date.now(),
       postId: tweetId,
-      score: score?.heuristicScore ?? 50,
+      score: score?.apiScore ?? 50,
       bucket: score?.bucket ?? 'medium',
       position,
       originalPosition: originalPos,
@@ -112,7 +112,7 @@ export function recordImpressions(
     return {
       timestamp: Date.now(),
       postId: tweet.id,
-      score: score?.heuristicScore ?? 50,
+      score: score?.apiScore ?? 50,
       bucket: score?.bucket ?? 'medium',
       position: index,
       originalPosition: index,

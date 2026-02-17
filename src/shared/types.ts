@@ -160,23 +160,31 @@ export interface InstagramPost extends SocialPost {
 
 export interface EngagementScore {
   postId: string;
-  heuristicScore: number; // 0-100
-  heuristicConfidence: 'low' | 'medium' | 'high';
-  apiScore?: number; // 0-100, from OpenRouter when called
+  apiScore: number; // 0-100, from OpenRouter
   apiReason?: string; // Reason from API for the score
   bucket: 'low' | 'medium' | 'high';
   factors: ScoreFactors;
   timestamp: number;
   whitelisted?: boolean; // Pre-filter: source is in user's trusted whitelist
+  scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
 }
 
 export interface ScoreFactors {
-  engagementRatio: number;
-  commentDensity: number;
-  keywordFlags: string[];
-  subredditCategory?: string;
-  viralVelocity: number;
   narrative?: NarrativeDetection;  // Detected narrative theme
+}
+
+export interface PostContent {
+  postId: string;
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram';
+  text: string;           // Post content (title for Reddit, tweet text for Twitter, caption for Instagram)
+  title?: string;         // Reddit-specific separate title
+  author: string;
+  subreddit?: string;     // Reddit sub or Twitter @handle
+  imageUrl?: string;      // Primary image URL (for future vision model fine-tuning)
+  thumbnailUrl?: string;  // Thumbnail URL (fallback if imageUrl expires)
+  mediaType?: string;     // 'text' | 'image' | 'video' | 'gallery' | 'gif' | 'reel'
+  quotedText?: string;    // Quote tweet: "[Quote from @author]: text"
+  timestamp: number;      // When we stored it
 }
 
 export interface PostImpression {
@@ -376,6 +384,7 @@ export interface Settings {
   // Calibration data settings
   calibration?: {
     storeApiReason: boolean;   // Store API reason text (can get heavy)
+    storePostContent: boolean; // Store post text for ML training data (increases storage)
     maxEntries?: number;       // Max calibration entries to keep (0 = unlimited)
   };
   // Twitter-specific settings (also applies to YouTube)
@@ -526,6 +535,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   calibration: {
     storeApiReason: true,  // Store by default, user can disable
+    storePostContent: false, // Off by default - increases storage significantly
     maxEntries: 500,       // Keep last 500 entries by default
   },
   twitter: {

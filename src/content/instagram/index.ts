@@ -116,7 +116,7 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode) return true;
 
-  const displayScore = score.apiScore ?? score.heuristicScore;
+  const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
 }
@@ -571,7 +571,7 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   element.classList.remove('tolerance-video-blocked');
 
   // Create badge
-  const displayScore = score.apiScore ?? score.heuristicScore;
+  const displayScore = score.apiScore;
   const scoringFailed = score.apiScore === undefined;
   const badge = document.createElement('div');
   badge.className = `tolerance-score-badge ${scoringFailed ? 'failed' : score.bucket}`;

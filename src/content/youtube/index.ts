@@ -161,9 +161,9 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 // Check if a score should be blurred based on current threshold
-function shouldBlurScore(score: { apiScore?: number; heuristicScore: number; whitelisted?: boolean }): boolean {
-  // Don't blur if scoring failed (no API score when API is expected)
-  if (score.apiScore === undefined) return false;
+function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; whitelisted?: boolean }): boolean {
+  // Don't blur if scoring failed
+  if (score.scoreFailed) return false;
 
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
@@ -171,7 +171,7 @@ function shouldBlurScore(score: { apiScore?: number; heuristicScore: number; whi
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode) return true;
 
-  const displayScore = score.apiScore ?? score.heuristicScore;
+  const displayScore = score.apiScore;
   // Quality Mode uses aggressive threshold (20)
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
