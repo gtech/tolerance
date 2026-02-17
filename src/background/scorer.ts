@@ -15,6 +15,7 @@ import {
 import { getCachedScores, cacheScores, logCalibration, getSettings, getNarrativeThemes } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
+import { getSubscriptionList, isSubscribed } from './subscriptions';
 
 // Create a neutral score - API will provide the real score
 function createNeutralScore(postId: string): EngagementScore {
@@ -704,10 +705,20 @@ export async function scoreVideos(
   // Collect videos for API scoring
   const videosForApi: { video: Omit<YouTubeVideo, 'element'>; score: EngagementScore }[] = [];
 
+  // Pre-fetch subscription list if subscriptions-only mode is enabled
+  const subsOnlyMode = settings.subscriptionsOnly ?? false;
+  const subsList = subsOnlyMode ? await getSubscriptionList() : null;
+
   for (const video of uncached) {
     const score = createNeutralScore(video.id);
     // Check pre-filter whitelist - trusted sources bypass blur but still get scored
     score.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
+
+    // Subscriptions-only mode: mark subscribed sources as whitelisted
+    if (subsOnlyMode && !score.whitelisted && subsList) {
+      score.whitelisted = isSubscribed(video.channel, 'youtube', subsList);
+    }
+
     newScores.push(score);
 
     // API-first: send ALL videos to API when configured
@@ -768,6 +779,10 @@ export async function scoreVideos(
     if (cachedScore) {
       // Re-check whitelist for cached scores (user may have whitelisted after caching)
       cachedScore.whitelisted = isWhitelisted(video.channel, 'youtube', settings.whitelist);
+      // Subscriptions-only mode: mark subscribed sources as whitelisted
+      if (subsOnlyMode && !cachedScore.whitelisted && subsList) {
+        cachedScore.whitelisted = isSubscribed(video.channel, 'youtube', subsList);
+      }
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === video.id);

@@ -106,6 +106,9 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
 
+  // Subscriptions-only: blur ALL non-whitelisted content
+  if (subscriptionsOnlyMode) return true;
+
   const displayScore = score.apiScore ?? score.heuristicScore;
   // Quality Mode uses aggressive threshold (20)
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -179,6 +182,9 @@ let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 // Quality Mode - instant aggressive blur (scores > 20)
 let qualityModeEnabled = false;
 const QUALITY_MODE_THRESHOLD = 21;
+
+// Subscriptions Only - blur everything except subscribed sources
+let subscriptionsOnlyMode = false;
 
 // Track hover timers for timed reveal
 const hoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
@@ -797,6 +803,10 @@ async function initCore(): Promise<void> {
   qualityModeEnabled = currentSettings.qualityMode ?? false;
   log.debug(` Quality Mode = ${qualityModeEnabled}`);
 
+  // Initialize subscriptions-only mode from settings
+  subscriptionsOnlyMode = currentSettings.subscriptionsOnly ?? false;
+  log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
+
   if (currentState.mode === 'baseline') {
     const daysRemaining = calculateBaselineDaysRemaining();
     log.debug(` Baseline mode - ${daysRemaining.toFixed(1)} days remaining`);
@@ -1141,12 +1151,12 @@ async function sendMessage(message: unknown): Promise<unknown> {
   });
 }
 
-// Handle quality mode changes from popup
+// Handle quality mode / subscriptions-only changes from popup
 function refreshBlurState(): void {
   const twitterSettings = currentSettings?.twitter;
   if (!twitterSettings?.blurHighEngagement || twitterSettings?.reorderEnabled) return;
 
-  log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}`);
+  log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}, subscriptionsOnly=${subscriptionsOnlyMode}`);
 
   // Get all tweets that have been scored (have badges)
   const cells = document.querySelectorAll('[data-testid="cellInnerDiv"]');
@@ -1159,8 +1169,22 @@ function refreshBlurState(): void {
     const score = parseInt(scoreText || '0', 10);
     if (isNaN(score)) continue;
 
-    const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
-    const shouldBlur = score >= threshold;
+    // Look up cached score to check whitelisted status
+    const tweetId = findTweetIdFromCell(cell as HTMLElement);
+    const cached = tweetId ? scoreCache.get(tweetId) : null;
+    const isWhitelisted = cached?.score?.whitelisted ?? false;
+
+    // Determine if should blur
+    let shouldBlur = false;
+    if (isWhitelisted) {
+      shouldBlur = false;
+    } else if (subscriptionsOnlyMode) {
+      shouldBlur = true;
+    } else {
+      const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
+      shouldBlur = score >= threshold;
+    }
+
     const isBlurred = cell.classList.contains('tolerance-blurred');
 
     if (shouldBlur && !isBlurred) {
@@ -1174,24 +1198,27 @@ function refreshBlurState(): void {
         htmlCell.style.position = 'relative';
       }
 
-      // Add overlay if not present
-      if (!htmlCell.querySelector('.tolerance-blur-overlay')) {
-        const overlay = document.createElement('div');
-        overlay.className = 'tolerance-blur-overlay';
-        overlay.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        });
+      // Remove existing overlay first
+      const existingOverlay = htmlCell.querySelector('.tolerance-blur-overlay');
+      if (existingOverlay) existingOverlay.remove();
 
-        const label = document.createElement('div');
-        label.className = 'tolerance-blur-label';
-        label.textContent = `High engagement content (${score})`;
-        label.style.maxWidth = '80%';
-        label.style.textAlign = 'center';
+      const overlay = document.createElement('div');
+      overlay.className = 'tolerance-blur-overlay';
+      overlay.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
 
-        overlay.appendChild(label);
-        htmlCell.appendChild(overlay);
-      }
+      const label = document.createElement('div');
+      label.className = 'tolerance-blur-label';
+      label.textContent = subscriptionsOnlyMode
+        ? 'Not following'
+        : `High engagement content (${score})`;
+      label.style.maxWidth = '80%';
+      label.style.textAlign = 'center';
+
+      overlay.appendChild(label);
+      htmlCell.appendChild(overlay);
 
       // Set up hover reveal
       setupHoverReveal(htmlCell);
@@ -1206,6 +1233,17 @@ function refreshBlurState(): void {
       if (overlay) overlay.remove();
     }
   }
+}
+
+// Find tweet ID from a cell element (for looking up cached scores)
+function findTweetIdFromCell(cell: HTMLElement): string | null {
+  const link = cell.querySelector('a[href*="/status/"]') as HTMLAnchorElement | null;
+  if (link) {
+    const href = link.getAttribute('href') || '';
+    const match = href.match(/\/status\/(\d+)/);
+    if (match) return match[1];
+  }
+  return null;
 }
 
 // Track right-clicked element for context menu
@@ -1249,6 +1287,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'QUALITY_MODE_CHANGED') {
     qualityModeEnabled = message.enabled;
     log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
+    refreshBlurState();
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'SUBSCRIPTIONS_ONLY_CHANGED') {
+    subscriptionsOnlyMode = message.enabled;
+    log.debug(` Subscriptions-only mode ${subscriptionsOnlyMode ? 'enabled' : 'disabled'}`);
     refreshBlurState();
     sendResponse({ success: true });
     return true;

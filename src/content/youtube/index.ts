@@ -127,6 +127,9 @@ let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 let qualityModeEnabled = false;
 const QUALITY_MODE_THRESHOLD = 21;
 
+// Subscriptions Only - blur everything except subscribed sources
+let subscriptionsOnlyMode = false;
+
 // Update blur threshold based on current phase and adaptive settings
 async function updateBlurThreshold(): Promise<void> {
   if (!isExtensionValid()) return;
@@ -164,6 +167,9 @@ function shouldBlurScore(score: { apiScore?: number; heuristicScore: number; whi
 
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
+
+  // Subscriptions-only: blur ALL non-whitelisted content
+  if (subscriptionsOnlyMode) return true;
 
   const displayScore = score.apiScore ?? score.heuristicScore;
   // Quality Mode uses aggressive threshold (20)
@@ -566,9 +572,13 @@ function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, b
 
     const label = document.createElement('div');
     label.className = 'tolerance-blur-label';
-    label.textContent = reason
-      ? `High engagement (${Math.round(score)}): ${reason}`
-      : `High engagement (${Math.round(score)})`;
+    if (subscriptionsOnlyMode) {
+      label.textContent = 'Not subscribed';
+    } else {
+      label.textContent = reason
+        ? `High engagement (${Math.round(score)}): ${reason}`
+        : `High engagement (${Math.round(score)})`;
+    }
     label.style.maxWidth = '80%';
     label.style.textAlign = 'center';
 
@@ -660,6 +670,10 @@ async function initCore(): Promise<void> {
   // Initialize quality mode from settings
   qualityModeEnabled = currentSettings.qualityMode ?? false;
   log.debug(` Quality Mode = ${qualityModeEnabled}`);
+
+  // Initialize subscriptions-only mode from settings
+  subscriptionsOnlyMode = currentSettings.subscriptionsOnly ?? false;
+  log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   // Ensure we have a session
   const sessionResult = await sendMessage({ type: 'ENSURE_SESSION' });
@@ -895,9 +909,9 @@ async function sendMessage(message: unknown): Promise<unknown> {
   });
 }
 
-// Handle quality mode changes from popup
+// Handle quality mode / subscriptions-only changes from popup
 function refreshBlurState(): void {
-  log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}`);
+  log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}, subscriptionsOnly=${subscriptionsOnlyMode}`);
 
   // Get all videos that have been scored (have badges)
   const videoElements = document.querySelectorAll('ytd-rich-item-renderer, ytd-compact-video-renderer, yt-lockup-view-model');
@@ -910,8 +924,24 @@ function refreshBlurState(): void {
     const score = parseInt(scoreText || '0', 10);
     if (isNaN(score)) continue;
 
-    const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
-    const shouldBlur = score >= threshold;
+    // Look up cached score to check whitelisted status
+    const videoId = findVideoIdFromElement(element as HTMLElement);
+    const cached = videoId ? scoreCache.get(videoId) : null;
+    const isWhitelisted = cached?.score?.whitelisted ?? false;
+
+    // Determine if should blur
+    let shouldBlur = false;
+    if (score !== undefined && !isNaN(score)) {
+      if (isWhitelisted) {
+        shouldBlur = false;
+      } else if (subscriptionsOnlyMode) {
+        shouldBlur = true;
+      } else {
+        const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
+        shouldBlur = score >= threshold;
+      }
+    }
+
     const isBlurred = element.classList.contains('tolerance-blurred');
 
     if (shouldBlur && !isBlurred) {
@@ -937,24 +967,27 @@ function refreshBlurState(): void {
           thumbnail.style.position = 'relative';
         }
 
-        // Add overlay if not present
-        if (!thumbnail.querySelector('.tolerance-blur-overlay')) {
-          const overlay = document.createElement('div');
-          overlay.className = 'tolerance-blur-overlay';
-          overlay.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          });
+        // Remove any existing overlay first
+        const existingOverlay = thumbnail.querySelector('.tolerance-blur-overlay');
+        if (existingOverlay) existingOverlay.remove();
 
-          const label = document.createElement('div');
-          label.className = 'tolerance-blur-label';
-          label.textContent = `High engagement content (${score})`;
-          label.style.maxWidth = '80%';
-          label.style.textAlign = 'center';
+        const overlay = document.createElement('div');
+        overlay.className = 'tolerance-blur-overlay';
+        overlay.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
 
-          overlay.appendChild(label);
-          thumbnail.appendChild(overlay);
-        }
+        const label = document.createElement('div');
+        label.className = 'tolerance-blur-label';
+        label.textContent = subscriptionsOnlyMode
+          ? 'Not subscribed'
+          : `High engagement content (${score})`;
+        label.style.maxWidth = '80%';
+        label.style.textAlign = 'center';
+
+        overlay.appendChild(label);
+        thumbnail.appendChild(overlay);
       }
     } else if (!shouldBlur && isBlurred) {
       // Need to unblur this video
@@ -967,6 +1000,20 @@ function refreshBlurState(): void {
       if (overlay) overlay.remove();
     }
   }
+}
+
+// Find video ID from a video element (for looking up cached scores)
+function findVideoIdFromElement(element: HTMLElement): string | null {
+  // Try to find a link to the video
+  const link = element.querySelector('a[href*="/watch?v="], a[href*="/shorts/"]') as HTMLAnchorElement | null;
+  if (link) {
+    const href = link.getAttribute('href') || '';
+    const watchMatch = href.match(/[?&]v=([^&]+)/);
+    if (watchMatch) return watchMatch[1];
+    const shortsMatch = href.match(/\/shorts\/([^?&]+)/);
+    if (shortsMatch) return shortsMatch[1];
+  }
+  return null;
 }
 
 // Track right-clicked element for context menu
@@ -1019,6 +1066,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'QUALITY_MODE_CHANGED') {
     qualityModeEnabled = message.enabled;
     log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
+    refreshBlurState();
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'SUBSCRIPTIONS_ONLY_CHANGED') {
+    subscriptionsOnlyMode = message.enabled;
+    log.debug(` Subscriptions-only mode ${subscriptionsOnlyMode ? 'enabled' : 'disabled'}`);
     refreshBlurState();
     sendResponse({ success: true });
     return true;

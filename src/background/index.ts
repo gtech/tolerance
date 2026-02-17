@@ -42,6 +42,12 @@ import {
   dismissEmergingNarrative,
   getUnclassifiedCount,
 } from './themeDiscovery';
+import {
+  syncYouTubeSubscriptions,
+  getSubscriptionList,
+  scheduleSubscriptionSync,
+  handleSyncAlarm,
+} from './subscriptions';
 
 // Initialize extension state on install
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -58,6 +64,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Schedule narrative theme discovery (daily)
   chrome.alarms.create('narrativeDiscovery', { periodInMinutes: 1440 }); // 24 hours
+
+  // Schedule subscription sync if subscriptions-only mode is enabled
+  const installedSettings = await getSettings();
+  if (installedSettings.subscriptionsOnly) {
+    scheduleSubscriptionSync();
+  }
 
   // Create context menu for whitelisting authors
   // Guard for Firefox where contextMenus may not be available
@@ -161,6 +173,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (discovered.length > 0) {
       log.debug(` Discovered ${discovered.length} emerging narratives`);
     }
+  } else if (await handleSyncAlarm(alarm.name)) {
+    // Subscription sync handled
   }
 });
 
@@ -491,6 +505,20 @@ async function handleMessage(
       const adaptive = await getAdaptiveSettings();
       const threshold = await getEffectiveBlurThreshold(message.phase, adaptive.blurThresholdOffset);
       return { type: 'BLUR_THRESHOLD_RESULT', threshold, phase: message.phase };
+    }
+
+    // ==========================================
+    // Subscription Sync Handlers
+    // ==========================================
+
+    case 'SYNC_SUBSCRIPTIONS': {
+      const handles = await syncYouTubeSubscriptions();
+      return { success: true, count: handles.length, handles };
+    }
+
+    case 'GET_SUBSCRIPTIONS': {
+      const subs = await getSubscriptionList();
+      return { type: 'SUBSCRIPTIONS_RESULT', subscriptions: subs };
     }
 
     default:

@@ -39,9 +39,10 @@ async function init(): Promise<void> {
     dashboardLink.addEventListener('click', openDashboard);
   }
 
-  // Set up feedback buttons and quality mode toggle early too
+  // Set up feedback buttons and toggles early too
   setupFeedbackButtons();
   setupQualityModeToggle();
+  setupSubsOnlyToggle();
 
   // Get current state
   const result = await chrome.runtime.sendMessage({ type: 'GET_STATE' }) as StateResult;
@@ -50,6 +51,7 @@ async function init(): Promise<void> {
     currentSettings = result.settings;
     await updateApiStatus(result.settings);
     updateQualityModeToggle(result.settings);
+    updateSubsOnlyToggle(result.settings);
   }
 
   // Check if we should show feedback prompt
@@ -321,6 +323,102 @@ function setupQualityModeToggle(): void {
       if (tab.id) {
         try {
           await chrome.tabs.sendMessage(tab.id, { type: 'QUALITY_MODE_CHANGED', enabled });
+        } catch {
+          // Tab might not have content script
+        }
+      }
+    }
+  });
+}
+
+// ==========================================
+// Subscriptions Only Mode Functions
+// ==========================================
+
+function updateSubsOnlyToggle(settings: Settings): void {
+  const toggle = document.getElementById('subs-only-toggle') as HTMLInputElement | null;
+  const section = document.getElementById('subs-only-section');
+  const desc = document.getElementById('subs-only-desc');
+
+  if (toggle) {
+    toggle.checked = settings.subscriptionsOnly ?? false;
+  }
+
+  if (section) {
+    if (settings.subscriptionsOnly) {
+      section.classList.add('active');
+    } else {
+      section.classList.remove('active');
+    }
+  }
+
+  // Show subscription count if synced
+  if (desc && settings.subscriptionsOnly) {
+    chrome.runtime.sendMessage({ type: 'GET_SUBSCRIPTIONS' }, (result) => {
+      if (result?.subscriptions) {
+        const ytCount = result.subscriptions.youtube?.length ?? 0;
+        const lastSynced = result.subscriptions.lastSynced?.youtube;
+        if (ytCount > 0) {
+          desc.textContent = `Synced ${ytCount} YouTube channels`;
+        } else if (lastSynced) {
+          desc.textContent = 'No subscriptions found — sync again';
+        } else {
+          desc.textContent = 'Syncing subscriptions...';
+        }
+      }
+    });
+  }
+}
+
+function setupSubsOnlyToggle(): void {
+  const toggle = document.getElementById('subs-only-toggle') as HTMLInputElement | null;
+  const section = document.getElementById('subs-only-section');
+  const desc = document.getElementById('subs-only-desc');
+
+  if (!toggle) return;
+
+  toggle.addEventListener('change', async () => {
+    const enabled = toggle.checked;
+
+    // Update UI immediately
+    if (section) {
+      if (enabled) {
+        section.classList.add('active');
+      } else {
+        section.classList.remove('active');
+      }
+    }
+
+    // Save setting
+    currentSettings.subscriptionsOnly = enabled;
+    await chrome.storage.local.set({ settings: currentSettings });
+
+    if (enabled) {
+      // Trigger first sync when enabling
+      if (desc) desc.textContent = 'Syncing subscriptions...';
+      try {
+        const syncResult = await chrome.runtime.sendMessage({
+          type: 'SYNC_SUBSCRIPTIONS',
+          platform: 'youtube',
+        });
+        if (syncResult?.count > 0) {
+          if (desc) desc.textContent = `Synced ${syncResult.count} YouTube channels`;
+        } else {
+          if (desc) desc.textContent = 'No subscriptions found (are you logged into YouTube?)';
+        }
+      } catch {
+        if (desc) desc.textContent = 'Sync failed — try again later';
+      }
+    } else {
+      if (desc) desc.textContent = 'Only show content from your subscriptions';
+    }
+
+    // Notify all tabs to refresh their blur state
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type: 'SUBSCRIPTIONS_ONLY_CHANGED', enabled });
         } catch {
           // Tab might not have content script
         }

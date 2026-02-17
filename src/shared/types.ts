@@ -304,6 +304,23 @@ export function isWhitelisted(
   );
 }
 
+// Subscription list for subscriptions-only mode
+export interface SubscriptionList {
+  youtube: string[];    // @handles (lowercase, no @ prefix)
+  twitter: string[];    // future
+  instagram: string[];  // future
+  reddit: string[];     // future (subreddits)
+  lastSynced: Record<string, number>;  // platform → timestamp
+}
+
+export const DEFAULT_SUBSCRIPTION_LIST: SubscriptionList = {
+  youtube: [],
+  twitter: [],
+  instagram: [],
+  reddit: [],
+  lastSynced: {},
+};
+
 // API Provider configuration for custom endpoints
 export interface ApiProviderConfig {
   type: 'openrouter' | 'openai-compatible';
@@ -323,6 +340,8 @@ export interface Settings {
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
   // Quality Mode - blur everything above 20 (show only genuine content)
   qualityMode?: boolean;
+  // Subscriptions Only - blur everything except subscribed sources
+  subscriptionsOnly?: boolean;
   // Blur Until Scored - blur posts while waiting for AI scoring (default: true)
   blurUntilScored?: boolean;
   // Logging level for console output
@@ -465,7 +484,10 @@ export type MessageType =
   | { type: 'GET_CLICKED_AUTHOR' }  // Background asks content script for author at click position
   | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' }
   // API error state
-  | { type: 'GET_API_ERROR_STATE' };
+  | { type: 'GET_API_ERROR_STATE' }
+  // Subscription sync
+  | { type: 'SYNC_SUBSCRIPTIONS'; platform: 'youtube' }
+  | { type: 'GET_SUBSCRIPTIONS' };
 
 export const DEFAULT_SETTINGS: Settings = {
   scheduler: {

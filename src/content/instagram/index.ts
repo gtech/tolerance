@@ -28,6 +28,9 @@ let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 let qualityModeEnabled = false;
 const QUALITY_MODE_THRESHOLD = 21;
 
+// Subscriptions Only - blur everything except subscribed sources
+let subscriptionsOnlyMode = false;
+
 // Current settings (for checking apiTier)
 let currentSettings: Settings | null = null;
 
@@ -109,6 +112,9 @@ function shouldBlurScore(score: EngagementScore): boolean {
 
   // Pre-filter: whitelisted sources bypass blur transform
   if (score.whitelisted) return false;
+
+  // Subscriptions-only: blur ALL non-whitelisted content
+  if (subscriptionsOnlyMode) return true;
 
   const displayScore = score.apiScore ?? score.heuristicScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -706,6 +712,9 @@ async function init(): Promise<void> {
       // Quality mode
       qualityModeEnabled = settings.qualityMode ?? false;
 
+      // Subscriptions-only mode
+      subscriptionsOnlyMode = settings.subscriptionsOnly ?? false;
+
       // Hover reveal delay
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
     }
@@ -826,6 +835,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'QUALITY_MODE_CHANGED') {
     qualityModeEnabled = message.enabled;
     log.debug(` Quality mode ${qualityModeEnabled ? 'enabled' : 'disabled'}`);
+    sendResponse({ success: true });
+    return true;
+  }
+
+  if (message.type === 'SUBSCRIPTIONS_ONLY_CHANGED') {
+    subscriptionsOnlyMode = message.enabled;
+    log.debug(` Subscriptions-only mode ${subscriptionsOnlyMode ? 'enabled' : 'disabled'}`);
     sendResponse({ success: true });
     return true;
   }
