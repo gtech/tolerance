@@ -115,6 +115,12 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       const legacyChannel = element.querySelector('#channel-name, .ytd-channel-name, [id*="channel"]');
       channel = legacyChannel?.textContent?.trim() || '';
     }
+    // On channel pages (youtube.com/@handle/...), videos don't have individual
+    // channel links. Extract from URL so whitelist matching works.
+    if (!channel) {
+      const urlMatch = window.location.pathname.match(/^\/@([^/?]+)/);
+      if (urlMatch) channel = urlMatch[1];
+    }
 
     // Get metadata (views and date) - try new and legacy selectors
     const metadataElement = element.querySelector(
