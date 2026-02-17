@@ -9,7 +9,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 const processedTweetIds = new Set<string>();
 
 // Cache scores for badge re-injection when Twitter recreates DOM elements
-const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number }>();
+const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number; author: string }>();
 
 // Processing lock to prevent concurrent processTweets calls
 let isProcessing = false;
@@ -1072,6 +1072,7 @@ async function processTweets(): Promise<void> {
         scoreCache.set(tweet.id, {
           score,
           originalPosition: impression.originalPosition,
+          author: tweet.author,
         });
 
         const displayScore = score.apiScore;
@@ -1320,9 +1321,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {
-    // Optional: show visual feedback that author was whitelisted
     log.info(`Author ${message.sourceId} added to whitelist`);
-    return false;
+    // sourceId is "@username", strip the @ to match cached author
+    const username = message.sourceId?.replace(/^@/, '') || '';
+    for (const [tweetId, cached] of scoreCache) {
+      if (cached.author === username) {
+        cached.score.whitelisted = true;
+        scoreCache.set(tweetId, cached);
+      }
+    }
+    refreshBlurState();
+    sendResponse({ success: true });
+    return true;
   }
 
   return true;

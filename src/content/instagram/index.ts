@@ -8,7 +8,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 const processedPostIds = new Set<string>();
 
 // Cache scores for badge re-injection when Instagram recreates DOM elements
-const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number }>();
+const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number; author: string }>();
 
 // Processing lock to prevent concurrent processPosts calls
 let isProcessing = false;
@@ -530,7 +530,7 @@ async function processPosts(): Promise<void> {
     for (const post of postsNeedingScoring) {
       const score = scoreMap.get(post.id);
       if (score) {
-        scoreCache.set(post.id, { score, originalPosition: 0 });
+        scoreCache.set(post.id, { score, originalPosition: 0, author: post.authorUsername });
         injectBadge(post, score);
       }
     }
@@ -827,9 +827,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {
-    // Optional: show visual feedback that author was whitelisted
     log.info(`Author ${message.sourceId} added to whitelist`);
-    return false;
+    // sourceId is "@username" — update scoreCache and unblur matching posts
+    for (const [postId, cached] of scoreCache) {
+      if (cached.author === message.sourceId) {
+        cached.score.whitelisted = true;
+        scoreCache.set(postId, cached);
+      }
+    }
+    // Directly unblur articles by this author
+    const articles = document.querySelectorAll('article');
+    for (const article of articles) {
+      const headerLinks = article.querySelectorAll('header a[href^="/"]') as NodeListOf<HTMLAnchorElement>;
+      for (const link of headerLinks) {
+        const href = link.getAttribute('href');
+        if (href?.match(/^\/[A-Za-z0-9_.]+\/?$/)) {
+          const articleAuthor = `@${href.replace(/^\/|\/$/g, '')}`;
+          if (articleAuthor === message.sourceId) {
+            article.classList.remove('tolerance-blurred');
+            const overlay = article.querySelector('.tolerance-blur-overlay');
+            if (overlay) overlay.remove();
+            break;
+          }
+        }
+      }
+    }
+    sendResponse({ success: true });
+    return true;
   }
 
   if (message.type === 'QUALITY_MODE_CHANGED') {

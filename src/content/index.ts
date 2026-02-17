@@ -1076,9 +1076,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {
-    // Optional: show visual feedback that author was whitelisted
     log.info(`Author ${message.sourceId} added to whitelist`);
-    return false;
+    // sourceId is "u/username", strip the "u/" prefix
+    const username = message.sourceId?.replace(/^u\//, '') || '';
+    // Find all blurred posts by this author and unblur them
+    const blurredPosts = document.querySelectorAll('.tolerance-blurred');
+    for (const post of blurredPosts) {
+      let postAuthor: string | null = null;
+      if (post.tagName === 'SHREDDIT-POST') {
+        postAuthor = post.getAttribute('author');
+      } else {
+        const authorLink = post.querySelector('.author') as HTMLElement | null;
+        postAuthor = authorLink?.textContent?.trim() || null;
+      }
+      if (postAuthor === username) {
+        post.classList.remove('tolerance-blurred');
+        const overlay = post.querySelector('.tolerance-blur-overlay');
+        if (overlay) overlay.remove();
+      }
+    }
+    sendResponse({ success: true });
+    return true;
   }
 });
 

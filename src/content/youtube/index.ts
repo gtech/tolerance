@@ -8,7 +8,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 const processedVideoIds = new Set<string>();
 
 // Cache scores for badge re-injection when YouTube re-renders
-const scoreCache = new Map<string, { score: EngagementScore; position: number }>();
+const scoreCache = new Map<string, { score: EngagementScore; position: number; channel: string }>();
 
 // Processing lock to prevent concurrent processVideos calls
 let isProcessing = false;
@@ -768,8 +768,8 @@ async function processVideos(): Promise<void> {
       for (const video of videosNeedingBadge) {
         const cached = scoreCache.get(video.id);
         if (cached) {
-          const displayScore = cached.score.apiScore ?? cached.score.heuristicScore;
-          const scoringFailed = cached.score.apiScore === undefined;
+          const displayScore = cached.score.apiScore;
+          const scoringFailed = cached.score.scoreFailed ?? false;
           injectScoreBadge(video, {
             score: displayScore,
             bucket: cached.score.bucket,
@@ -840,10 +840,10 @@ async function processVideos(): Promise<void> {
 
       if (score) {
         // Cache for re-injection
-        scoreCache.set(video.id, { score, position: i });
+        scoreCache.set(video.id, { score, position: i, channel: video.channel });
 
-        const displayScore = score.apiScore ?? score.heuristicScore;
-        const scoringFailed = score.apiScore === undefined;
+        const displayScore = score.apiScore;
+        const scoringFailed = score.scoreFailed ?? false;
 
         // Inject badge
         injectScoreBadge(video, {
@@ -1027,10 +1027,11 @@ document.addEventListener('contextmenu', (e) => {
 function extractChannelFromElement(element: HTMLElement | null): string | null {
   if (!element) return null;
 
-  // Walk up to find the video container
+  // Walk up to find the video container (must match scraper selectors)
   const videoContainer = element.closest(
     'ytd-rich-item-renderer, ' +
     'ytd-compact-video-renderer, ' +
+    'ytd-video-renderer, ' +
     'yt-lockup-view-model'
   );
   if (!videoContainer) return null;
@@ -1047,8 +1048,9 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
 
   // Fallback to text content from channel name elements
   const channelLink = videoContainer.querySelector(
-    'a[href^="/@"] yt-formatted-string, ' +
+    '#channel-name a, ' +
     'ytd-channel-name a, ' +
+    'a[href^="/@"] yt-formatted-string, ' +
     'a.yt-formatted-string[href^="/@"], ' +
     '.ytd-channel-name yt-formatted-string'
   ) as HTMLElement | null;
@@ -1099,9 +1101,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'AUTHOR_WHITELISTED') {
-    // Optional: show visual feedback that channel was whitelisted
     log.info(`Channel ${message.sourceId} added to whitelist`);
-    return false;
+    // Update scoreCache: mark all videos from this channel as whitelisted
+    for (const [videoId, cached] of scoreCache) {
+      if (cached.channel === message.sourceId) {
+        cached.score.whitelisted = true;
+        scoreCache.set(videoId, cached);
+      }
+    }
+    // Refresh blur state so whitelisted videos get unblurred immediately
+    refreshBlurState();
+    sendResponse({ success: true });
+    return true;
   }
 
   return true;
