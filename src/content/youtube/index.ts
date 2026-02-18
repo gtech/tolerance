@@ -1,6 +1,6 @@
 import { YouTubeVideo, EngagementScore, AppState, Settings } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
-import { scrapeVisibleVideos, serializeVideo } from './scraper';
+import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 
@@ -701,6 +701,7 @@ async function initCore(): Promise<void> {
     log.debug(' Navigation detected, resetting state');
     processedVideoIds.clear();
     scoreCache.clear();
+    resetPageChannelCache();
     isProcessing = false;
     pendingProcess = false;
 
@@ -1078,12 +1079,9 @@ function extractChannelFromElement(element: HTMLElement | null): string | null {
     }
   }
 
-  // On channel pages (youtube.com/@handle/...), videos don't have individual
-  // channel links since the whole page is the channel. Extract from URL.
-  const urlMatch = window.location.pathname.match(/^\/@([^/?]+)/);
-  if (urlMatch) return urlMatch[1];
-
-  return null;
+  // On channel pages, videos don't have individual channel links.
+  // Use the shared page-level channel handle extraction.
+  return getPageChannelHandle();
 }
 
 // Listen for quality mode changes and context menu queries from popup/background

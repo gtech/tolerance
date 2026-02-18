@@ -4,6 +4,54 @@ import { log } from '../../shared/constants';
 // Scrape video data from YouTube DOM
 // YouTube uses custom web components (ytd-*) for its UI
 
+// Cache the channel handle for the current page (channel pages only).
+// On /@handle pages we read it from the URL. On /channel/UCxxx pages
+// there are no /@handle links in the DOM, so we extract from YouTube's
+// embedded ytInitialData script (canonicalBaseUrl field).
+let _cachedPageChannel: string | null | undefined;
+export function getPageChannelHandle(): string | null {
+  if (_cachedPageChannel !== undefined) return _cachedPageChannel;
+
+  // 1. /@handle URL
+  const handleMatch = window.location.pathname.match(/^\/@([^/?]+)/);
+  if (handleMatch) {
+    _cachedPageChannel = handleMatch[1];
+    return _cachedPageChannel;
+  }
+
+  // 2. /channel/UCxxx page — extract @handle from ytInitialData
+  if (window.location.pathname.startsWith('/channel/')) {
+    try {
+      const scripts = document.querySelectorAll('script');
+      for (const script of scripts) {
+        const text = script.textContent;
+        if (text && text.includes('canonicalBaseUrl')) {
+          const match = text.match(/"canonicalBaseUrl"\s*:\s*"\/@([^"]+)"/);
+          if (match) {
+            _cachedPageChannel = match[1];
+            return _cachedPageChannel;
+          }
+        }
+      }
+    } catch { /* ignore parse errors */ }
+
+    // 3. Fall back to channel ID from URL
+    const channelMatch = window.location.pathname.match(/^\/channel\/([^/?]+)/);
+    if (channelMatch) {
+      _cachedPageChannel = channelMatch[1];
+      return _cachedPageChannel;
+    }
+  }
+
+  _cachedPageChannel = null;
+  return null;
+}
+
+// Reset cached channel on navigation (YouTube is a SPA)
+export function resetPageChannelCache(): void {
+  _cachedPageChannel = undefined;
+}
+
 export function scrapeVisibleVideos(): YouTubeVideo[] {
   const videos: YouTubeVideo[] = [];
   const seenIds = new Set<string>();
@@ -115,11 +163,10 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       const legacyChannel = element.querySelector('#channel-name, .ytd-channel-name, [id*="channel"]');
       channel = legacyChannel?.textContent?.trim() || '';
     }
-    // On channel pages (youtube.com/@handle/...), videos don't have individual
-    // channel links. Extract from URL so whitelist matching works.
+    // On channel pages, videos don't have individual channel links.
+    // Use the cached page-level channel handle.
     if (!channel) {
-      const urlMatch = window.location.pathname.match(/^\/@([^/?]+)/);
-      if (urlMatch) channel = urlMatch[1];
+      channel = getPageChannelHandle() || '';
     }
 
     // Get metadata (views and date) - try new and legacy selectors
