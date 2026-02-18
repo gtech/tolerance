@@ -209,7 +209,7 @@ function injectLoadingStyles(): void {
       opacity: 0.9 !important;
       z-index: 9999 !important;
       pointer-events: auto !important;
-      cursor: help !important;
+      cursor: default !important;
       box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
       display: inline-block !important;
       width: auto !important;
