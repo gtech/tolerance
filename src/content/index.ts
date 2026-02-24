@@ -127,7 +127,7 @@ function startHeartbeat(): void {
 
 // Loading indicator state
 let loadingStylesInjected = false;
-let loadingGeneration = 0; // Incremented each showLoading call; timeout only hides if generation matches
+let loadingTimedOut = false; // Once loading times out, never show it again for this page load
 
 function injectLoadingStyles(): void {
   if (loadingStylesInjected) return;
@@ -555,7 +555,8 @@ function createLoaderElement(): HTMLElement {
   return loader;
 }
 
-function showLoading(): number {
+function showLoading(): void {
+  if (loadingTimedOut) return; // Don't re-show after timeout
   injectLoadingStyles();
   // Add loading class to appropriate container based on Reddit version
   const container = redditVersion === 'new'
@@ -566,7 +567,14 @@ function showLoading(): number {
   }
   const loader = createLoaderElement();
   loader.classList.add('visible');
-  return ++loadingGeneration;
+
+  // Auto-hide after 5s and never re-show
+  setTimeout(() => {
+    if (!loadingTimedOut) {
+      loadingTimedOut = true;
+      hideLoading();
+    }
+  }, 5000);
 }
 
 function hideLoading(): void {
@@ -839,17 +847,8 @@ async function processPosts(): Promise<void> {
 
   // Show loading indicator (but not on comments pages, and not if blurUntilScored is off)
   const showLoader = !isCommentsPage() && currentSettings?.blurUntilScored !== false;
-  let myGeneration = 0;
   if (showLoader) {
-    myGeneration = showLoading();
-
-    // Auto-hide loading after 5s if scoring hasn't resolved it
-    // Only hides if no newer showLoading call has happened since
-    setTimeout(() => {
-      if (loadingGeneration === myGeneration) {
-        hideLoading();
-      }
-    }, 5000);
+    showLoading();
   }
 
   try {
@@ -982,8 +981,8 @@ async function processPosts(): Promise<void> {
     // Inject/update reminder card
     await injectProductivityCard();
   } finally {
-    // Always hide loading indicator (if it was shown and no newer batch has taken over)
-    if (showLoader && loadingGeneration === myGeneration) {
+    // Always hide loading indicator (if it was shown)
+    if (showLoader) {
       hideLoading();
     }
   }
