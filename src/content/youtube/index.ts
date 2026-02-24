@@ -517,6 +517,17 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
 
       overlay.appendChild(label);
       thumbnail.appendChild(overlay);
+
+      // Auto-remove pending blur after 5s if scoring hasn't resolved it
+      const videoEl = video.element;
+      setTimeout(() => {
+        if (videoEl && videoEl.classList.contains('tolerance-pending')) {
+          videoEl.classList.remove('tolerance-pending');
+          videoEl.classList.remove('tolerance-revealed');
+          videoEl.style.removeProperty('--tolerance-blur');
+          overlay.remove();
+        }
+      }, 5000);
     }
   }
 }

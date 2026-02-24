@@ -262,6 +262,15 @@ function applyPendingBlur(post: FacebookPost): void {
       e.stopPropagation();
     });
     element.appendChild(overlay);
+
+    // Auto-remove pending blur after 5s if scoring hasn't resolved it
+    setTimeout(() => {
+      if (element.classList.contains('tolerance-pending')) {
+        element.classList.remove('tolerance-pending');
+        element.classList.remove('tolerance-video-blocked');
+        overlay.remove();
+      }
+    }, 5000);
   }
 }
 

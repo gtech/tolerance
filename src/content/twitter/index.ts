@@ -577,6 +577,16 @@ function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
 
     overlay.appendChild(label);
     cell.appendChild(overlay);
+
+    // Auto-remove pending blur after 5s if scoring hasn't resolved it
+    setTimeout(() => {
+      if (cell.classList.contains('tolerance-pending')) {
+        cell.classList.remove('tolerance-pending');
+        cell.classList.remove('tolerance-revealed');
+        cell.style.removeProperty('--tolerance-blur');
+        overlay.remove();
+      }
+    }, 5000);
   }
 }
 

@@ -454,6 +454,14 @@ function applyPendingBlur(post: RedditPost): void {
         e.stopPropagation();
       });
       element.appendChild(overlay);
+
+      // Auto-remove pending blur after 5s if scoring hasn't resolved it
+      setTimeout(() => {
+        if (element.classList.contains('tolerance-pending')) {
+          element.classList.remove('tolerance-pending');
+          overlay.remove();
+        }
+      }, 5000);
     }
   } catch (err) {
     log.debug(` Failed to apply pending blur: ${err}`);
