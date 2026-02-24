@@ -127,6 +127,7 @@ function startHeartbeat(): void {
 
 // Loading indicator state
 let loadingStylesInjected = false;
+let loadingGeneration = 0; // Incremented each showLoading call; timeout only hides if generation matches
 
 function injectLoadingStyles(): void {
   if (loadingStylesInjected) return;
@@ -554,7 +555,7 @@ function createLoaderElement(): HTMLElement {
   return loader;
 }
 
-function showLoading(): void {
+function showLoading(): number {
   injectLoadingStyles();
   // Add loading class to appropriate container based on Reddit version
   const container = redditVersion === 'new'
@@ -565,6 +566,7 @@ function showLoading(): void {
   }
   const loader = createLoaderElement();
   loader.classList.add('visible');
+  return ++loadingGeneration;
 }
 
 function hideLoading(): void {
@@ -837,14 +839,14 @@ async function processPosts(): Promise<void> {
 
   // Show loading indicator (but not on comments pages, and not if blurUntilScored is off)
   const showLoader = !isCommentsPage() && currentSettings?.blurUntilScored !== false;
-  let loadingTimedOut = false;
+  let myGeneration = 0;
   if (showLoader) {
-    showLoading();
+    myGeneration = showLoading();
 
     // Auto-hide loading after 5s if scoring hasn't resolved it
+    // Only hides if no newer showLoading call has happened since
     setTimeout(() => {
-      if (showLoader && !loadingTimedOut) {
-        loadingTimedOut = true;
+      if (loadingGeneration === myGeneration) {
         hideLoading();
       }
     }, 5000);
@@ -980,9 +982,8 @@ async function processPosts(): Promise<void> {
     // Inject/update reminder card
     await injectProductivityCard();
   } finally {
-    // Always hide loading indicator (if it was shown and timeout hasn't already hidden it)
-    if (showLoader && !loadingTimedOut) {
-      loadingTimedOut = true;
+    // Always hide loading indicator (if it was shown and no newer batch has taken over)
+    if (showLoader && loadingGeneration === myGeneration) {
       hideLoading();
     }
   }
