@@ -287,7 +287,7 @@ function injectLoadingStyles(): void {
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
-      background: rgba(120, 120, 120, 0.6) !important;
+      background: rgb(140, 140, 140) !important;
     }
 
     .tolerance-blur-overlay::after {

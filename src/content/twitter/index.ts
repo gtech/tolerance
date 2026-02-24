@@ -324,7 +324,7 @@ function injectStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(120, 120, 120, 0.6);
+      background: rgb(140, 140, 140);
       z-index: 100;
       pointer-events: auto;
       cursor: not-allowed;
