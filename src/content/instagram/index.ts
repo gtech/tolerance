@@ -192,14 +192,14 @@ function injectStyles(): void {
       left: 0 !important;
       right: 0 !important;
       bottom: 10px !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
+      backdrop-filter: blur(40px) !important;
+      -webkit-backdrop-filter: blur(40px) !important;
       z-index: 50 !important;
       transition: opacity 0.3s ease;
       display: flex !important;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.1) !important;
+      background: rgba(120, 120, 120, 0.6) !important;
     }
 
     .tolerance-blur-overlay::after {

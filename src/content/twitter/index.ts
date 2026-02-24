@@ -305,7 +305,7 @@ function injectStyles(): void {
     /* Blur effect (pending and high-engagement) */
     .tolerance-blurred,
     .tolerance-pending {
-      filter: blur(var(--tolerance-blur, 15px)) !important;
+      filter: blur(var(--tolerance-blur, 40px)) !important;
       transition: filter 0.3s ease !important;
     }
 
@@ -324,7 +324,7 @@ function injectStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.1);
+      background: rgba(120, 120, 120, 0.6);
       z-index: 100;
       pointer-events: auto;
       cursor: not-allowed;
@@ -533,7 +533,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
 }
 
 // Apply pending blur (before scoring) to a tweet
-function applyPendingBlur(tweet: Tweet, blurIntensity: number = 8): void {
+function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
   if (!tweet.element) return;
 
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
@@ -591,7 +591,7 @@ function removePendingBlur(tweet: Tweet): void {
 }
 
 // Apply blur effect to high-engagement tweets
-function applyBlurToTweet(tweet: Tweet, score: number, reason?: string, blurIntensity: number = 8): void {
+function applyBlurToTweet(tweet: Tweet, score: number, reason?: string, blurIntensity: number = 40): void {
   if (!tweet.element) return;
 
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;

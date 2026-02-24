@@ -4,6 +4,8 @@ import { log } from '../../shared/constants';
 // Scrape Facebook post data from DOM
 // Facebook uses React SPA with heavily obfuscated CSS class names.
 // All selectors use stable attributes (role, aria-label, data-*, href patterns).
+// This scraper is intentionally forgiving — it's better to score a post with
+// partial data than to skip it entirely.
 
 export function scrapeVisiblePosts(): FacebookPost[] {
   const posts: FacebookPost[] = [];
@@ -11,9 +13,15 @@ export function scrapeVisiblePosts(): FacebookPost[] {
   // Facebook feed posts are in div[role="article"] elements
   const articleElements = document.querySelectorAll<HTMLElement>('div[role="article"]');
 
+  log.debug(`Facebook scraper: Found ${articleElements.length} article elements`);
+
   for (const element of articleElements) {
     // Skip loading placeholders
     if (element.querySelector('[aria-label="Loading..."]')) continue;
+
+    // Skip nested articles (articles inside articles)
+    const parentArticle = element.parentElement?.closest('div[role="article"]');
+    if (parentArticle) continue;
 
     const post = parsePostElement(element);
     if (post) {
@@ -26,18 +34,18 @@ export function scrapeVisiblePosts(): FacebookPost[] {
 
 function parsePostElement(element: HTMLElement): FacebookPost | null {
   try {
-    // Extract author info
+    // Extract author info — be forgiving, use "Unknown" as fallback
     const { authorDisplayName, authorUserId } = extractAuthorInfo(element);
-    if (!authorDisplayName) {
-      return null;
-    }
 
     // Extract post text content
     const caption = extractContent(element);
 
-    // Extract post ID from permalink links
-    const postId = extractPostId(element);
-    if (!postId) {
+    // Generate a post ID — always succeed via hash fallback
+    const postId = extractPostId(element, authorDisplayName, caption);
+
+    // If we have no author AND no content, skip this element (probably not a real post)
+    if (!authorDisplayName && !caption) {
+      log.debug('Facebook scraper: Skipping article with no author and no content');
       return null;
     }
 
@@ -56,11 +64,13 @@ function parsePostElement(element: HTMLElement): FacebookPost | null {
     // Build permalink
     const permalink = buildPermalink(postId);
 
+    const name = authorDisplayName || 'Unknown';
+
     return {
       id: postId,
       platform: 'facebook',
-      author: authorDisplayName,
-      authorDisplayName,
+      author: name,
+      authorDisplayName: name,
       authorUserId,
       text: caption,
       caption,
@@ -90,59 +100,88 @@ function extractAuthorInfo(element: HTMLElement): {
   authorDisplayName: string;
   authorUserId?: string;
 } {
-  // Look for profile links within the article
-  // Facebook profile links use patterns like /user/{id}, /profile.php?id={id}, or /{username}
-  const profilePatterns = [
-    'a[href*="/user/"]',
-    'a[href*="/profile.php"]',
-    'a[href*="facebook.com/"][role="link"]',
-  ];
-
-  for (const pattern of profilePatterns) {
-    const links = element.querySelectorAll<HTMLAnchorElement>(pattern);
-    for (const link of links) {
-      const href = link.getAttribute('href') || '';
+  // Strategy 1: Look for the heading area — Facebook posts typically have
+  // an h2, h3, or h4 with a link to the author's profile
+  const headings = element.querySelectorAll<HTMLElement>('h2, h3, h4');
+  for (const heading of headings) {
+    const link = heading.querySelector<HTMLAnchorElement>('a');
+    if (link) {
       const text = link.textContent?.trim() || '';
+      if (text && text.length >= 2) {
+        const userId = extractUserIdFromHref(link.getAttribute('href') || '');
+        return { authorDisplayName: text, authorUserId: userId };
+      }
+    }
+    // Some headings don't have links but contain the author name directly
+    const text = heading.textContent?.trim() || '';
+    if (text && text.length >= 2 && text.length < 100) {
+      return { authorDisplayName: text };
+    }
+  }
 
-      // Skip empty text, very short text, or navigation-like links
-      if (!text || text.length < 2) continue;
-      // Skip links that look like "Like", "Comment", "Share", timestamps
-      if (/^(Like|Comment|Share|Reply|\d+\s*(h|m|d|w|y)|See\s+more)$/i.test(text)) continue;
-
-      // Extract user ID from href
-      let userId: string | undefined;
-      const userIdMatch = href.match(/\/user\/(\d+)/);
-      if (userIdMatch) userId = userIdMatch[1];
-      const profileIdMatch = href.match(/profile\.php\?id=(\d+)/);
-      if (profileIdMatch) userId = profileIdMatch[1];
-
+  // Strategy 2: Look for strong tags containing links (common Facebook pattern)
+  const strongLinks = element.querySelectorAll<HTMLAnchorElement>('strong a');
+  for (const link of strongLinks) {
+    const text = link.textContent?.trim() || '';
+    if (text && text.length >= 2 && !isUiText(text)) {
+      const userId = extractUserIdFromHref(link.getAttribute('href') || '');
       return { authorDisplayName: text, authorUserId: userId };
     }
   }
 
-  // Fallback: look for strong or heading-like elements near the top of the article
-  // that contain profile links
-  const strongLinks = element.querySelectorAll<HTMLAnchorElement>('strong a[role="link"], h2 a[role="link"], h3 a[role="link"]');
-  for (const link of strongLinks) {
-    const text = link.textContent?.trim() || '';
-    if (text && text.length >= 2) {
-      return { authorDisplayName: text };
+  // Strategy 3: Profile link patterns
+  const profileSelectors = [
+    'a[href*="/user/"]',
+    'a[href*="/profile.php"]',
+    'a[href*="facebook.com/"][aria-label]',
+  ];
+
+  for (const selector of profileSelectors) {
+    const links = element.querySelectorAll<HTMLAnchorElement>(selector);
+    for (const link of links) {
+      const text = link.textContent?.trim() ||
+                   link.getAttribute('aria-label')?.trim() || '';
+      if (text && text.length >= 2 && !isUiText(text)) {
+        const userId = extractUserIdFromHref(link.getAttribute('href') || '');
+        return { authorDisplayName: text, authorUserId: userId };
+      }
     }
   }
 
-  // Last fallback: first a[role="link"] with substantial text
+  // Strategy 4: First a[role="link"] with non-UI text
   const roleLinks = element.querySelectorAll<HTMLAnchorElement>('a[role="link"]');
   for (const link of roleLinks) {
     const text = link.textContent?.trim() || '';
     const href = link.getAttribute('href') || '';
-    if (text && text.length >= 2 && !text.includes('http') &&
-        !/^(Like|Comment|Share|Reply|See\s|View\s|\d)/.test(text) &&
-        (href.includes('facebook.com') || href.startsWith('/'))) {
-      return { authorDisplayName: text };
+    // Must have text, not be UI text, and link somewhere meaningful
+    if (text && text.length >= 2 && text.length < 80 && !isUiText(text) &&
+        !text.includes('http') && href && !href.includes('#')) {
+      const userId = extractUserIdFromHref(href);
+      return { authorDisplayName: text, authorUserId: userId };
     }
   }
 
+  // Strategy 5: aria-label on the article itself sometimes contains author info
+  const ariaLabel = element.getAttribute('aria-label') || '';
+  // Pattern: "Post by John Smith" or similar
+  const byMatch = ariaLabel.match(/(?:Post|Story|Update)\s+by\s+(.+)/i);
+  if (byMatch) {
+    return { authorDisplayName: byMatch[1].trim() };
+  }
+
   return { authorDisplayName: '' };
+}
+
+function extractUserIdFromHref(href: string): string | undefined {
+  const userIdMatch = href.match(/\/user\/(\d+)/);
+  if (userIdMatch) return userIdMatch[1];
+  const profileIdMatch = href.match(/profile\.php\?id=(\d+)/);
+  if (profileIdMatch) return profileIdMatch[1];
+  return undefined;
+}
+
+function isUiText(text: string): boolean {
+  return /^(Like|Comment|Share|Reply|See\s+more|View\s|Send|Follow|Add\s+friend|Message|\d+\s*(h|m|d|w|y|hr|min|sec)|Just now|Yesterday)$/i.test(text);
 }
 
 function extractContent(element: HTMLElement): string {
@@ -154,67 +193,64 @@ function extractContent(element: HTMLElement): string {
     const text = el.textContent?.trim() || '';
     if (!text) continue;
 
-    // Skip button/nav text
-    if (el.closest('div[role="button"], a[role="link"], [role="navigation"]')) continue;
+    // Skip if inside a button or navigation
+    if (el.closest('[role="button"], [role="navigation"], [role="toolbar"]')) continue;
 
-    // Skip very short text that's likely UI elements
+    // Skip very short non-word text
     if (text.length < 3 && !text.match(/\w/)) continue;
 
     // Skip duplicate text from nested elements
-    if (textParts.includes(text)) continue;
+    if (textParts.some(existing => existing.includes(text) || text.includes(existing))) continue;
 
     textParts.push(text);
+  }
+
+  // If dir="auto" found nothing, try a broader approach
+  if (textParts.length === 0) {
+    // Look for the main content area — typically a div after the header
+    const allText = element.textContent?.trim() || '';
+    if (allText.length > 20) {
+      // Take a reasonable chunk avoiding the very beginning (author name) and end (UI elements)
+      return allText.slice(0, 500);
+    }
   }
 
   return textParts.join(' ').trim();
 }
 
-function extractPostId(element: HTMLElement): string | null {
+function extractPostId(element: HTMLElement, author: string, content: string): string {
   // Look for permalink patterns in links
-  const linkPatterns = [
-    'a[href*="fbid="]',
-    'a[href*="/posts/"]',
-    'a[href*="story_fbid"]',
-    'a[href*="/permalink/"]',
-    'a[href*="/photos/"]',
-    'a[href*="/videos/"]',
-  ];
+  const allLinks = element.querySelectorAll<HTMLAnchorElement>('a[href]');
+  for (const link of allLinks) {
+    const href = link.getAttribute('href') || '';
 
-  for (const pattern of linkPatterns) {
-    const links = element.querySelectorAll<HTMLAnchorElement>(pattern);
-    for (const link of links) {
-      const href = link.getAttribute('href') || '';
+    // Extract ID from various Facebook URL patterns
+    const fbidMatch = href.match(/fbid=(\d+)/);
+    if (fbidMatch) return `fb_${fbidMatch[1]}`;
 
-      // Extract ID from various patterns
-      const fbidMatch = href.match(/fbid=(\d+)/);
-      if (fbidMatch) return `fb_${fbidMatch[1]}`;
+    const postsMatch = href.match(/\/posts\/([a-zA-Z0-9_]+)/);
+    if (postsMatch) return `fb_${postsMatch[1]}`;
 
-      const postsMatch = href.match(/\/posts\/([a-zA-Z0-9_]+)/);
-      if (postsMatch) return `fb_${postsMatch[1]}`;
+    const storyMatch = href.match(/story_fbid=(\d+)/);
+    if (storyMatch) return `fb_${storyMatch[1]}`;
 
-      const storyMatch = href.match(/story_fbid=(\d+)/);
-      if (storyMatch) return `fb_${storyMatch[1]}`;
+    const permalinkMatch = href.match(/\/permalink\/(\d+)/);
+    if (permalinkMatch) return `fb_${permalinkMatch[1]}`;
 
-      const permalinkMatch = href.match(/\/permalink\/(\d+)/);
-      if (permalinkMatch) return `fb_${permalinkMatch[1]}`;
+    const photosMatch = href.match(/\/photos\/[^/]*\/(\d+)/);
+    if (photosMatch) return `fb_${photosMatch[1]}`;
 
-      const photosMatch = href.match(/\/photos\/[^/]+\/(\d+)/);
-      if (photosMatch) return `fb_${photosMatch[1]}`;
+    const videosMatch = href.match(/\/videos\/(\d+)/);
+    if (videosMatch) return `fb_${videosMatch[1]}`;
 
-      const videosMatch = href.match(/\/videos\/(\d+)/);
-      if (videosMatch) return `fb_${videosMatch[1]}`;
-    }
+    // Facebook pfbid pattern (newer format)
+    const pfbidMatch = href.match(/(pfbid[a-zA-Z0-9]+)/);
+    if (pfbidMatch) return `fb_${pfbidMatch[1]}`;
   }
 
   // Fallback: hash of author + content for uniqueness
-  const author = extractAuthorInfo(element).authorDisplayName;
-  const text = element.textContent?.slice(0, 200) || '';
-  if (author || text) {
-    const hash = simpleHash(`${author}:${text}`);
-    return `fb_hash_${hash}`;
-  }
-
-  return null;
+  const hashInput = `${author}:${content.slice(0, 200)}`;
+  return `fb_hash_${simpleHash(hashInput)}`;
 }
 
 function simpleHash(str: string): string {
@@ -222,7 +258,7 @@ function simpleHash(str: string): string {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = hash & hash;
   }
   return Math.abs(hash).toString(36);
 }
@@ -235,31 +271,36 @@ function extractEngagement(element: HTMLElement): {
   let commentCount = 0;
 
   // Look for reaction counts in aria-label attributes
-  // e.g., aria-label="23 reactions, including Like and Love"
   const ariaElements = element.querySelectorAll<HTMLElement>('[aria-label]');
   for (const el of ariaElements) {
     const label = el.getAttribute('aria-label') || '';
 
-    // Reaction count patterns
-    const reactionMatch = label.match(/^([\d,.]+[KMB]?)\s*(reactions?|people reacted|likes?)/i);
+    // Reaction count patterns — various formats Facebook uses
+    const reactionMatch = label.match(/([\d,.]+[KMB]?)\s*(reactions?|people reacted|likes?|others)/i);
     if (reactionMatch && likeCount === null) {
       likeCount = parseCount(reactionMatch[1]);
     }
 
-    // Also look for "N comments" pattern
+    // Comment count patterns
     const commentMatch = label.match(/([\d,.]+[KMB]?)\s*comments?/i);
     if (commentMatch && commentCount === 0) {
       commentCount = parseCount(commentMatch[1]) || 0;
     }
   }
 
-  // Fallback: look for text patterns in the engagement area
+  // Fallback: look for text patterns
   if (likeCount === null) {
-    const textContent = element.textContent || '';
-    // Pattern: "1.2K" or "23" near reaction emoji area
-    const likeMatch = textContent.match(/([\d,.]+[KMB]?)\s*(?:reaction|like|people reacted)/i);
-    if (likeMatch) {
-      likeCount = parseCount(likeMatch[1]);
+    // Look for spans/divs near reaction emoji icons
+    const spans = element.querySelectorAll<HTMLElement>('span[role="toolbar"] ~ div span, span');
+    for (const span of spans) {
+      const text = span.textContent?.trim() || '';
+      // Match standalone numbers that could be reaction counts
+      if (text.match(/^[\d,.]+[KMB]?$/) && !text.includes(':')) {
+        const count = parseCount(text);
+        if (count !== null && count > 0 && likeCount === null) {
+          likeCount = count;
+        }
+      }
     }
   }
 
@@ -267,29 +308,19 @@ function extractEngagement(element: HTMLElement): {
 }
 
 function detectSponsored(element: HTMLElement): boolean {
-  // Check for "Sponsored" text in the metadata area
-  const links = element.querySelectorAll<HTMLAnchorElement>('a[role="link"]');
+  // Check for "Sponsored" link text
+  const links = element.querySelectorAll<HTMLAnchorElement>('a');
   for (const link of links) {
-    if (link.textContent?.trim().toLowerCase() === 'sponsored') {
-      return true;
-    }
+    const text = link.textContent?.trim().toLowerCase() || '';
+    if (text === 'sponsored') return true;
   }
 
   // Check for ad-specific attributes
-  if (element.querySelector('[data-ad-rendering-role]')) {
-    return true;
-  }
+  if (element.querySelector('[data-ad-rendering-role]')) return true;
 
-  // Check for "Paid partnership" text
-  const text = element.textContent?.toLowerCase() || '';
-  if (text.includes('paid partnership') || text.includes('sponsored')) {
-    // Verify it's in the header area, not in a comment
-    const headerArea = element.querySelector('h2, h3, [role="heading"]');
-    if (headerArea) {
-      const headerText = headerArea.textContent?.toLowerCase() || '';
-      if (headerText.includes('sponsored')) return true;
-    }
-  }
+  // Check aria-label
+  const ariaLabel = element.getAttribute('aria-label')?.toLowerCase() || '';
+  if (ariaLabel.includes('sponsored')) return true;
 
   return false;
 }
@@ -301,17 +332,14 @@ function detectFeedType(): {
 } {
   const pathname = window.location.pathname;
 
-  // Group feed: /groups/{id}/
-  const groupMatch = pathname.match(/^\/groups\/(\d+|[a-zA-Z0-9_.]+)/);
+  const groupMatch = pathname.match(/^\/groups\/([^/]+)/);
   if (groupMatch) {
     const groupId = groupMatch[1];
-    // Try to get group name from page title or header
     const groupNameEl = document.querySelector('h1') || document.querySelector('[role="heading"]');
     const groupName = groupNameEl?.textContent?.trim();
     return { feedType: 'group', groupName, groupId };
   }
 
-  // Home feed: / or empty path
   if (pathname === '/' || pathname === '') {
     return { feedType: 'news-feed' };
   }
@@ -340,15 +368,19 @@ function extractMediaInfo(element: HTMLElement): {
     }
   }
 
-  // Check for images (exclude small profile pics)
-  const images = element.querySelectorAll<HTMLImageElement>('img[src*="scontent"]');
+  // Check for images — Facebook CDN uses scontent and fbcdn domains
+  const images = element.querySelectorAll<HTMLImageElement>('img');
   for (const img of images) {
-    // Skip small images (profile pics are typically < 100px)
+    const src = img.src || '';
+    // Skip small images (profile pics, emoji, icons)
     if (img.width && img.width < 100) continue;
     if (img.height && img.height < 100) continue;
+    // Skip data URIs and tracking pixels
+    if (src.startsWith('data:')) continue;
+    if (src.includes('pixel') || src.includes('tr?')) continue;
 
-    const src = img.src || '';
-    if (src) {
+    // Facebook CDN patterns
+    if (src.includes('scontent') || src.includes('fbcdn') || src.includes('facebook.com')) {
       if (!imageUrl) {
         imageUrl = src;
         thumbnailUrl = thumbnailUrl || src;
@@ -383,10 +415,12 @@ function parseCount(text: string): number | null {
 }
 
 function buildPermalink(postId: string): string {
-  // Strip our prefix to get the raw Facebook ID
   const rawId = postId.replace(/^fb_/, '').replace(/^hash_.*$/, '');
   if (rawId && /^\d+$/.test(rawId)) {
     return `https://www.facebook.com/permalink.php?story_fbid=${rawId}`;
+  }
+  if (rawId && rawId.startsWith('pfbid')) {
+    return `https://www.facebook.com/${rawId}`;
   }
   return `https://www.facebook.com`;
 }

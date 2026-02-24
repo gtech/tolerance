@@ -272,7 +272,7 @@ function injectStyles(): void {
     /* Blur effect - covers entire video card (title, description, thumbnail) */
     .tolerance-blurred,
     .tolerance-pending {
-      filter: blur(var(--tolerance-blur, 8px)) !important;
+      filter: blur(var(--tolerance-blur, 40px)) !important;
       transition: filter 0.3s ease !important;
     }
 
@@ -291,7 +291,7 @@ function injectStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(0, 0, 0, 0.1);
+      background: rgba(120, 120, 120, 0.6);
       z-index: 100;
       pointer-events: auto;
       cursor: not-allowed;
@@ -467,7 +467,7 @@ function formatViewCount(count: number): string {
 }
 
 // Apply pending blur (before scoring) to a video
-function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 8): void {
+function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void {
   if (!video.element) return;
 
   // Don't blur if already blurred or pending
@@ -529,7 +529,7 @@ function removePendingBlur(video: YouTubeVideo): void {
 }
 
 // Apply blur effect to high-engagement videos
-function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, blurIntensity: number = 8): void {
+function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, blurIntensity: number = 40): void {
   if (!video.element) return;
 
   // Remove pending state if present

@@ -561,7 +561,7 @@ export const DEFAULT_SETTINGS: Settings = {
   twitter: {
     reorderEnabled: false,      // Disabled by default - Twitter's virtual scroll makes reordering janky
     blurHighEngagement: true,   // Blur high-engagement content instead
-    blurIntensity: 15,          // 15px blur
+    blurIntensity: 40,          // 40px blur - heavy enough to hide faces/shapes
     hoverRevealDelay: 3,        // 3 seconds to hover before revealing
   },
 };
