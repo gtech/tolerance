@@ -910,6 +910,8 @@ async function handleNewTweets(): Promise<void> {
 
 // Main processing function
 async function processTweets(): Promise<void> {
+  if (!isExtensionValid()) return;
+
   // Don't process on tweet detail pages (like Reddit comments)
   if (isTweetDetailPage()) {
     return;
@@ -1011,7 +1013,12 @@ async function processTweets(): Promise<void> {
     log.debug(` SCORE_TWEETS took ${(t3 - t2).toFixed(0)}ms`);
 
     if (!scoreResult || !('scores' in scoreResult)) {
-      log.error(' Failed to get scores - tweets will be retried');
+      log.error(' Failed to get scores');
+      // Mark as processed anyway to prevent infinite retry loop
+      for (const tweet of newTweets) {
+        processedTweetIds.add(tweet.id);
+        removePendingBlur(tweet);
+      }
       return;
     }
 
