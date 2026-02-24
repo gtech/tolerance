@@ -837,8 +837,17 @@ async function processPosts(): Promise<void> {
 
   // Show loading indicator (but not on comments pages, and not if blurUntilScored is off)
   const showLoader = !isCommentsPage() && currentSettings?.blurUntilScored !== false;
+  let loadingTimedOut = false;
   if (showLoader) {
     showLoading();
+
+    // Auto-hide loading after 5s if scoring hasn't resolved it
+    setTimeout(() => {
+      if (showLoader && !loadingTimedOut) {
+        loadingTimedOut = true;
+        hideLoading();
+      }
+    }, 5000);
   }
 
   try {
@@ -971,8 +980,9 @@ async function processPosts(): Promise<void> {
     // Inject/update reminder card
     await injectProductivityCard();
   } finally {
-    // Always hide loading indicator (if it was shown)
-    if (showLoader) {
+    // Always hide loading indicator (if it was shown and timeout hasn't already hidden it)
+    if (showLoader && !loadingTimedOut) {
+      loadingTimedOut = true;
       hideLoading();
     }
   }
