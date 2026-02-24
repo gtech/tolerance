@@ -130,6 +130,9 @@ const QUALITY_MODE_THRESHOLD = 21;
 // Subscriptions Only - blur everything except subscribed sources
 let subscriptionsOnlyMode = false;
 
+// Opaque blur - solid gray overlay instead of semi-transparent
+let opaqueBlurEnabled = false;
+
 // Update blur threshold based on current phase and adaptive settings
 async function updateBlurThreshold(): Promise<void> {
   if (!isExtensionValid()) return;
@@ -291,7 +294,7 @@ function injectStyles(): void {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgb(140, 140, 140);
+      background: rgba(0, 0, 0, 0.15);
       z-index: 100;
       pointer-events: auto;
       cursor: not-allowed;
@@ -498,6 +501,9 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
     if (!thumbnail.querySelector('.tolerance-blur-overlay')) {
       const overlay = document.createElement('div');
       overlay.className = 'tolerance-blur-overlay';
+      if (opaqueBlurEnabled) {
+        overlay.style.background = 'rgb(140, 140, 140)';
+      }
 
       // Block clicks on blurred content
       overlay.addEventListener('click', (e) => {
@@ -563,6 +569,9 @@ function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, b
 
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
+    if (opaqueBlurEnabled) {
+      overlay.style.background = 'rgb(140, 140, 140)';
+    }
 
     // Block clicks on blurred content
     overlay.addEventListener('click', (e) => {
@@ -674,6 +683,9 @@ async function initCore(): Promise<void> {
   // Initialize subscriptions-only mode from settings
   subscriptionsOnlyMode = currentSettings.subscriptionsOnly ?? false;
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
+
+  // Initialize opaque blur from settings
+  opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? false;
 
   // Ensure we have a session
   const sessionResult = await sendMessage({ type: 'ENSURE_SESSION' });
@@ -974,6 +986,9 @@ function refreshBlurState(): void {
 
         const overlay = document.createElement('div');
         overlay.className = 'tolerance-blur-overlay';
+        if (opaqueBlurEnabled) {
+          overlay.style.background = 'rgb(140, 140, 140)';
+        }
         overlay.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1188,7 +1203,18 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 // Keep currentSettings in sync when changed from dashboard
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
-    currentSettings = changes.settings.newValue;
+    const newSettings = changes.settings.newValue as Settings;
+    currentSettings = newSettings;
+
+    // Update opaque blur setting and apply to existing overlays
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    if (newOpaqueBlur !== opaqueBlurEnabled) {
+      opaqueBlurEnabled = newOpaqueBlur;
+      const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
+      for (const overlay of overlays) {
+        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+      }
+    }
   }
 });
 

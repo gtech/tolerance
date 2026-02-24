@@ -31,6 +31,9 @@ const QUALITY_MODE_THRESHOLD = 21;
 // Subscriptions Only - blur everything except subscribed sources
 let subscriptionsOnlyMode = false;
 
+// Opaque blur - solid gray overlay instead of semi-transparent
+let opaqueBlurEnabled = false;
+
 // Current settings (for checking apiTier)
 let currentSettings: Settings | null = null;
 
@@ -199,7 +202,7 @@ function injectStyles(): void {
       display: flex !important;
       align-items: center;
       justify-content: center;
-      background: rgb(140, 140, 140) !important;
+      background: rgba(0, 0, 0, 0.15) !important;
     }
 
     .tolerance-blur-overlay::after {
@@ -364,6 +367,9 @@ function applyPendingBlur(post: InstagramPost): void {
   if (!element.querySelector('.tolerance-blur-overlay')) {
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
+    if (opaqueBlurEnabled) {
+      overlay.style.background = 'rgb(140, 140, 140)';
+    }
 
     // Block clicks on blurred content
     overlay.addEventListener('click', (e) => {
@@ -620,6 +626,9 @@ function applyBlur(element: HTMLElement): void {
 
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
+  if (opaqueBlurEnabled) {
+    overlay.style.background = 'rgb(140, 140, 140)';
+  }
 
   // Add hover reveal functionality
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -717,6 +726,9 @@ async function init(): Promise<void> {
 
       // Hover reveal delay
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
+
+      // Opaque blur
+      opaqueBlurEnabled = settings.twitter?.opaqueBlur ?? false;
     }
   } catch (error) {
     log.error('Instagram: Failed to get settings:', error);
@@ -755,7 +767,18 @@ function startWithDelay(): void {
 // Keep currentSettings in sync when changed from dashboard
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
-    currentSettings = changes.settings.newValue;
+    const newSettings = changes.settings.newValue as Settings;
+    currentSettings = newSettings;
+
+    // Update opaque blur setting and apply to existing overlays
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    if (newOpaqueBlur !== opaqueBlurEnabled) {
+      opaqueBlurEnabled = newOpaqueBlur;
+      const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
+      for (const overlay of overlays) {
+        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+      }
+    }
   }
 });
 

@@ -409,8 +409,9 @@ export interface Settings {
   twitter?: {
     reorderEnabled: boolean;       // Whether to reorder tweets (default: false)
     blurHighEngagement: boolean;   // Blur high-engagement content (default: true)
-    blurIntensity: number;         // Blur amount in pixels (default: 8)
+    blurIntensity: number;         // Blur amount in pixels (default: 40)
     hoverRevealDelay: number;      // Seconds to hover before revealing (default: 3)
+    opaqueBlur?: boolean;          // Solid gray overlay instead of semi-transparent blur (default: false)
   };
   // Pre-filter whitelist - trusted sources that bypass blur transform
   whitelist?: WhitelistEntry[];

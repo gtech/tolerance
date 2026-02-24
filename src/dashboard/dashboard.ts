@@ -74,6 +74,13 @@ async function init(): Promise<void> {
       if (qualityModeStatus) {
         qualityModeStatus.style.display = isQualityMode ? 'block' : 'none';
       }
+
+      // Sync Opaque Blur toggle
+      const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
+      const isOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+      if (opaqueBlurToggle && opaqueBlurToggle.checked !== isOpaqueBlur) {
+        opaqueBlurToggle.checked = isOpaqueBlur;
+      }
     }
   });
 
@@ -248,6 +255,12 @@ function populateSettings(settings: Settings): void {
   const blurUntilScoredToggle = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
   if (blurUntilScoredToggle) {
     blurUntilScoredToggle.checked = settings.blurUntilScored !== false;
+  }
+
+  // Opaque Blur toggle
+  const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
+  if (opaqueBlurToggle) {
+    opaqueBlurToggle.checked = settings.twitter?.opaqueBlur ?? false;
   }
 
   // Platform toggles
@@ -644,6 +657,12 @@ function setupEventListeners(): void {
     blurUntilScoredToggle.addEventListener('change', saveSettings);
   }
 
+  // Opaque Blur toggle
+  const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
+  if (opaqueBlurToggle) {
+    opaqueBlurToggle.addEventListener('change', saveSettings);
+  }
+
   // API Tier selection
   const tierRadios = document.querySelectorAll('input[name="api-tier"]');
   const ownKeySection = document.getElementById('own-key-section');
@@ -870,6 +889,8 @@ async function saveSettings(): Promise<void> {
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
   const blurUntilScoredInput = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
+  const opaqueBlurInput = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
+  const platformFacebookInput = document.getElementById('platform-facebook') as HTMLInputElement;
 
   // API tier selection
   const tierRadio = document.querySelector('input[name="api-tier"]:checked') as HTMLInputElement;
@@ -913,6 +934,7 @@ async function saveSettings(): Promise<void> {
       twitter: platformTwitterInput?.checked ?? true,
       youtube: platformYoutubeInput?.checked ?? true,
       instagram: platformInstagramInput?.checked ?? true,
+      facebook: platformFacebookInput?.checked ?? true,
     },
     scheduler: {
       ...existing.scheduler, // Preserve progressive boredom settings
@@ -928,6 +950,7 @@ async function saveSettings(): Promise<void> {
       ...existing.twitter, // Preserve existing twitter settings
       hoverRevealDelay: parseInt(hoverDelayInput?.value || '3', 10),
       blurIntensity: parseInt(blurIntensityInput?.value || '8', 10),
+      opaqueBlur: opaqueBlurInput?.checked ?? false,
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,
