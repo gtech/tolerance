@@ -305,7 +305,7 @@ function injectStyles(): void {
     /* Blur effect (pending and high-engagement) */
     .tolerance-blurred,
     .tolerance-pending {
-      filter: blur(var(--tolerance-blur, 8px)) !important;
+      filter: blur(var(--tolerance-blur, 15px)) !important;
       transition: filter 0.3s ease !important;
     }
 

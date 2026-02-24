@@ -83,6 +83,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/facebook/index.ts'],
+    outfile: 'dist/facebook.js',
+    format: 'iife', // Content scripts need IIFE (Facebook feed processing)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/background/index.ts'],
     outfile: 'dist/background.js',
     format: isFirefox ? 'iife' : 'esm', // Firefox background scripts need IIFE

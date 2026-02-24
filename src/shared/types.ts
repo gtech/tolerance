@@ -62,9 +62,9 @@ export interface CounterStrategy {
 // Base interface for any social media post (Reddit, Twitter, YouTube, Instagram, etc.)
 export interface SocialPost {
   id: string;
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram';
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
   author: string;
-  text: string;              // Post content (title for Reddit, tweet text for Twitter, caption for Instagram)
+  text: string;              // Post content (title for Reddit, tweet text for Twitter, caption for Instagram/Facebook)
   score: number | null;      // Likes/upvotes
   numComments: number;       // Comments/replies
   mediaType: 'text' | 'image' | 'video' | 'link' | 'gallery' | 'gif' | 'reel';
@@ -158,6 +158,23 @@ export interface InstagramPost extends SocialPost {
   hasAudio?: boolean;            // For reels - has audio
 }
 
+// ==========================================
+// Facebook Types
+// ==========================================
+
+export interface FacebookPost extends SocialPost {
+  platform: 'facebook';
+  caption: string;               // Post text content
+  likeCount: number | null;      // Total reactions (like + love + haha + wow + sad + angry)
+  commentCount: number;          // Number of comments
+  authorDisplayName: string;     // Display name (no @handles on Facebook)
+  authorUserId?: string;         // Numeric ID from profile link
+  isSponsored?: boolean;         // Ad / sponsored post
+  groupName?: string;            // Group name if in a group feed
+  groupId?: string;              // Group ID from URL
+  feedType: 'news-feed' | 'group' | 'unknown';
+}
+
 export interface EngagementScore {
   postId: string;
   apiScore: number; // 0-100, from OpenRouter
@@ -175,7 +192,7 @@ export interface ScoreFactors {
 
 export interface PostContent {
   postId: string;
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram';
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
   text: string;           // Post content (title for Reddit, tweet text for Twitter, caption for Instagram)
   title?: string;         // Reddit-specific separate title
   author: string;
@@ -292,8 +309,8 @@ export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 
 // Pre-filter whitelist entry - trusted sources that bypass blur transform
 export interface WhitelistEntry {
-  sourceId: string;           // @username, u/username, or channel name
-  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube';
+  sourceId: string;           // @username, u/username, channel name, or display name
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook';
   createdAt: number;
   reason?: string;            // User's note about why they trust this source
 }
@@ -301,7 +318,7 @@ export interface WhitelistEntry {
 // Check if a source is in the whitelist (case-insensitive)
 export function isWhitelisted(
   sourceId: string,
-  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube',
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook',
   whitelist: WhitelistEntry[] | undefined
 ): boolean {
   if (!whitelist || whitelist.length === 0) return false;
@@ -360,6 +377,7 @@ export interface Settings {
     twitter: boolean;
     youtube: boolean;
     instagram: boolean;
+    facebook: boolean;
   };
   // Productivity card settings
   productivityCardEnabled?: boolean;  // Show productivity card in Reddit feed (default: false)
@@ -453,6 +471,7 @@ export type MessageType =
   | { type: 'SCORE_TWEETS'; tweets: Omit<Tweet, 'element'>[] }
   | { type: 'SCORE_VIDEOS'; videos: Omit<YouTubeVideo, 'element'>[] }
   | { type: 'SCORE_INSTAGRAM_POSTS'; posts: Omit<InstagramPost, 'element'>[] }
+  | { type: 'SCORE_FACEBOOK_POSTS'; posts: Omit<FacebookPost, 'element'>[] }
   | { type: 'SCORES_RESULT'; scores: EngagementScore[] }
   | { type: 'LOG_IMPRESSIONS'; impressions: PostImpression[] }
   | { type: 'GET_STATE' }
@@ -491,7 +510,7 @@ export type MessageType =
   | { type: 'DISMISS_ONBOARDING_TOOLTIP' }
   // Context menu whitelist
   | { type: 'GET_CLICKED_AUTHOR' }  // Background asks content script for author at click position
-  | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' }
+  | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' }
   // API error state
   | { type: 'GET_API_ERROR_STATE' }
   // Subscription sync
@@ -522,6 +541,7 @@ export const DEFAULT_SETTINGS: Settings = {
     twitter: true,
     youtube: true,
     instagram: true,
+    facebook: true,
   },
   narrativeDetection: {
     enabled: true,
@@ -541,7 +561,7 @@ export const DEFAULT_SETTINGS: Settings = {
   twitter: {
     reorderEnabled: false,      // Disabled by default - Twitter's virtual scroll makes reordering janky
     blurHighEngagement: true,   // Blur high-engagement content instead
-    blurIntensity: 8,           // 8px blur
+    blurIntensity: 15,          // 15px blur
     hoverRevealDelay: 3,        // 3 seconds to hover before revealing
   },
 };

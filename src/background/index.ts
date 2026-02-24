@@ -33,7 +33,7 @@ import {
   getEffectiveBlurThreshold,
   getEffectivePhaseThresholds,
 } from './storage';
-import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts } from './scorer';
+import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
 import { getProductivityStats } from './rescuetime';
@@ -87,6 +87,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         '*://x.com/*',
         '*://www.youtube.com/*',
         '*://www.instagram.com/*',
+        '*://www.facebook.com/*',
       ],
     });
   }
@@ -273,6 +274,11 @@ async function handleMessage(
 
     case 'SCORE_INSTAGRAM_POSTS': {
       const scores = await scoreInstagramPosts(message.posts);
+      return { type: 'SCORES_RESULT', scores };
+    }
+
+    case 'SCORE_FACEBOOK_POSTS': {
+      const scores = await scoreFacebookPosts(message.posts);
       return { type: 'SCORES_RESULT', scores };
     }
 
@@ -555,9 +561,15 @@ function isInstagramUrl(url?: string): boolean {
   return url.includes('instagram.com');
 }
 
+// Helper to check if URL is Facebook
+function isFacebookUrl(url?: string): boolean {
+  if (!url) return false;
+  return url.includes('facebook.com');
+}
+
 // Helper to check if URL is any supported social media platform
 function isSocialMediaUrl(url?: string): boolean {
-  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url) || isInstagramUrl(url);
+  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url) || isInstagramUrl(url) || isFacebookUrl(url);
 }
 
 // Session lifecycle management
@@ -575,7 +587,8 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
         await createSession(state.mode, activeInfo.tabId);
         const platform = isTwitterUrl(tab.url) ? 'Twitter' :
                         isInstagramUrl(tab.url) ? 'Instagram' :
-                        isYouTubeUrl(tab.url) ? 'YouTube' : 'Reddit';
+                        isYouTubeUrl(tab.url) ? 'YouTube' :
+                        isFacebookUrl(tab.url) ? 'Facebook' : 'Reddit';
         log.debug(` Session created for ${platform} tab`, activeInfo.tabId);
       } else if (state.sessionTabId !== activeInfo.tabId) {
         // Switching to a different social media tab - update the tab association

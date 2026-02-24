@@ -4,6 +4,7 @@ import {
   Tweet,
   YouTubeVideo,
   InstagramPost,
+  FacebookPost,
   EngagementScore,
   PostContent,
   NarrativeTheme,
@@ -1002,6 +1003,181 @@ export async function scoreInstagramPosts(
     const cachedScore = cached.get(post.id);
     if (cachedScore) {
       cachedScore.whitelisted = isWhitelisted(post.author, 'instagram', settings.whitelist);
+      allScores.push(cachedScore);
+    } else {
+      const newScore = newScores.find(s => s.postId === post.id);
+      if (newScore) allScores.push(newScore);
+    }
+  }
+
+  return allScores;
+}
+
+// Score Facebook posts - adapts Facebook content to the scoring system
+// Modeled on scoreInstagramPosts
+export async function scoreFacebookPosts(
+  posts: Omit<FacebookPost, 'element'>[]
+): Promise<EngagementScore[]> {
+  const t0 = performance.now();
+  const settings = await getSettings();
+  const postIds = posts.map(p => p.id);
+
+  const apiEnabled = await isApiConfigured();
+  const narrativeEnabled = settings.narrativeDetection?.enabled !== false;
+  const themes = narrativeEnabled ? await getActiveThemes() : [];
+  const t1 = performance.now();
+
+  const cached = await getCachedScores(postIds);
+  const uncached = posts.filter(p => !cached.has(p.id));
+  const t2 = performance.now();
+
+  const newScores: EngagementScore[] = [];
+  const postsForApi: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
+
+  for (const post of uncached) {
+    const score = createPendingScore(post.id);
+    // Whitelist uses display name for Facebook (no @handles)
+    score.whitelisted = isWhitelisted(post.authorDisplayName, 'facebook', settings.whitelist);
+    newScores.push(score);
+
+    if (apiEnabled) {
+      postsForApi.push({ post, score });
+    }
+  }
+
+  // Separate by type
+  const textPosts: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
+  const mediaPosts: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
+
+  for (const item of postsForApi) {
+    const hasMedia = item.post.mediaType === 'video' ||
+                     item.post.mediaType === 'image' ||
+                     item.post.mediaType === 'gallery';
+    const hasImage = item.post.imageUrl || item.post.thumbnailUrl;
+
+    if (hasMedia && hasImage) {
+      mediaPosts.push(item);
+    } else {
+      textPosts.push(item);
+    }
+  }
+
+  log.debug(` Scoring ${textPosts.length} text Facebook posts, ${mediaPosts.length} media posts via API`);
+
+  // Process text posts
+  if (textPosts.length > 0) {
+    const textPromises = textPosts.map(async ({ post, score }) => {
+      try {
+        const apiResult = await scoreTextPost(
+          post.caption || post.text,
+          post.authorDisplayName,
+          post.likeCount,
+          post.commentCount,
+          settings.openRouterApiKey!
+        );
+        if (apiResult) {
+          const apiScore = apiResult.score * 10;
+          score.apiScore = apiScore;
+          score.scoreFailed = false;
+          score.apiReason = apiResult.reason;
+          score.bucket = scoreToBucket(apiScore, 'facebook');
+
+          if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+            score.factors.narrative = {
+              themeId: apiResult.narrativeMatches[0],
+              confidence: 'high',
+              matchedKeywords: [],
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Facebook text API scoring failed:', err);
+      }
+    });
+    await Promise.all(textPromises);
+  }
+
+  // Process media posts
+  if (mediaPosts.length > 0) {
+    const mediaPromises = mediaPosts.map(async ({ post, score }) => {
+      try {
+        const content = post.caption || post.text;
+        const isVideo = post.mediaType === 'video';
+
+        let apiResult;
+        if (isVideo) {
+          const imageUrl = post.imageUrl || post.thumbnailUrl || '';
+          apiResult = await scoreVideoPost(
+            content,
+            post.authorDisplayName,
+            imageUrl,
+            post.likeCount,
+            post.commentCount,
+            settings.openRouterApiKey!,
+            'facebook'
+          );
+        } else {
+          const imageUrl = post.imageUrl || post.thumbnailUrl || '';
+          apiResult = await scoreImagePost(
+            content,
+            post.authorDisplayName,
+            imageUrl,
+            post.likeCount,
+            post.commentCount,
+            post.id,
+            undefined,
+            settings.openRouterApiKey!,
+            'facebook'
+          );
+        }
+
+        if (apiResult) {
+          const apiScore = apiResult.score * 10;
+          score.apiScore = apiScore;
+          score.scoreFailed = false;
+          score.apiReason = apiResult.reason;
+          score.bucket = scoreToBucket(apiScore, 'facebook');
+
+          if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
+            score.factors.narrative = {
+              themeId: apiResult.narrativeMatches[0],
+              confidence: 'high',
+              matchedKeywords: [],
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Facebook media API scoring failed:', err);
+      }
+    });
+    await Promise.all(mediaPromises);
+  }
+  const t3 = performance.now();
+
+  log.debug(` Facebook scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
+
+  if (newScores.length > 0) {
+    await cacheScores(newScores);
+  }
+
+  // Save post content for ML training data
+  await savePostContent(uncached.map(post => ({
+    postId: post.id,
+    platform: 'facebook' as const,
+    text: post.caption,
+    author: post.authorDisplayName,
+    imageUrl: post.imageUrl,
+    thumbnailUrl: post.thumbnailUrl,
+    mediaType: post.mediaType,
+    timestamp: Date.now(),
+  })));
+
+  // Combine cached and new scores
+  const allScores: EngagementScore[] = [];
+  for (const post of posts) {
+    const cachedScore = cached.get(post.id);
+    if (cachedScore) {
+      cachedScore.whitelisted = isWhitelisted(post.authorDisplayName, 'facebook', settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === post.id);
