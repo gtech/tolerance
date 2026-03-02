@@ -18,6 +18,10 @@ import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, sco
 import { trackUnclassifiedPost } from './themeDiscovery';
 import { getSubscriptionList, isSubscribed } from './subscriptions';
 
+// Twitter video/gif thumbnails are often uninformative first frames,
+// but videos inherently grab more attention than text posts
+const TWITTER_VIDEO_SCORE_FLOOR = 35;
+
 // Create a pending score — will be replaced by API result
 export function createPendingScore(postId: string): EngagementScore {
   return {
@@ -369,7 +373,10 @@ export async function scoreTweets(
             );
 
         if (apiResult) {
-          const apiScore = apiResult.score * 10;
+          let apiScore = apiResult.score * 10;
+          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') {
+            apiScore = Math.max(apiScore, TWITTER_VIDEO_SCORE_FLOOR);
+          }
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
