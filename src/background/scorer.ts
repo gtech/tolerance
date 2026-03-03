@@ -308,7 +308,10 @@ export async function scoreTweets(
           settings.openRouterApiKey!
         );
         if (apiResult) {
-          const apiScore = apiResult.score * 10;
+          let apiScore = apiResult.score * 10;
+          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') {
+            apiScore = Math.max(apiScore, TWITTER_VIDEO_SCORE_FLOOR);
+          }
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
