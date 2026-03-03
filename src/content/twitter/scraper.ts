@@ -313,10 +313,20 @@ function detectMediaType(element: HTMLElement): Tweet['mediaType'] {
   // Check for images (excluding quoted content)
   const images = element.querySelectorAll('[data-testid="tweetPhoto"]');
   let mainTweetImages = 0;
+  let hasVideoThumbnail = false;
   for (const img of images) {
     if (!quoteCard?.contains(img)) {
       mainTweetImages++;
+      // Check if this "photo" is actually a video thumbnail that hasn't loaded
+      // the <video> element yet — Twitter uses *_video_thumb URLs for these
+      const imgSrc = img.querySelector('img')?.src || '';
+      if (imgSrc.includes('video_thumb')) {
+        hasVideoThumbnail = true;
+      }
     }
+  }
+  if (hasVideoThumbnail && mainTweetImages === 1) {
+    return 'video';
   }
   if (mainTweetImages > 1) {
     return 'gallery';
