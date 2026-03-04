@@ -437,6 +437,20 @@ export async function scoreTweets(
     }
   }
 
+  // Final safety net: enforce video/gif score floor on ALL scores
+  // This catches cached scores, race conditions, and any scoring path
+  // that might have missed the floor
+  for (const tweet of tweets) {
+    if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') {
+      const score = allScores.find(s => s.postId === tweet.id);
+      if (score && score.apiScore !== undefined && score.apiScore < TWITTER_VIDEO_SCORE_FLOOR) {
+        log.debug(` Video floor applied: tweet ${tweet.id} score ${score.apiScore} -> ${TWITTER_VIDEO_SCORE_FLOOR}`);
+        score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
+        score.bucket = scoreToBucket(TWITTER_VIDEO_SCORE_FLOOR, 'twitter');
+      }
+    }
+  }
+
   return allScores;
 }
 
