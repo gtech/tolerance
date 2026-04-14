@@ -41,11 +41,10 @@ export async function shouldShowOnboardingTooltip(): Promise<boolean> {
 // Show the onboarding tooltip near a blurred element
 export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<void> {
   if (tooltipShown) return;
-
-  const shouldShow = await shouldShowOnboardingTooltip();
-  if (!shouldShow) return;
-
   tooltipShown = true;
+
+  const state = await loadOnboardingState();
+  if (state.hoverTooltipDismissed) return;
 
   // Create tooltip element
   const tooltip = document.createElement('div');
