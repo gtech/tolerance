@@ -3,6 +3,7 @@ import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
+import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -424,6 +425,8 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   tooltip.className = 'tolerance-tooltip';
 
   if (info.scoringFailed) {
+    void showFreeTierExhaustedDialog(currentSettings);
+
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
     const isOwnKey = currentSettings?.apiTier === 'own-key';

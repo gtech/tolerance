@@ -3,6 +3,7 @@ import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
+import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -594,6 +595,8 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Add tooltip with reason
   if (scoringFailed) {
+    void showFreeTierExhaustedDialog(currentSettings);
+
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     badge.title = isOwnKey
       ? 'Error receiving score.'

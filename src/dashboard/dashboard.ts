@@ -25,6 +25,8 @@ interface DashboardData {
   apiUsage: ApiUsage;
 }
 
+const PRO_SUBSCRIPTION_URL = 'https://tolerance.lol/account.html';
+
 async function init(): Promise<void> {
   // Load state
   const state = await getState();
@@ -123,6 +125,10 @@ function updateModeDisplay(state: AppState): void {
       toggleBaselineBtn.textContent = 'Enter Baseline';
     }
   }
+}
+
+function openProSubscription(): void {
+  window.open(PRO_SUBSCRIPTION_URL, '_blank');
 }
 
 async function updateApiStatus(settings: Settings): Promise<void> {
@@ -806,6 +812,11 @@ function setupEventListeners(): void {
   const testEndpointBtn = document.getElementById('test-endpoint-btn');
   if (testEndpointBtn) {
     testEndpointBtn.addEventListener('click', testEndpoint);
+  }
+
+  const proSubscriptionBtn = document.getElementById('pro-subscription-btn');
+  if (proSubscriptionBtn) {
+    proSubscriptionBtn.addEventListener('click', openProSubscription);
   }
 
   // Productivity card toggle

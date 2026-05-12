@@ -7,6 +7,7 @@ import { setupObserver, setupRESObserver } from './observer';
 import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
+import { showFreeTierExhaustedDialog } from './freeTierDialog';
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -382,6 +383,8 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
 
   // Reason
   if (info.scoringFailed) {
+    void showFreeTierExhaustedDialog(currentSettings);
+
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
     const isOwnKey = currentSettings?.apiTier === 'own-key';

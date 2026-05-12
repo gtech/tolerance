@@ -4,6 +4,7 @@ import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
+import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -509,6 +510,8 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
 
   // Make failed badges clickable to upgrade page
   if (info.scoringFailed) {
+    void showFreeTierExhaustedDialog(currentSettings);
+
     badge.style.cursor = 'pointer';
     badge.addEventListener('click', (e) => {
       e.preventDefault();

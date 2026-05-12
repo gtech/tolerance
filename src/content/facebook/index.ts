@@ -2,6 +2,7 @@ import { FacebookPost, EngagementScore, AppState, Settings } from '../../shared/
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
+import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -452,6 +453,8 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
   badge.textContent = scoringFailed ? '?' : displayScore.toString();
 
   if (scoringFailed) {
+    void showFreeTierExhaustedDialog(currentSettings);
+
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     badge.title = isOwnKey
       ? 'Error receiving score.'
