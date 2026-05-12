@@ -93,6 +93,12 @@ interface ClaudeFilterThresholds {
   strongReminder: number;
 }
 
+export interface RewriteResult {
+  rewritten: string;
+  changed: boolean;
+  skippedReason?: string;
+}
+
 /**
  * Build the rewriting prompt based on session state
  */
@@ -127,17 +133,24 @@ Rules:
 Return ONLY the rewritten response text. Do not include any preamble, explanation, or wrapper text.`;
 }
 
+function stripKnownSycophancy(text: string): string {
+  return text
+    .replace(/^\s*(Great|Excellent|Amazing|Wonderful|Fantastic|Really good)\s+(question|point|observation|thinking|idea)!?\s*/i, '')
+    .replace(/^\s*(You're absolutely right|I completely agree|I love that idea)\.?\s*/i, '')
+    .trim();
+}
+
 /**
  * Rewrite a Claude response
  */
-export async function rewriteResponse(text: string): Promise<string> {
+export async function rewriteResponse(text: string): Promise<RewriteResult> {
   const settings = await getSettings();
   const session = await getClaudeSession();
 
   // Check if filter is enabled
   if (!settings.claudeFilterEnabled) {
     log.info('Claude filter disabled, returning original (enable in Dashboard → Advanced Settings)');
-    return text;
+    return { rewritten: text, changed: false, skippedReason: 'disabled' };
   }
 
   // Get thresholds from settings or use defaults
@@ -146,7 +159,7 @@ export async function rewriteResponse(text: string): Promise<string> {
   // Skip filtering entirely if under the skipFilter threshold
   if (session.totalMinutes < thresholds.skipFilter) {
     log.info(`Claude filter: skipping (${session.totalMinutes.toFixed(0)} min < ${thresholds.skipFilter} min threshold)`);
-    return text;
+    return { rewritten: text, changed: false, skippedReason: 'below-threshold' };
   }
 
   // Get API key - use own key if available, otherwise free tier
@@ -161,7 +174,7 @@ export async function rewriteResponse(text: string): Promise<string> {
 
   if (!apiKey) {
     log.info('No API key available for Claude filter, returning original');
-    return text;
+    return { rewritten: text, changed: false, skippedReason: 'missing-api-key' };
   }
 
   log.info(`Claude filter: rewriting ${text.length} chars (session: ${session.totalMinutes.toFixed(0)} min)`);
@@ -194,7 +207,7 @@ export async function rewriteResponse(text: string): Promise<string> {
     if (!response.ok) {
       const errorText = await response.text();
       log.error('Rewrite API error:', response.status, errorText);
-      return text; // Return original on error
+      return { rewritten: text, changed: false, skippedReason: 'api-error' };
     }
 
     const data = await response.json();
@@ -202,16 +215,26 @@ export async function rewriteResponse(text: string): Promise<string> {
 
     if (!rewritten) {
       log.error('No content in rewrite response');
-      return text;
+      return { rewritten: text, changed: false, skippedReason: 'empty-response' };
     }
 
     // Increment message count
     await incrementClaudeMessageCount();
 
+    const trimmed = rewritten.trim();
+    const changed = trimmed !== text.trim();
+    if (!changed) {
+      const fallback = stripKnownSycophancy(text);
+      if (fallback !== text.trim()) {
+        log.debug('Rewrite unchanged, applied local sycophancy fallback');
+        return { rewritten: fallback, changed: true };
+      }
+    }
+
     log.debug('Rewrite successful');
-    return rewritten.trim();
+    return { rewritten: trimmed, changed };
   } catch (error) {
     log.error('Rewrite fetch error:', error);
-    return text; // Return original on error
+    return { rewritten: text, changed: false, skippedReason: 'fetch-error' };
   }
 }

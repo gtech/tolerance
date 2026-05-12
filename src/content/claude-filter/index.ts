@@ -15,6 +15,20 @@ const log = (...args: unknown[]) => DEBUG && console.log('[Tolerance Claude Filt
 // Track processed messages to avoid re-processing
 const processedMessages = new WeakSet<Element>();
 
+interface SuppressionState {
+  target: HTMLElement;
+  placeholder: HTMLElement;
+  previousVisibility: string;
+}
+
+interface RewriteResponse {
+  rewritten?: string;
+  changed?: boolean;
+  skippedReason?: string;
+}
+
+const suppressedContainers = new WeakMap<Element, SuppressionState>();
+
 // Track if we're currently filtering (to show indicator)
 let isFiltering = false;
 
@@ -42,37 +56,25 @@ function isStreaming(): boolean {
 }
 
 /**
- * Get the latest assistant message container that has finished streaming
+ * Get the assistant message container for a streaming/completed Claude response.
  */
-function getLatestAssistantMessage(): Element | null {
-  // Find message containers that have finished streaming
-  // Structure: div[data-is-streaming="false"] > div.font-claude-response > div > div.standard-markdown
-  const streamingContainers = document.querySelectorAll('[data-is-streaming="false"]');
-
-  if (streamingContainers.length === 0) {
-    log('No completed streaming containers found');
-    return null;
-  }
-
-  // Get the last completed container
-  const lastContainer = streamingContainers[streamingContainers.length - 1];
-
-  // Find the .font-claude-response inside (but not the hidden one in CoT)
-  const fontClaudeResponse = lastContainer.querySelector('.font-claude-response');
-  if (!fontClaudeResponse) {
+function getAssistantMessageFromContainer(container: Element): Element | null {
+  const candidates = Array.from(container.querySelectorAll('.font-claude-response'));
+  if (candidates.length === 0) {
     log('No .font-claude-response in container');
     return null;
   }
 
-  // Skip if this is the hidden CoT inner element
-  const style = (fontClaudeResponse as HTMLElement).style;
-  if (style.display === 'none') {
-    log('Skipping hidden font-claude-response (CoT inner)');
-    return null;
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    const candidate = candidates[i];
+    if (candidate.querySelector('.standard-markdown p, .standard-markdown li, .progressive-markdown p, .progressive-markdown li')) {
+      log('Found assistant message container');
+      return candidate;
+    }
   }
 
-  log('Found assistant message container');
-  return fontClaudeResponse;
+  log('No response markdown found in Claude response candidates');
+  return candidates[candidates.length - 1];
 }
 
 /**
@@ -136,6 +138,53 @@ function extractMessageText(element: Element): string {
 
   log('No valid response markdown found');
   return '';
+}
+
+function suppressStreamingContainer(container: Element): void {
+  if (suppressedContainers.has(container) || processedMessages.has(container)) {
+    return;
+  }
+
+  const messageElement = getAssistantMessageFromContainer(container);
+  const target = (messageElement || container) as HTMLElement;
+  const placeholder = document.createElement('div');
+  placeholder.className = 'tolerance-stream-placeholder';
+  placeholder.innerHTML = `
+    <style>
+      .tolerance-stream-placeholder {
+        margin: 8px 0;
+        padding: 12px 14px;
+        border: 1px solid rgba(125, 206, 160, 0.28);
+        border-radius: 8px;
+        background: rgba(125, 206, 160, 0.08);
+        color: #7dcea0;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+    </style>
+    <span>Filtering response...</span>
+  `;
+
+  suppressedContainers.set(container, {
+    target,
+    placeholder,
+    previousVisibility: target.style.visibility,
+  });
+
+  target.style.visibility = 'hidden';
+  target.insertAdjacentElement('afterend', placeholder);
+  log('Suppressed streaming response');
+}
+
+function clearStreamingSuppression(container: Element): void {
+  const state = suppressedContainers.get(container);
+  if (!state) {
+    return;
+  }
+
+  state.placeholder.remove();
+  state.target.style.visibility = state.previousVisibility;
+  suppressedContainers.delete(container);
 }
 
 /**
@@ -233,9 +282,10 @@ function escapeHTML(text: string): string {
 /**
  * Process a completed response
  */
-async function processResponse(messageElement: Element): Promise<void> {
+async function processResponse(messageElement: Element, sourceContainer?: Element): Promise<void> {
   if (!initialLoadComplete) {
     log('Initial load not complete, skipping');
+    if (sourceContainer) clearStreamingSuppression(sourceContainer);
     return;
   }
 
@@ -252,6 +302,7 @@ async function processResponse(messageElement: Element): Promise<void> {
 
     if (originalText.length < 20) {
       log('Response too short, skipping filter');
+      if (sourceContainer) clearStreamingSuppression(sourceContainer);
       return;
     }
 
@@ -259,16 +310,19 @@ async function processResponse(messageElement: Element): Promise<void> {
     const response = await chrome.runtime.sendMessage({
       type: 'REWRITE_RESPONSE',
       text: originalText,
-    });
+    }) as RewriteResponse;
 
-    if (response?.rewritten) {
+    if (response?.rewritten && response.changed) {
       log('Got filtered response, length:', response.rewritten.length);
+      if (sourceContainer) clearStreamingSuppression(sourceContainer);
       replaceWithFilteredContent(messageElement, response.rewritten);
     } else {
-      log('No filtered response received:', response);
+      log('Rewrite skipped or unchanged:', response?.skippedReason || 'unchanged');
+      if (sourceContainer) clearStreamingSuppression(sourceContainer);
     }
   } catch (error) {
     log('Error filtering response:', error);
+    if (sourceContainer) clearStreamingSuppression(sourceContainer);
   } finally {
     // Remove indicator
     indicator.remove();
@@ -294,6 +348,7 @@ function startWatching(): void {
     if (streamingContainer && streamingContainer !== currentStreamingContainer) {
       // New streaming started
       currentStreamingContainer = streamingContainer;
+      suppressStreamingContainer(streamingContainer);
       log('New response streaming detected');
     } else if (!streamingContainer && currentStreamingContainer) {
       // Streaming just completed
@@ -301,14 +356,18 @@ function startWatching(): void {
 
       // Check if this container was already processed
       if (!processedMessages.has(currentStreamingContainer)) {
-        const message = getLatestAssistantMessage();
+        const completedContainer = currentStreamingContainer;
+        const message = getAssistantMessageFromContainer(completedContainer);
         if (message) {
           // Mark the container as processed
-          processedMessages.add(currentStreamingContainer);
-          processResponse(message);
+          processedMessages.add(completedContainer);
+          processResponse(message, completedContainer);
+        } else {
+          clearStreamingSuppression(completedContainer);
         }
       } else {
         log('Container already processed, skipping');
+        clearStreamingSuppression(currentStreamingContainer);
       }
 
       currentStreamingContainer = null;
@@ -365,15 +424,22 @@ function init(): void {
         const target = mutation.target as Element;
         const isStreaming = target.getAttribute('data-is-streaming');
 
-        if (isStreaming === 'false' && !processedMessages.has(target)) {
+        if (isStreaming === 'true') {
+          suppressStreamingContainer(target);
+        } else if (isStreaming === 'false' && !processedMessages.has(target)) {
           log('MutationObserver: streaming completed on container');
           processedMessages.add(target);
+          if (target === currentStreamingContainer) {
+            currentStreamingContainer = null;
+          }
 
           // Small delay to ensure DOM is fully updated
           setTimeout(() => {
-            const message = getLatestAssistantMessage();
+            const message = getAssistantMessageFromContainer(target);
             if (message) {
-              processResponse(message);
+              processResponse(message, target);
+            } else {
+              clearStreamingSuppression(target);
             }
           }, 100);
         }

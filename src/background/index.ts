@@ -234,11 +234,11 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   // Handle REWRITE_RESPONSE from claude.ai content script
   if (message.type === 'REWRITE_RESPONSE') {
     const { text } = message as { type: string; text: string };
-    rewriteResponse(text).then((rewritten) => {
-      sendResponse({ rewritten });
+    rewriteResponse(text).then((result) => {
+      sendResponse(result);
     }).catch((error) => {
       log.error('Rewrite error:', error);
-      sendResponse({ rewritten: text }); // Return original on error
+      sendResponse({ rewritten: text, changed: false, skippedReason: 'handler-error' });
     });
     return true;
   }
