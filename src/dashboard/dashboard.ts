@@ -286,6 +286,40 @@ function populateSettings(settings: Settings): void {
     }
   }
 
+  // Claude filter toggle
+  const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  const claudeFilterStatus = document.getElementById('claude-filter-status');
+  if (claudeFilterEnabled) {
+    const enabled = settings.claudeFilterEnabled ?? false;
+    claudeFilterEnabled.checked = enabled;
+    if (claudeFilterStatus) {
+      claudeFilterStatus.textContent = enabled ? 'Enabled' : 'Disabled';
+      claudeFilterStatus.style.color = enabled ? '#7dcea0' : '#888';
+    }
+  }
+
+  // Claude filter threshold sliders
+  const claudeThresholds = settings.claudeFilterThresholds || {
+    skipFilter: 30,
+    gentleReminder: 30,
+    mediumReminder: 60,
+    strongReminder: 90,
+  };
+  const claudeSliderConfig = [
+    { id: 'claude-skip', value: claudeThresholds.skipFilter },
+    { id: 'claude-gentle', value: claudeThresholds.gentleReminder },
+    { id: 'claude-medium', value: claudeThresholds.mediumReminder },
+    { id: 'claude-strong', value: claudeThresholds.strongReminder },
+  ];
+  for (const cfg of claudeSliderConfig) {
+    const slider = document.getElementById(cfg.id) as HTMLInputElement;
+    const valueEl = document.getElementById(`${cfg.id}-value`);
+    if (slider) {
+      slider.value = String(cfg.value);
+      if (valueEl) valueEl.textContent = String(cfg.value);
+    }
+  }
+
   if (apiKeyInput && settings.openRouterApiKey) {
     apiKeyInput.value = settings.openRouterApiKey;
   }
@@ -787,6 +821,32 @@ function setupEventListeners(): void {
     });
   }
 
+  // Claude filter toggle
+  const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  if (claudeFilterEnabled) {
+    claudeFilterEnabled.addEventListener('change', () => {
+      const statusEl = document.getElementById('claude-filter-status');
+      if (statusEl) {
+        statusEl.textContent = claudeFilterEnabled.checked ? 'Enabled' : 'Disabled';
+        statusEl.style.color = claudeFilterEnabled.checked ? '#7dcea0' : '#888';
+      }
+      saveSettings();
+    });
+  }
+
+  // Claude filter threshold sliders - live update display
+  const claudeThresholdSliders = ['claude-skip', 'claude-gentle', 'claude-medium', 'claude-strong'];
+  for (const id of claudeThresholdSliders) {
+    const slider = document.getElementById(id) as HTMLInputElement;
+    const valueEl = document.getElementById(`${id}-value`);
+    if (slider && valueEl) {
+      slider.addEventListener('input', () => {
+        valueEl.textContent = slider.value;
+      });
+      slider.addEventListener('change', saveSettings);
+    }
+  }
+
   // Whitelist management
   const addWhitelistBtn = document.getElementById('add-whitelist-btn');
   if (addWhitelistBtn) {
@@ -887,6 +947,11 @@ async function saveSettings(): Promise<void> {
   const platformYoutubeInput = document.getElementById('platform-youtube') as HTMLInputElement;
   const platformInstagramInput = document.getElementById('platform-instagram') as HTMLInputElement;
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
+  const claudeFilterEnabledInput = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  const claudeSkipInput = document.getElementById('claude-skip') as HTMLInputElement;
+  const claudeGentleInput = document.getElementById('claude-gentle') as HTMLInputElement;
+  const claudeMediumInput = document.getElementById('claude-medium') as HTMLInputElement;
+  const claudeStrongInput = document.getElementById('claude-strong') as HTMLInputElement;
   const logLevelSelect = document.getElementById('log-level') as HTMLSelectElement;
   const blurUntilScoredInput = document.getElementById('blur-until-scored-toggle') as HTMLInputElement;
   const opaqueBlurInput = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
@@ -943,6 +1008,13 @@ async function saveSettings(): Promise<void> {
       enabled: true,
     },
     productivityCardEnabled: productivityCardEnabledInput?.checked ?? false,
+    claudeFilterEnabled: claudeFilterEnabledInput?.checked ?? false,
+    claudeFilterThresholds: {
+      skipFilter: parseInt(claudeSkipInput?.value || '30', 10),
+      gentleReminder: parseInt(claudeGentleInput?.value || '30', 10),
+      mediumReminder: parseInt(claudeMediumInput?.value || '60', 10),
+      strongReminder: parseInt(claudeStrongInput?.value || '90', 10),
+    },
     rescueTimeApiKey: rescueTimeInput?.value || undefined,
     todoistUrl: todoistInput?.value || undefined,
     jobSearchLink: jobSearchInput?.value || undefined,
