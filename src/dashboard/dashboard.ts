@@ -142,6 +142,7 @@ async function updateApiStatus(settings: Settings): Promise<void> {
   const errorStateResult = await chrome.storage.local.get('apiErrorState');
   const errorState = errorStateResult.apiErrorState as { exhausted: boolean; message: string } | undefined;
   const isExhausted = isFreeTier && errorState?.exhausted;
+  const hasOwnKeyError = !isFreeTier && errorState?.exhausted;
 
   // Update header status
   const statusDot = document.getElementById('api-status-dot');
@@ -151,6 +152,10 @@ async function updateApiStatus(settings: Settings): Promise<void> {
     if (isExhausted) {
       statusDot.style.background = '#e74c3c';
       statusText.textContent = 'Free Tier Exhausted (or use your own API key)';
+      statusText.style.color = '#e74c3c';
+    } else if (hasOwnKeyError) {
+      statusDot.style.background = '#e74c3c';
+      statusText.textContent = 'API Key Error';
       statusText.style.color = '#e74c3c';
     } else if (isApiConfigured) {
       statusDot.style.background = '#27ae60';
@@ -177,6 +182,11 @@ async function updateApiStatus(settings: Settings): Promise<void> {
       apiKeyStatus.style.background = '#4a2d2d';
       apiKeyStatus.style.color = '#ff9999';
       apiKeyStatus.innerHTML = '⚠ Free tier daily limit reached. <a href="https://tolerance.lol/account.html" target="_blank" style="color: #7dcea0; text-decoration: underline;">Upgrade to Pro</a> for unlimited usage, or add your own OpenRouter API key below.';
+    } else if (hasOwnKeyError) {
+      apiKeyStatus.style.display = 'block';
+      apiKeyStatus.style.background = '#4a2d2d';
+      apiKeyStatus.style.color = '#ff9999';
+      apiKeyStatus.textContent = `⚠ ${errorState?.message || 'OpenRouter rejected the API key. Check the key\'s spend limit and account credits at openrouter.ai.'}`;
     } else if (isFreeTier) {
       apiKeyStatus.style.display = 'block';
       apiKeyStatus.style.background = '#1a472a';

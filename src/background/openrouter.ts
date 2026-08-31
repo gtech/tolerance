@@ -1061,27 +1061,28 @@ async function callApi(
       const errorText = await response.text();
       console.error(`API error: ${response.status} for model=${model}`, errorText);
 
-      // Check for rate limit / budget exhaustion errors (402, 429)
-      // Only set exhausted state if we're on free tier
-      if ((response.status === 402 || response.status === 429) && config.isFreeTier) {
+      // Check for budget exhaustion / key limit / rate limit errors (402, 403, 429)
+      if (response.status === 402 || response.status === 403 || response.status === 429) {
         await setApiErrorState({
           exhausted: true,
-          message: 'Free tier daily limit reached. Add your own API key for unlimited usage.',
+          message: config.isFreeTier
+            ? 'Free tier daily limit reached. Add your own API key for unlimited usage.'
+            : `OpenRouter rejected the API key (${response.status}). Check the key's spend limit and account credits at openrouter.ai.`,
           timestamp: Date.now(),
         });
-        log.debug(' Free tier exhausted - setting error state');
+        log.debug(config.isFreeTier
+          ? ' Free tier exhausted - setting error state'
+          : ` API key error (${response.status}) - setting error state`);
       }
 
       return null;
     }
 
-    // Clear any previous error state on successful request (if on free tier)
-    if (config.isFreeTier) {
-      const errorState = await getApiErrorState();
-      if (errorState?.exhausted) {
-        await setApiErrorState(null);
-        log.debug(' Free tier working again - cleared error state');
-      }
+    // Clear any previous error state on successful request
+    const errorState = await getApiErrorState();
+    if (errorState?.exhausted) {
+      await setApiErrorState(null);
+      log.debug(' API working again - cleared error state');
     }
 
     const data = await response.json();
