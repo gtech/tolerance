@@ -21,6 +21,7 @@ export interface NarrativeDetection {
   themeId: string;         // References NarrativeTheme.id
   confidence: 'low' | 'medium' | 'high';
   matchedKeywords: string[];
+  appliedModifier?: number; // Counter-strategy points already applied to apiScore
 }
 
 // Discovered but unconfirmed narrative cluster

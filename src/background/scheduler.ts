@@ -1,6 +1,6 @@
 import { log, scoreToBucket } from '../shared/constants';
 import { EngagementScore, SchedulerConfig } from '../shared/types';
-import { getSettings, getCounterStrategies, getSessionMinutes, getCurrentPhase } from './storage';
+import { getSettings, getSessionMinutes, getCurrentPhase } from './storage';
 
 // Get effective high-engagement ratio based on progressive boredom
 // Returns a ratio (0-1) that decreases as social media time increases today
@@ -33,7 +33,7 @@ export async function getEffectiveRatio(): Promise<number> {
 
 // Fixed interval scheduler
 // Transforms variable reward (Reddit's order) into predictable pattern
-// Also applies narrative counter-strategies for suppression and boosting
+// Counter-strategy modifiers are applied upstream by the scorer
 export async function getScheduledOrder(
   postIds: string[],
   scores: Map<string, EngagementScore>
@@ -45,11 +45,8 @@ export async function getScheduledOrder(
     return { orderedIds: postIds, hiddenIds: [] }; // Return original order if disabled
   }
 
-  // Load counter-strategies for narrative score modification
-  const strategies = await getCounterStrategies();
-  const enabledStrategies = strategies.filter(s => s.enabled);
-
-  // Separate posts by bucket, applying narrative score modifiers
+  // Separate posts by bucket. Counter-strategy modifiers are already applied
+  // to apiScore by the scorer (applyCounterStrategies) - do not re-apply here.
   const high: string[] = [];
   const medium: string[] = [];
   const low: string[] = [];
@@ -61,21 +58,7 @@ export async function getScheduledOrder(
       continue;
     }
 
-    // Calculate effective score, applying narrative modifier if applicable
-    let effectiveScore = score.apiScore;
-    const narrativeDetection = score.factors?.narrative;
-
-    if (narrativeDetection && enabledStrategies.length > 0) {
-      const strategy = enabledStrategies.find(s => s.themeId === narrativeDetection.themeId);
-      if (strategy && strategy.scoreModifier !== 0) {
-        const originalScore = effectiveScore;
-        effectiveScore = Math.max(0, Math.min(100, effectiveScore + strategy.scoreModifier));
-        log.debug(`: Modified post ${id} score: ${originalScore} → ${effectiveScore} (${strategy.scoreModifier > 0 ? '+' : ''}${strategy.scoreModifier}, theme: ${narrativeDetection.themeId})`);
-      }
-    }
-
-    // Determine bucket based on effective score
-    const effectiveBucket = scoreToBucket(effectiveScore);
+    const effectiveBucket = scoreToBucket(score.apiScore);
 
     switch (effectiveBucket) {
       case 'high':

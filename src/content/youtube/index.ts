@@ -191,11 +191,12 @@ function injectStyles(): void {
   const style = document.createElement('style');
   style.id = 'tolerance-youtube-styles';
   style.textContent = `
-    /* Score badges */
+    /* Score badges - top-left corner of the card (badge is a direct child
+       of the card so it stays crisp when the card's children are blurred) */
     .tolerance-score-badge {
       position: absolute !important;
-      bottom: -49px !important;
-      right: 8px !important;
+      top: 8px !important;
+      left: 8px !important;
       padding: 2px 8px !important;
       border-radius: 12px !important;
       font-size: 11px !important;
@@ -222,17 +223,18 @@ function injectStyles(): void {
       pointer-events: auto !important;
     }
 
-    /* Sidebar video badge positioning (far right of card, vertically centered) */
+    /* Sidebar video badge positioning (bottom-right corner, below the
+       vertically-centered blur label so they don't overlap) */
     .tolerance-sidebar-video {
       position: relative !important;
     }
     .tolerance-sidebar-video > .tolerance-score-badge {
       position: absolute !important;
-      top: 50% !important;
-      bottom: auto !important;
+      top: auto !important;
+      bottom: 8px !important;
       right: 8px !important;
       left: auto !important;
-      transform: translateY(-50%) !important;
+      transform: none !important;
       font-size: 12px !important;
       padding: 4px 8px !important;
       z-index: 1000 !important;
@@ -392,26 +394,12 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   const isSidebar = video.element.matches('yt-lockup-view-model, ytd-compact-video-renderer') ||
                     video.element.closest('ytd-watch-next-secondary-results-renderer') !== null;
 
-  let badgeContainer: HTMLElement;
-
+  // Always append to the card root: independent of YouTube's churning
+  // thumbnail DOM, never clipped by overflow:hidden thumbnails, and exempt
+  // from the child-scoped blur filter (stays crisp on blurred cards)
+  const badgeContainer = video.element as HTMLElement;
   if (isSidebar) {
-    // For sidebar videos, append to the video element itself (positioned far right)
-    badgeContainer = video.element as HTMLElement;
     video.element.classList.add('tolerance-sidebar-video');
-  } else {
-    // For homepage/grid videos, append to thumbnail
-    const thumbnail = video.element.querySelector(
-      'a.yt-lockup-view-model__content-image, ' +    // New lockup model (link wrapping thumbnail)
-      'yt-thumbnail-view-model, ' +                   // New thumbnail component
-      '.ytThumbnailViewModelImage, ' +                // New thumbnail image container
-      '#thumbnail, ' +                                // Legacy selector
-      'ytd-thumbnail'                                 // Legacy component
-    ) as HTMLElement;
-    if (!thumbnail) {
-      log.debug(` No thumbnail found for video ${video.id}`);
-      return;
-    }
-    badgeContainer = thumbnail;
   }
 
   // Ensure container has position for absolute positioning

@@ -13,7 +13,7 @@ import {
 import {
   scoreToBucket,
 } from '../shared/constants';
-import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes } from './storage';
+import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 import { getSubscriptionList, isSubscribed } from './subscriptions';
@@ -21,6 +21,43 @@ import { getSubscriptionList, isSubscribed } from './subscriptions';
 // Twitter video/gif thumbnails are often uninformative first frames,
 // but videos inherently grab more attention than text posts
 const TWITTER_VIDEO_SCORE_FLOOR = 35;
+
+// Apply enabled counter-strategy modifiers to scores with detected narratives.
+// Runs once per scoring batch, before caching, so the adjusted score flows
+// everywhere consistently: badge numbers, blur decisions, buckets, and the
+// score cache. The scheduler must NOT re-apply modifiers (it reads these
+// already-adjusted scores).
+async function applyCounterStrategies(
+  scores: EngagementScore[],
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook'
+): Promise<void> {
+  const withNarrative = scores.filter(s => s.factors.narrative && !s.scoreFailed);
+  if (withNarrative.length === 0) return;
+
+  const strategies = (await getCounterStrategies()).filter(s => s.enabled && s.scoreModifier !== 0);
+  if (strategies.length === 0) return;
+
+  const themes = await getNarrativeThemes();
+
+  for (const score of withNarrative) {
+    const detection = score.factors.narrative!;
+    const strategy = strategies.find(s => s.themeId === detection.themeId);
+    if (!strategy) continue;
+
+    const original = score.apiScore;
+    score.apiScore = Math.max(0, Math.min(100, original + strategy.scoreModifier));
+    score.bucket = scoreToBucket(score.apiScore, platform);
+    detection.appliedModifier = strategy.scoreModifier;
+
+    // Make the adjustment visible in the on-screen explanation
+    const themeName = themes.find(t => t.id === detection.themeId)?.name || detection.themeId;
+    const sign = strategy.scoreModifier > 0 ? '+' : '';
+    const note = `[${sign}${strategy.scoreModifier} counter-strategy: ${themeName}]`;
+    score.apiReason = score.apiReason ? `${score.apiReason} ${note}` : note;
+
+    log.debug(` Counter-strategy applied to ${score.postId}: ${original} → ${score.apiScore} (${sign}${strategy.scoreModifier}, theme: ${themeName})`);
+  }
+}
 
 // Create a pending score — will be replaced by API result
 export function createPendingScore(postId: string): EngagementScore {
@@ -192,6 +229,8 @@ export async function scorePosts(
 
   const totalApiCalls = (textPostsForApi.length > 0 ? 1 : 0) + singleMedia.length + (galleries.length > 0 ? 1 : 0);
   log.debug(` Scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, heuristics: ${(t3-t2).toFixed(0)}ms, API: ${(t4-t3).toFixed(0)}ms, total: ${(t4-t0).toFixed(0)}ms (${uncached.length} uncached, ${totalApiCalls} API batches)`);
+
+  await applyCounterStrategies(newScores, 'reddit');
 
   // Cache new scores (scoreFailed entries are cached but skipped on lookup)
   if (newScores.length > 0) {
@@ -403,6 +442,8 @@ export async function scoreTweets(
   const t3 = performance.now();
 
   log.debug(` Tweet scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
+
+  await applyCounterStrategies(newScores, 'twitter');
 
   if (newScores.length > 0) {
     await cacheScores(newScores);
@@ -800,6 +841,8 @@ export async function scoreVideos(
 
   log.debug(` Video scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
+  await applyCounterStrategies(newScores, 'youtube');
+
   // Cache new scores (only those with API scores when API is enabled)
   if (newScores.length > 0) {
     await cacheScores(newScores);
@@ -1005,6 +1048,8 @@ export async function scoreInstagramPosts(
 
   log.debug(` Instagram scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
+  await applyCounterStrategies(newScores, 'instagram');
+
   if (newScores.length > 0) {
     await cacheScores(newScores);
   }
@@ -1179,6 +1224,8 @@ export async function scoreFacebookPosts(
   const t3 = performance.now();
 
   log.debug(` Facebook scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
+
+  await applyCounterStrategies(newScores, 'facebook');
 
   if (newScores.length > 0) {
     await cacheScores(newScores);
