@@ -273,16 +273,19 @@ function injectStyles(): void {
       color: #aaa;
     }
 
-    /* Blur effect - covers entire video card (title, description, thumbnail) */
-    .tolerance-blurred,
-    .tolerance-pending {
+    /* Blur effect - covers entire video card (title, description, thumbnail).
+       Applied to the card's children rather than the card itself: a filter on
+       the card would rasterize its whole subtree, blurring the injected
+       overlay label and badge along with the content. */
+    .tolerance-blurred > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
+    .tolerance-pending > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
       filter: blur(var(--tolerance-blur, 40px)) !important;
       transition: filter 0.3s ease !important;
     }
 
     /* Revealed state (set by JS after hover delay) */
-    .tolerance-blurred.tolerance-revealed,
-    .tolerance-pending.tolerance-revealed {
+    .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
+    .tolerance-pending.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
       filter: blur(0px) !important;
     }
 
@@ -486,52 +489,43 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
   // Set up timed hover reveal
   setupHoverReveal(video.element);
 
-  // Find thumbnail for overlay
-  const thumbnail = video.element.querySelector(
-    'a.yt-lockup-view-model__content-image, ' +
-    'yt-thumbnail-view-model, ' +
-    '.ytThumbnailViewModelImage, ' +
-    '#thumbnail, ' +
-    'ytd-thumbnail'
-  ) as HTMLElement;
+  // Overlay goes on the card itself (direct child) so it stays crisp -
+  // anything nested inside the blurred children would be blurred with them
+  if (getComputedStyle(video.element).position === 'static') {
+    video.element.style.position = 'relative';
+  }
 
-  if (thumbnail) {
-    if (getComputedStyle(thumbnail).position === 'static') {
-      thumbnail.style.position = 'relative';
+  // Add overlay with "scoring..." label
+  if (!video.element.querySelector(':scope > .tolerance-blur-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.className = 'tolerance-blur-overlay';
+    if (opaqueBlurEnabled) {
+      overlay.style.background = 'rgb(140, 140, 140)';
     }
 
-    // Add overlay with "scoring..." label
-    if (!thumbnail.querySelector('.tolerance-blur-overlay')) {
-      const overlay = document.createElement('div');
-      overlay.className = 'tolerance-blur-overlay';
-      if (opaqueBlurEnabled) {
-        overlay.style.background = 'rgb(140, 140, 140)';
+    // Block clicks on blurred content
+    overlay.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    const label = document.createElement('div');
+    label.className = 'tolerance-blur-label';
+    label.textContent = 'Scoring...';
+
+    overlay.appendChild(label);
+    video.element.appendChild(overlay);
+
+    // Auto-remove pending blur after 5s if scoring hasn't resolved it
+    const videoEl = video.element;
+    setTimeout(() => {
+      if (videoEl && videoEl.classList.contains('tolerance-pending')) {
+        videoEl.classList.remove('tolerance-pending');
+        videoEl.classList.remove('tolerance-revealed');
+        videoEl.style.removeProperty('--tolerance-blur');
+        overlay.remove();
       }
-
-      // Block clicks on blurred content
-      overlay.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-
-      const label = document.createElement('div');
-      label.className = 'tolerance-blur-label';
-      label.textContent = 'Scoring...';
-
-      overlay.appendChild(label);
-      thumbnail.appendChild(overlay);
-
-      // Auto-remove pending blur after 5s if scoring hasn't resolved it
-      const videoEl = video.element;
-      setTimeout(() => {
-        if (videoEl && videoEl.classList.contains('tolerance-pending')) {
-          videoEl.classList.remove('tolerance-pending');
-          videoEl.classList.remove('tolerance-revealed');
-          videoEl.style.removeProperty('--tolerance-blur');
-          overlay.remove();
-        }
-      }, 5000);
-    }
+    }, 5000);
   }
 }
 
@@ -564,53 +558,45 @@ function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, b
   // Set up timed hover reveal
   setupHoverReveal(video.element);
 
-  // Find thumbnail for overlay - try new and legacy selectors
-  const thumbnail = video.element.querySelector(
-    'a.yt-lockup-view-model__content-image, ' +    // New lockup model
-    'yt-thumbnail-view-model, ' +                   // New thumbnail component
-    '.ytThumbnailViewModelImage, ' +                // New thumbnail image container
-    '#thumbnail, ' +                                // Legacy selector
-    'ytd-thumbnail'                                 // Legacy component
-  ) as HTMLElement;
-  if (thumbnail) {
-    if (getComputedStyle(thumbnail).position === 'static') {
-      thumbnail.style.position = 'relative';
-    }
-
-    // Remove any existing overlay first
-    const existingOverlay = thumbnail.querySelector('.tolerance-blur-overlay');
-    if (existingOverlay) existingOverlay.remove();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'tolerance-blur-overlay';
-    if (opaqueBlurEnabled) {
-      overlay.style.background = 'rgb(140, 140, 140)';
-    }
-
-    // Block clicks on blurred content
-    overlay.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-
-    const label = document.createElement('div');
-    label.className = 'tolerance-blur-label';
-    if (subscriptionsOnlyMode) {
-      label.textContent = 'Not subscribed';
-    } else {
-      label.textContent = reason
-        ? `High engagement (${Math.round(score)}): ${reason}`
-        : `High engagement (${Math.round(score)})`;
-    }
-    label.style.maxWidth = '80%';
-    label.style.textAlign = 'center';
-
-    overlay.appendChild(label);
-    thumbnail.appendChild(overlay);
-
-    // Show onboarding tooltip on first blur (one-time)
-    showOnboardingTooltip(thumbnail);
+  // Overlay goes on the card itself (direct child) so it stays crisp -
+  // anything nested inside the blurred children would be blurred with them
+  if (getComputedStyle(video.element).position === 'static') {
+    video.element.style.position = 'relative';
   }
+
+  // Remove any existing overlay first
+  const existingOverlay = video.element.querySelector('.tolerance-blur-overlay');
+  if (existingOverlay) existingOverlay.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'tolerance-blur-overlay';
+  if (opaqueBlurEnabled) {
+    overlay.style.background = 'rgb(140, 140, 140)';
+  }
+
+  // Block clicks on blurred content
+  overlay.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  const label = document.createElement('div');
+  label.className = 'tolerance-blur-label';
+  if (subscriptionsOnlyMode) {
+    label.textContent = 'Not subscribed';
+  } else {
+    label.textContent = reason
+      ? `High engagement (${Math.round(score)}): ${reason}`
+      : `High engagement (${Math.round(score)})`;
+  }
+  label.style.maxWidth = '80%';
+  label.style.textAlign = 'center';
+
+  overlay.appendChild(label);
+  video.element.appendChild(overlay);
+
+  // Show onboarding tooltip on first blur (one-time)
+  showOnboardingTooltip(video.element);
 
   log.debug(` Blurred high-engagement video ${video.id}, score=${score}`);
 }
@@ -627,6 +613,11 @@ function isWatchPage(): boolean {
 // Check if we're on a Shorts page
 function isShortsPage(): boolean {
   return window.location.pathname.startsWith('/shorts');
+}
+
+// Check if we're on the search results page
+function isSearchPage(): boolean {
+  return window.location.pathname.startsWith('/results');
 }
 
 // Initialize content script
@@ -757,6 +748,12 @@ async function processVideos(): Promise<void> {
     return;
   }
 
+  // Skip search results - the user is looking for something specific,
+  // not being fed; scoring/blurring there just gets in the way
+  if (isSearchPage()) {
+    return;
+  }
+
   // Prevent concurrent processing
   if (isProcessing) {
     pendingProcess = true;
@@ -781,9 +778,12 @@ async function processVideos(): Promise<void> {
       if (!processedVideoIds.has(video.id)) {
         newVideos.push(video);
       } else {
-        // Check if this processed video needs badge re-injection
-        const thumbnail = video.element?.querySelector('#thumbnail, ytd-thumbnail');
-        if (thumbnail && !thumbnail.querySelector('.tolerance-score-badge') && scoreCache.has(video.id)) {
+        // Check if this processed video needs badge re-injection.
+        // Search anywhere in the card - badge placement varies by layout
+        // (thumbnail for grid videos, card root for sidebar videos).
+        if (video.element &&
+            !video.element.querySelector('.tolerance-score-badge') &&
+            scoreCache.has(video.id)) {
           videosNeedingBadge.push(video);
         }
       }

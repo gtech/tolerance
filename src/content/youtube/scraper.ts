@@ -62,10 +62,12 @@ export function scrapeVisibleVideos(): YouTubeVideo[] {
   // Sidebar recommendations (compact) - legacy
   const sidebarVideos = document.querySelectorAll<HTMLElement>('ytd-compact-video-renderer');
 
-  // New sidebar/recommendations using lockup view model (horizontal layout)
-  // ONLY select lockup models that are NOT inside ytd-rich-item-renderer (to avoid duplicates)
+  // New sidebar/recommendations using lockup view model (horizontal layout).
+  // Don't require the --wrapper modifier class (YouTube churns these);
+  // exclude lockups inside ytd-rich-item-renderer (already covered by
+  // homeVideos) and nested lockups (playlist items inside a parent lockup).
   const lockupVideos = document.querySelectorAll<HTMLElement>(
-    'yt-lockup-view-model.yt-lockup-view-model--wrapper:not(ytd-rich-item-renderer yt-lockup-view-model)'
+    'yt-lockup-view-model:not(ytd-rich-item-renderer yt-lockup-view-model):not(yt-lockup-view-model yt-lockup-view-model)'
   );
 
   // Search results and other video lists
