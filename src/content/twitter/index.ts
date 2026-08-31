@@ -5,6 +5,7 @@ import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { AttentionTracker } from '../attention';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -15,6 +16,9 @@ const scoreCache = new Map<string, { score: EngagementScore; originalPosition: n
 // Processing lock to prevent concurrent processTweets calls
 let isProcessing = false;
 let pendingProcess = false;
+
+// Measures dwell time per tweet and scroll cadence (initialized in initCore)
+let attentionTracker: AttentionTracker | null = null;
 
 // Pre-loading state
 const MIN_TWEETS_FOR_REORDER = 12;
@@ -306,16 +310,19 @@ function injectStyles(): void {
       display: none !important;
     }
 
-    /* Blur effect (pending and high-engagement) */
-    .tolerance-blurred,
-    .tolerance-pending {
+    /* Blur effect (pending and high-engagement).
+       Applied to the cell's children rather than the cell itself: a filter on
+       the cell would also blur the injected overlay label and score badge,
+       since a parent filter rasterizes its entire subtree. */
+    .tolerance-blurred > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
+    .tolerance-pending > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
       filter: blur(var(--tolerance-blur, 40px)) !important;
       transition: filter 0.3s ease !important;
     }
 
     /* Revealed state (set by JS after hover delay) */
-    .tolerance-blurred.tolerance-revealed,
-    .tolerance-pending.tolerance-revealed {
+    .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
+    .tolerance-pending.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
       filter: blur(0px) !important;
     }
 
@@ -525,7 +532,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   if (info.scoringFailed) {
     const isOwnKey = currentSettings?.apiTier === 'own-key';
     titleParts.push(isOwnKey
-      ? 'Error receiving score.'
+      ? 'Error receiving score. Check your OpenRouter key (spend limit / credits) in the dashboard.'
       : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.');
   } else if (info.reason) {
     titleParts.push(info.reason);
@@ -814,6 +821,13 @@ async function initCore(): Promise<void> {
   injectStyles();
   injectOnboardingStyles();
 
+  // Start attention tracking (dwell per tweet + scroll cadence)
+  if (!attentionTracker) {
+    attentionTracker = new AttentionTracker((dwellUpdates, scrollBuckets) => {
+      void sendMessage({ type: 'LOG_ATTENTION', dwellUpdates, scrollBuckets });
+    });
+  }
+
   log.debug(' Mode =', currentState.mode);
 
   // Update hover reveal delay from settings (convert seconds to ms)
@@ -959,6 +973,11 @@ async function processTweets(): Promise<void> {
       for (const tweet of tweetsNeedingBadge) {
         const cached = scoreCache.get(tweet.id);
         if (cached) {
+          // Twitter recreated this tweet's DOM node - re-attach dwell tracking
+          if (tweet.element) {
+            attentionTracker?.track(tweet.id, tweet.element);
+          }
+
           const displayScore = cached.score.apiScore ?? cached.score.heuristicScore;
           const scoringFailed = cached.score.apiScore === undefined;
           injectScoreBadge(tweet, {
@@ -1106,6 +1125,11 @@ async function processTweets(): Promise<void> {
           originalPosition: impression.originalPosition,
           author: tweet.author,
         });
+
+        // Start measuring dwell for this tweet
+        if (tweet.element) {
+          attentionTracker?.track(tweet.id, tweet.element);
+        }
 
         const displayScore = score.apiScore;
         const scoringFailed = score.apiScore === undefined;

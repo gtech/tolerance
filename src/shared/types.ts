@@ -214,6 +214,26 @@ export interface PostImpression {
   subreddit: string;
   wasReordered: boolean;
   narrativeThemeId?: string;  // Detected narrative theme ID (if any)
+  // Attention metrics (accumulated after render by AttentionTracker)
+  dwellMs?: number;               // Total time the post was ≥50% visible in a visible tab
+  viewportEnters?: number;        // How many times it entered the viewport
+  maxContinuousDwellMs?: number;  // Longest single continuous visible stretch
+}
+
+// Delta of attention accumulated for one post since the last flush
+export interface DwellUpdate {
+  postId: string;
+  dwellMs: number;
+  enters: number;
+  maxContinuousMs: number;
+}
+
+// Per-minute scroll activity aggregate (minute = epoch ms / 60000, floored)
+export interface ScrollBucket {
+  minute: number;
+  scrolledPx: number;      // Total absolute pixels scrolled this minute
+  maxVelocityPxS: number;  // Peak instantaneous scroll velocity (px/second)
+  scrollActiveMs: number;  // Approximate time spent actively scrolling
 }
 
 export interface SessionLog {
@@ -227,6 +247,7 @@ export interface SessionLog {
     low: number;
   };
   mode: 'baseline' | 'active';
+  scroll?: ScrollBucket[];  // Per-minute scroll activity, merged across flushes
 }
 
 export interface AppState {
@@ -484,6 +505,7 @@ export type MessageType =
   | { type: 'SCORE_FACEBOOK_POSTS'; posts: Omit<FacebookPost, 'element'>[] }
   | { type: 'SCORES_RESULT'; scores: EngagementScore[] }
   | { type: 'LOG_IMPRESSIONS'; impressions: PostImpression[] }
+  | { type: 'LOG_ATTENTION'; dwellUpdates: DwellUpdate[]; scrollBuckets: ScrollBucket[] }
   | { type: 'GET_STATE' }
   | { type: 'STATE_RESULT'; state: AppState; settings: Settings }
   | { type: 'GET_SCHEDULER_ORDER'; postIds: string[]; scores: EngagementScore[] }

@@ -8,6 +8,7 @@ import {
   createSession,
   endSession,
   logImpressions,
+  logAttention,
   isBaselineComplete,
   setState,
   cleanupOldScores,
@@ -322,6 +323,11 @@ async function handleMessage(
         log.debug(': Auto-created session for impressions');
       }
       await logImpressions(message.impressions);
+      return { success: true };
+    }
+
+    case 'LOG_ATTENTION': {
+      await logAttention(message.dwellUpdates, message.scrollBuckets);
       return { success: true };
     }
 

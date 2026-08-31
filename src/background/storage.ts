@@ -3,6 +3,8 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import {
   SessionLog,
   PostImpression,
+  DwellUpdate,
+  ScrollBucket,
   EngagementScore,
   PostContent,
   AppState,
@@ -19,6 +21,7 @@ import {
   DEFAULT_ADAPTIVE_SETTINGS,
 } from '../shared/types';
 import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS } from '../shared/constants';
+import { mergeDwellIntoImpressions, mergeScrollBuckets } from '../shared/attention-utils';
 
 interface ToleranceDB extends DBSchema {
   sessions: {
@@ -131,6 +134,27 @@ export async function getCurrentSession(): Promise<SessionLog | null> {
 
   const db = await getDB();
   return (await db.get('sessions', state.currentSessionId)) || null;
+}
+
+// Merge attention deltas (dwell per post, scroll per minute) into the current session
+export async function logAttention(
+  dwellUpdates: DwellUpdate[],
+  scrollBuckets: ScrollBucket[]
+): Promise<void> {
+  const session = await getCurrentSession();
+  if (!session) {
+    log.warn(': No session found for logging attention');
+    return;
+  }
+
+  const matched = mergeDwellIntoImpressions(session.posts, dwellUpdates);
+  if (scrollBuckets.length > 0) {
+    session.scroll = mergeScrollBuckets(session.scroll ?? [], scrollBuckets);
+  }
+
+  const db = await getDB();
+  await db.put('sessions', session);
+  log.debug(`: Attention merged - ${matched}/${dwellUpdates.length} dwell updates, ${scrollBuckets.length} scroll buckets`);
 }
 
 export async function logImpressions(impressions: PostImpression[]): Promise<void> {
