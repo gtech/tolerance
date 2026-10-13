@@ -13,9 +13,7 @@ import {
   setState,
   cleanupOldScores,
   getAllSessions,
-  getCalibrationData,
   getCalibrationStats,
-  getAllPostContent,
   getNarrativeThemes,
   saveNarrativeTheme,
   deleteNarrativeTheme,
@@ -372,23 +370,32 @@ async function handleMessage(
     }
 
     case 'GET_DASHBOARD_DATA': {
+      // Aggregates only - raw sessions/post content can exceed the 64 MiB
+      // extension message limit. Export reads IndexedDB directly instead.
       const sessions = await getAllSessions();
-      const calibration = await getCalibrationData();
-      const postContent = await getAllPostContent();
       const apiUsage = await getApiUsage();
       const calibrationStats = await getCalibrationStats('24h');
-      log.debug('GET_DASHBOARD_DATA:', {
+      const stats = {
         sessionsCount: sessions.length,
-        calibrationCount: calibration.length,
-        postContentCount: postContent.length,
-        apiUsage,
-        calibrationStats,
-      });
+        totalPosts: 0,
+        totalHigh: 0,
+        totalMedium: 0,
+        totalLow: 0,
+        postsReordered: 0,
+      };
+      for (const session of sessions) {
+        const posts = session.posts || [];
+        const dist = session.engagementDistribution || { high: 0, medium: 0, low: 0 };
+        stats.totalPosts += posts.length;
+        stats.totalHigh += dist.high || 0;
+        stats.totalMedium += dist.medium || 0;
+        stats.totalLow += dist.low || 0;
+        stats.postsReordered += posts.filter(p => p.wasReordered).length;
+      }
+      log.debug('GET_DASHBOARD_DATA:', { ...stats, apiUsage, calibrationStats });
       return {
         type: 'DASHBOARD_DATA_RESULT',
-        sessions,
-        calibration,
-        postContent,
+        stats,
         apiUsage,
         calibrationStats,
       };

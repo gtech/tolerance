@@ -1,28 +1,11 @@
 import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
-
-interface CalibrationEntry {
-  postId: string;
-  apiScore: number;
-  timestamp: number;
-  permalink?: string;
-  title?: string;
-  subreddit?: string;
-  apiReason?: string;
-  apiFullResponse?: unknown;
-}
+import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 
 interface ApiUsage {
   totalCalls: number;
   totalCost: number;
   lastReset: number;
-}
-
-interface DashboardData {
-  sessions: SessionLog[];
-  calibration: CalibrationEntry[];
-  postContent?: unknown[];
-  apiUsage: ApiUsage;
 }
 
 const PRO_SUBSCRIPTION_URL = 'https://tolerance.lol/account.html';
@@ -501,42 +484,28 @@ function populateCustomThresholds(settings: Settings): void {
 
 async function loadDashboardData(): Promise<void> {
   try {
-    // Get all data from background script via messaging
+    // Get aggregate stats from background script via messaging
     const result = await chrome.runtime.sendMessage({ type: 'GET_DASHBOARD_DATA' }) as {
-      sessions: SessionLog[];
-      calibration: CalibrationEntry[];
+      stats: {
+        sessionsCount: number;
+        totalPosts: number;
+        totalHigh: number;
+        totalMedium: number;
+        totalLow: number;
+        postsReordered: number;
+      };
       apiUsage: ApiUsage;
     } | null;
 
-    if (!result) {
+    if (!result?.stats) {
       console.error('Failed to get dashboard data');
       return;
     }
 
-    const sessions = result.sessions || [];
+    const { sessionsCount, totalPosts, totalHigh, totalMedium, totalLow, postsReordered } = result.stats;
     const apiUsage = result.apiUsage || { totalCalls: 0, totalCost: 0, lastReset: Date.now() };
 
-    console.log('Dashboard data received:', {
-      sessionsCount: sessions.length,
-      apiUsage,
-    });
-
-    // Calculate totals
-    let totalPosts = 0;
-    let totalHigh = 0;
-    let totalMedium = 0;
-    let totalLow = 0;
-    let postsReordered = 0;
-
-    for (const session of sessions) {
-      const posts = session.posts || [];
-      const dist = session.engagementDistribution || { high: 0, medium: 0, low: 0 };
-      totalPosts += posts.length;
-      totalHigh += dist.high || 0;
-      totalMedium += dist.medium || 0;
-      totalLow += dist.low || 0;
-      postsReordered += posts.filter(p => p.wasReordered).length;
-    }
+    console.log('Dashboard data received:', { ...result.stats, apiUsage });
 
     // Update stats
     const totalPostsEl = document.getElementById('total-posts');
@@ -544,7 +513,7 @@ async function loadDashboardData(): Promise<void> {
     const postsReorderedEl = document.getElementById('posts-reordered');
 
     if (totalPostsEl) totalPostsEl.textContent = String(totalPosts);
-    if (totalSessionsEl) totalSessionsEl.textContent = String(sessions.length);
+    if (totalSessionsEl) totalSessionsEl.textContent = String(sessionsCount);
     if (postsReorderedEl) postsReorderedEl.textContent = String(postsReordered);
 
     // Update API usage
@@ -1062,22 +1031,36 @@ async function saveSettings(): Promise<void> {
 
 async function exportData(): Promise<void> {
   try {
-    const result = await chrome.runtime.sendMessage({ type: 'GET_DASHBOARD_DATA' }) as DashboardData | null;
+    // Read IndexedDB directly (the dashboard shares the extension origin).
+    // Routing this through runtime messaging hits Chrome's 64 MiB message cap.
+    const [sessions, calibration, postContent, usageResult] = await Promise.all([
+      getAllSessions(),
+      getCalibrationData(),
+      getAllPostContent(),
+      chrome.runtime.sendMessage({ type: 'GET_API_USAGE' }) as Promise<{ usage?: ApiUsage } | null>,
+    ]);
 
-    if (!result) {
-      alert('Failed to get data for export.');
-      return;
-    }
-
-    const data = {
-      exportDate: new Date().toISOString(),
-      sessions: result.sessions,
-      calibration: result.calibration,
-      postContent: result.postContent,
-      apiUsage: result.apiUsage,
+    // Build the file from per-record chunks rather than one giant string,
+    // so export size isn't bounded by the max JS string length
+    const parts: string[] = [];
+    const writeArray = (key: string, items: unknown[], last = false) => {
+      parts.push(`  "${key}": [`);
+      items.forEach((item, i) => {
+        parts.push((i === 0 ? '\n    ' : ',\n    ') + JSON.stringify(item));
+      });
+      parts.push(items.length ? '\n  ]' : ']');
+      parts.push(last ? '\n' : ',\n');
     };
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    parts.push('{\n');
+    parts.push(`  "exportDate": ${JSON.stringify(new Date().toISOString())},\n`);
+    parts.push(`  "apiUsage": ${JSON.stringify(usageResult?.usage ?? null)},\n`);
+    writeArray('sessions', sessions);
+    writeArray('calibration', calibration);
+    writeArray('postContent', postContent, true);
+    parts.push('}\n');
+
+    const blob = new Blob(parts, { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
@@ -1085,7 +1068,8 @@ async function exportData(): Promise<void> {
     a.download = `tolerance-export-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
 
-    URL.revokeObjectURL(url);
+    // Give the download a moment to start before releasing the blob
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   } catch (error) {
     console.error('Export failed:', error);
     alert('Export failed. See console for details.');
