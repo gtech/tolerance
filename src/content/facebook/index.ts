@@ -3,6 +3,7 @@ import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -58,8 +59,9 @@ function sendHeartbeat(): void {
   if (document.visibilityState !== 'visible') return;
 
   try {
-    chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
-      if (chrome.runtime.lastError) { /* silent */ }
+    chrome.runtime.sendMessage(heartbeatMessage(), (response) => {
+      if (chrome.runtime.lastError) return; // Extension might be updating
+      handleHeartbeatResponse(response);
     });
   } catch {
     if (heartbeatIntervalId) {

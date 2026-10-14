@@ -8,6 +8,7 @@ import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
+import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -53,11 +54,9 @@ function sendHeartbeat(): void {
     return;
   }
 
-  chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
-    // Ignore errors (extension might be updating)
-    if (chrome.runtime.lastError) {
-      // Silent fail
-    }
+  chrome.runtime.sendMessage(heartbeatMessage(), (response) => {
+    if (chrome.runtime.lastError) return; // Extension might be updating
+    handleHeartbeatResponse(response);
   });
 }
 

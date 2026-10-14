@@ -1,4 +1,5 @@
 // Core types for Tolerance
+import type { GroundingSettings } from './grounding-utils';
 
 // ==========================================
 // Narrative Awareness Types
@@ -436,6 +437,8 @@ export interface Settings {
   trustedBlurPhase?: TrustedBlurPhase;
   // Blur Until Scored - blur posts while waiting for AI scoring (default: true)
   blurUntilScored?: boolean;
+  // Grounding breaks: invite a short exercise every N minutes of continuous scrolling
+  grounding?: GroundingSettings;
   // Seconds before an unscored post's blur gives up and reveals it (default: 5, 0 = wait until scored)
   blurUntilScoredTimeout?: number;
   // Logging level for console output

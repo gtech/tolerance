@@ -4,6 +4,7 @@ import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -62,10 +63,9 @@ function sendHeartbeat(): void {
   }
 
   try {
-    chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
-      if (chrome.runtime.lastError) {
-        // Silent fail - extension might be updating
-      }
+    chrome.runtime.sendMessage(heartbeatMessage(), (response) => {
+      if (chrome.runtime.lastError) return; // Extension might be updating
+      handleHeartbeatResponse(response);
     });
   } catch {
     if (heartbeatIntervalId) {

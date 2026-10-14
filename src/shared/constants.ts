@@ -277,6 +277,40 @@ export const DEFAULT_BLUR_THRESHOLDS = {
   minimal: 40,    // ~60% blurred
 } as const;
 
+// One-slider strictness presets (1 = gentlest, 3 = defaults, 5 = strictest).
+// Each sets all four phase blur thresholds; lower threshold = more blurred.
+export type BlurThresholdSet = { normal: number; reduced: number; windDown: number; minimal: number };
+
+export const STRICTNESS_PRESETS: { label: string; thresholds: BlurThresholdSet }[] = [
+  { label: 'Very gentle', thresholds: { normal: 100, reduced: 90, windDown: 80, minimal: 60 } },
+  { label: 'Gentle',      thresholds: { normal: 100, reduced: 85, windDown: 75, minimal: 50 } },
+  { label: 'Default',     thresholds: { ...DEFAULT_BLUR_THRESHOLDS } },
+  { label: 'Strict',      thresholds: { normal: 90,  reduced: 65, windDown: 50, minimal: 30 } },
+  { label: 'Very strict', thresholds: { normal: 75,  reduced: 50, windDown: 40, minimal: 25 } },
+];
+
+export function strictnessThresholds(level: number): BlurThresholdSet {
+  const index = Math.max(1, Math.min(STRICTNESS_PRESETS.length, Math.round(level))) - 1;
+  return { ...STRICTNESS_PRESETS[index].thresholds };
+}
+
+// Map thresholds back to a slider position. exact=false means the user has
+// fine-tuned per phase; level is then the closest preset.
+export function thresholdsToStrictness(t: BlurThresholdSet): { level: number; exact: boolean } {
+  let best = 3;
+  let bestDistance = Infinity;
+  STRICTNESS_PRESETS.forEach((preset, i) => {
+    const p = preset.thresholds;
+    const distance = Math.abs(p.normal - t.normal) + Math.abs(p.reduced - t.reduced)
+      + Math.abs(p.windDown - t.windDown) + Math.abs(p.minimal - t.minimal);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = i + 1;
+    }
+  });
+  return { level: best, exact: bestDistance === 0 };
+}
+
 // Default phase timing (minutes)
 export const DEFAULT_PHASE_TIMING = {
   normal: 15,     // First 15 min: no blur

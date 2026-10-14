@@ -37,6 +37,7 @@ import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
 import { rewriteResponse, recordClaudeHeartbeat } from './rewriter';
 import { getProductivityStats } from './rescuetime';
+import { checkGrounding, logGroundingEvent } from './grounding';
 import {
   discoverEmergingNarratives,
   confirmEmergingNarrative,
@@ -216,10 +217,33 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   }
   // Handle SOCIAL_MEDIA_HEARTBEAT separately (comes from tracker.js, not typed in MessageType)
   if (message.type === 'SOCIAL_MEDIA_HEARTBEAT') {
-    recordHeartbeat().then(() => {
-      sendResponse({ type: 'HEARTBEAT_ACK' });
-    });
+    const canPrompt = (message as { canPrompt?: boolean }).canPrompt === true;
+    recordHeartbeat()
+      .then(() => checkGrounding(canPrompt))
+      .then((groundingMinutes) => {
+        sendResponse({
+          type: 'HEARTBEAT_ACK',
+          ...(groundingMinutes !== null && { grounding: { minutes: groundingMinutes } }),
+        });
+      })
+      .catch(() => sendResponse({ type: 'HEARTBEAT_ACK' }));
     return true;
+  }
+
+  // Grounding break overlay events (shown / declined / completed / ...)
+  if (message.type === 'GROUNDING_EVENT') {
+    const { event, exercise, host } = message as unknown as { event: string; exercise?: string; host?: string };
+    logGroundingEvent({ event, exercise, host }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // "I'm done for now" at the end of a grounding break
+  if (message.type === 'CLOSE_CURRENT_TAB') {
+    if (sender.tab?.id !== undefined) {
+      chrome.tabs.remove(sender.tab.id).catch(() => {});
+    }
+    sendResponse({ ok: true });
+    return false;
   }
 
   // Handle CLAUDE_HEARTBEAT from claude.ai content script

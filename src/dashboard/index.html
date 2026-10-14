@@ -818,6 +818,37 @@
       transform: translateX(24px);
       background-color: #fff;
     }
+
+    /* Grounding Breaks Toggle Slider */
+    #grounding-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    #grounding-toggle:checked + #grounding-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    #grounding-toggle:checked + #grounding-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
+    /* Strictness slider stop labels */
+    .strictness-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -913,7 +944,15 @@
           <h2>Blur Thresholds</h2>
           <button id="reset-thresholds-btn-top" class="btn-secondary" style="padding: 6px 12px; font-size: 12px;">Reset</button>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div style="margin-bottom: 4px;">
+          <div style="font-size: 13px; color: #ccc; margin-bottom: 6px;">Strictness: <span id="strictness-value" style="color: #fff; font-weight: 600;">Default</span></div>
+          <input type="range" id="strictness" min="1" max="5" step="1" value="3" style="width: 100%;" />
+          <div class="strictness-labels"><span>Gentle</span><span>Default</span><span>Strict</span></div>
+          <div style="font-size: 11px; color: #666; margin-top: 8px;">How much gets blurred as your session goes on. Moves all four phase thresholds together.</div>
+        </div>
+        <details id="threshold-fine-tune" style="margin-top: 12px;">
+        <summary style="cursor: pointer; font-size: 12px; color: #888;">Fine-tune per phase</summary>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
           <div>
             <div style="font-size: 12px; color: #888; margin-bottom: 4px;">Normal: <span id="blur-normal-value-top">100</span></div>
             <input type="range" id="blur-normal-top" min="20" max="100" step="5" value="100" style="width: 100%;" />
@@ -932,6 +971,7 @@
           </div>
         </div>
         <div style="font-size: 11px; color: #666; margin-top: 8px;">Score at which posts get blurred in each phase</div>
+        </details>
       </div>
 
       <div class="card">
@@ -1024,6 +1064,31 @@
         </div>
         <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
           Use a solid gray overlay instead of semi-transparent blur. Completely hides content with no visible motion or shapes.
+        </div>
+      </div>
+      <div class="card" id="grounding-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Grounding Breaks
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="grounding-toggle" checked style="opacity: 0; width: 0; height: 0;">
+            <span id="grounding-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          After a stretch of continuous scrolling, offer a short grounding exercise: a few slow breaths, 5-4-3-2-1, or feet on the floor. Always optional. A 5-minute break resets the clock.
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;">
+          <label for="grounding-interval" style="color: #aaa; font-size: 13px;">Offer one every:</label>
+          <select id="grounding-interval" style="padding: 6px 10px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 13px;">
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="20">20 minutes (default)</option>
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+          </select>
+          <button id="grounding-try-btn" class="btn-secondary" type="button" style="padding: 6px 12px; font-size: 12px;">Try it now</button>
         </div>
       </div>
     </div>

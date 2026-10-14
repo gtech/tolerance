@@ -1,5 +1,7 @@
 import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase } from '../shared/types';
-import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
+import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
+import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
+import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 
 interface ApiUsage {
@@ -41,6 +43,8 @@ async function init(): Promise<void> {
   // Set up event listeners
   setupEventListeners();
   await setupTrustedBlurPhase();
+  await setupGroundingSettings();
+  setupStrictnessSlider();
 
   // Listen for storage changes to sync Quality Mode toggle
   chrome.storage.onChanged.addListener((changes) => {
@@ -101,6 +105,99 @@ async function setupTrustedBlurPhase(): Promise<void> {
       settings: { ...current, trustedBlurPhase: select.value as TrustedBlurPhase },
     });
   });
+}
+
+// Grounding breaks card: on/off, interval, and a preview of the overlay
+async function setupGroundingSettings(): Promise<void> {
+  const toggle = document.getElementById('grounding-toggle') as HTMLInputElement | null;
+  const select = document.getElementById('grounding-interval') as HTMLSelectElement | null;
+  const tryButton = document.getElementById('grounding-try-btn');
+  if (!toggle || !select) return;
+
+  const settings = await getSettings();
+  const grounding = { ...DEFAULT_GROUNDING, ...settings.grounding };
+  toggle.checked = grounding.enabled;
+  select.value = String(grounding.intervalMinutes);
+
+  const save = async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({
+      settings: {
+        ...current,
+        grounding: { enabled: toggle.checked, intervalMinutes: parseInt(select.value, 10) },
+      },
+    });
+  };
+  toggle.addEventListener('change', save);
+  select.addEventListener('change', save);
+  tryButton?.addEventListener('click', () => showGroundingInvite(undefined, { preview: true }));
+}
+
+// ==========================================
+// Strictness slider (one control for all four phase thresholds)
+// ==========================================
+
+const THRESHOLD_SLIDER_IDS: [string, keyof BlurThresholdSet][] = [
+  ['blur-normal', 'normal'],
+  ['blur-reduced', 'reduced'],
+  ['blur-winddown', 'windDown'],
+  ['blur-minimal', 'minimal'],
+];
+
+// Set both copies (top card + settings section) of the per-phase sliders
+function setThresholdSliders(thresholds: BlurThresholdSet): void {
+  for (const [id, key] of THRESHOLD_SLIDER_IDS) {
+    for (const suffix of ['', '-top']) {
+      const slider = document.getElementById(`${id}${suffix}`) as HTMLInputElement | null;
+      const valueEl = document.getElementById(`${id}-value${suffix}`);
+      if (slider) slider.value = String(thresholds[key]);
+      if (valueEl) valueEl.textContent = String(thresholds[key]);
+    }
+  }
+}
+
+function readThresholdSliders(): BlurThresholdSet {
+  const read = (id: string, fallback: number) =>
+    parseInt((document.getElementById(`${id}-top`) as HTMLInputElement | null)?.value || String(fallback), 10);
+  return {
+    normal: read('blur-normal', DEFAULT_BLUR_THRESHOLDS.normal),
+    reduced: read('blur-reduced', DEFAULT_BLUR_THRESHOLDS.reduced),
+    windDown: read('blur-winddown', DEFAULT_BLUR_THRESHOLDS.windDown),
+    minimal: read('blur-minimal', DEFAULT_BLUR_THRESHOLDS.minimal),
+  };
+}
+
+// Position the strictness slider to match the per-phase values ("Custom" if fine-tuned)
+function updateStrictnessDisplay(thresholds: BlurThresholdSet): void {
+  const slider = document.getElementById('strictness') as HTMLInputElement | null;
+  const label = document.getElementById('strictness-value');
+  const { level, exact } = thresholdsToStrictness(thresholds);
+  if (slider) slider.value = String(level);
+  if (label) label.textContent = exact ? STRICTNESS_PRESETS[level - 1].label : 'Custom';
+}
+
+function setupStrictnessSlider(): void {
+  const slider = document.getElementById('strictness') as HTMLInputElement | null;
+  const label = document.getElementById('strictness-value');
+  if (!slider) return;
+
+  slider.addEventListener('input', () => {
+    const level = parseInt(slider.value, 10);
+    if (label) label.textContent = STRICTNESS_PRESETS[level - 1].label;
+    setThresholdSliders(strictnessThresholds(level));
+  });
+  slider.addEventListener('change', saveCustomThresholds);
+
+  // Fine-tuning a single phase moves the strictness slider to "Custom"
+  for (const [id] of THRESHOLD_SLIDER_IDS) {
+    for (const suffix of ['', '-top']) {
+      document.getElementById(`${id}${suffix}`)?.addEventListener('input', () => {
+        updateStrictnessDisplay(readThresholdSliders());
+      });
+    }
+  }
+
+  updateStrictnessDisplay(readThresholdSliders());
 }
 
 async function getSettings(): Promise<Settings> {
@@ -480,6 +577,7 @@ function populateCustomThresholds(settings: Settings): void {
   updateSlider('blur-reduced', blurThresholds.reduced);
   updateSlider('blur-winddown', blurThresholds.windDown);
   updateSlider('blur-minimal', blurThresholds.minimal);
+  updateStrictnessDisplay(blurThresholds);
 
   // Phase timing sliders
   const timingNormal = document.getElementById('timing-normal') as HTMLInputElement;

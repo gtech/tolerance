@@ -2,6 +2,7 @@
 // Just sends periodic heartbeats to background - no DOM manipulation
 
 import { log } from '../shared/constants';
+import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 
 const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
 
@@ -12,11 +13,9 @@ function sendHeartbeat(): void {
   }
 
   try {
-    chrome.runtime.sendMessage({ type: 'SOCIAL_MEDIA_HEARTBEAT' }, () => {
-      // Ignore errors (extension might be updating/disabled)
-      if (chrome.runtime.lastError) {
-        // Silent fail
-      }
+    chrome.runtime.sendMessage(heartbeatMessage(), (response) => {
+      if (chrome.runtime.lastError) return; // Extension might be updating
+      handleHeartbeatResponse(response);
     });
   } catch {
     // Extension context invalidated
