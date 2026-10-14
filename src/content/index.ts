@@ -1,4 +1,4 @@
-import { RedditPost, EngagementScore, AppState, Settings, PostImpression } from '../shared/types';
+import { RedditPost, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { scrapeNewRedditPosts, serializeNewRedditPost } from './scraper-new';
@@ -94,8 +94,8 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Don't blur if scoring failed (no API score when API is expected)
   if (score.apiScore === undefined) return false;
 
-  // Whitelisted sources bypass blur
-  if (score.whitelisted) return false;
+  // Trusted sources bypass blur until the configured phase
+  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
 
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -296,7 +296,7 @@ function injectLoadingStyles(): void {
     }
 
     .tolerance-blur-overlay::after {
-      content: 'Hover 3s to reveal';
+      content: 'Hover to reveal';
       color: rgba(255, 255, 255, 0.9);
       font-size: 14px;
       font-weight: 500;
@@ -519,7 +519,7 @@ function applyBlur(post: RedditPost): void {
       overlay.classList.remove('revealing');
       overlay.classList.add('revealed');
       isRevealed = true;
-    }, 3000); // 3 seconds to reveal
+    }, (currentSettings?.twitter?.hoverRevealDelay ?? 3) * 1000); // Shared hover-reveal setting
   });
 
   overlay.addEventListener('mouseleave', () => {

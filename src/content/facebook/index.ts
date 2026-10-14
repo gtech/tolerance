@@ -1,4 +1,4 @@
-import { FacebookPost, EngagementScore, AppState, Settings } from '../../shared/types';
+import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
@@ -104,8 +104,9 @@ async function updateBlurThreshold(): Promise<void> {
 
 function shouldBlurScore(score: EngagementScore): boolean {
   if (score.apiScore === undefined) return false;
-  if (score.whitelisted) return false;
-  if (subscriptionsOnlyMode) return true;
+  // Trusted sources bypass blur until the configured phase
+  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
+  if (subscriptionsOnlyMode && !score.whitelisted) return true;
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;

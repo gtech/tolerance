@@ -1,4 +1,4 @@
-import { Tweet, EngagementScore, AppState, Settings, PostImpression } from '../../shared/types';
+import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
@@ -95,6 +95,8 @@ async function updateBlurThreshold(): Promise<void> {
           log.debug(` Blur threshold updated - phase: ${newPhase}, threshold: ${newThreshold}`);
           currentBlurThreshold = newThreshold;
           currentPhase = newPhase;
+          // Re-evaluate visible posts (e.g. trusted sources crossing their cutoff)
+          refreshBlurState();
         }
       }
     }
@@ -108,11 +110,12 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Don't blur if scoring failed (no API score when API is expected)
   if (score.apiScore === undefined) return false;
 
-  // Pre-filter: whitelisted sources bypass blur transform
-  if (score.whitelisted) return false;
+  // Trusted sources bypass blur until the configured phase
+
+  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
 
   // Subscriptions-only: blur ALL non-whitelisted content
-  if (subscriptionsOnlyMode) return true;
+  if (subscriptionsOnlyMode && !score.whitelisted) return true;
 
   const displayScore = score.apiScore;
   // Quality Mode uses aggressive threshold (20)
@@ -355,6 +358,12 @@ function injectStyles(): void {
       font-weight: 600;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .tolerance-blur-label.medium {
+      background: rgba(243, 156, 18, 0.9);
+    }
+    .tolerance-blur-label.low {
+      background: rgba(39, 174, 96, 0.9);
     }
     .tolerance-pending .tolerance-blur-label {
       background: rgba(149, 165, 166, 0.9);
@@ -616,8 +625,26 @@ function removePendingBlur(tweet: Tweet): void {
   if (overlay) overlay.remove();
 }
 
+// Build the label shown over a blurred tweet, colored by score bucket
+function buildBlurLabel(score: EngagementScore): HTMLElement {
+  const label = document.createElement('div');
+  label.className = `tolerance-blur-label ${score.bucket}`;
+  const rounded = Math.round(score.apiScore);
+  let text: string;
+  if (subscriptionsOnlyMode && !score.whitelisted) {
+    text = 'Not following';
+  } else {
+    text = score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
+    if (score.whitelisted) text += ' (trusted, blurred late in session)';
+  }
+  label.textContent = text;
+  label.style.maxWidth = '80%';
+  label.style.textAlign = 'center';
+  return label;
+}
+
 // Apply blur effect to high-engagement tweets
-function applyBlurToTweet(tweet: Tweet, score: number, reason?: string, blurIntensity: number = 40): void {
+function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: number = 40): void {
   if (!tweet.element) return;
 
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
@@ -658,18 +685,10 @@ function applyBlurToTweet(tweet: Tweet, score: number, reason?: string, blurInte
     e.stopPropagation();
   });
 
-  const label = document.createElement('div');
-  label.className = 'tolerance-blur-label';
-  label.textContent = reason
-    ? `High engagement (${Math.round(score)}): ${reason}`
-    : `High engagement content (${Math.round(score)})`;
-  label.style.maxWidth = '80%';
-  label.style.textAlign = 'center';
-
-  overlay.appendChild(label);
+  overlay.appendChild(buildBlurLabel(score));
   cell.appendChild(overlay);
 
-  log.debug(` Blurred high-engagement tweet ${tweet.id}, score=${score}`);
+  log.debug(` Blurred tweet ${tweet.id}, score=${score.apiScore}, bucket=${score.bucket}`);
 
   // Show onboarding tooltip on first blur (one-time)
   showOnboardingTooltip(cell);
@@ -995,7 +1014,7 @@ async function processTweets(): Promise<void> {
           // Re-apply blur if needed (based on adaptive threshold)
           const twitterSettings = currentSettings?.twitter;
           if (twitterSettings?.blurHighEngagement && !twitterSettings?.reorderEnabled && shouldBlurScore(cached.score)) {
-            applyBlurToTweet(tweet, displayScore, cached.score.apiReason, twitterSettings.blurIntensity);
+            applyBlurToTweet(tweet, cached.score, twitterSettings.blurIntensity);
           }
         }
       }
@@ -1103,8 +1122,7 @@ async function processTweets(): Promise<void> {
         if (score) {
           if (shouldBlurScore(score)) {
             // Blur tweets above threshold (threshold lowers as session progresses)
-            const displayScore = score.apiScore;
-            applyBlurToTweet(tweet, displayScore, score.apiReason, twitterSettings.blurIntensity);
+            applyBlurToTweet(tweet, score, twitterSettings.blurIntensity);
           } else {
             // Remove blur for tweets below threshold
             removePendingBlur(tweet);
@@ -1231,11 +1249,11 @@ function refreshBlurState(): void {
     const cached = tweetId ? scoreCache.get(tweetId) : null;
     const isWhitelisted = cached?.score?.whitelisted ?? false;
 
-    // Determine if should blur
+    // Determine if should blur (same rules as shouldBlurScore)
     let shouldBlur = false;
-    if (isWhitelisted) {
+    if (isWhitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) {
       shouldBlur = false;
-    } else if (subscriptionsOnlyMode) {
+    } else if (subscriptionsOnlyMode && !isWhitelisted) {
       shouldBlur = true;
     } else {
       const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -1269,15 +1287,9 @@ function refreshBlurState(): void {
         e.stopPropagation();
       });
 
-      const label = document.createElement('div');
-      label.className = 'tolerance-blur-label';
-      label.textContent = subscriptionsOnlyMode
-        ? 'Not following'
-        : `High engagement content (${score})`;
-      label.style.maxWidth = '80%';
-      label.style.textAlign = 'center';
-
-      overlay.appendChild(label);
+      overlay.appendChild(cached?.score
+        ? buildBlurLabel(cached.score)
+        : buildBlurLabel({ postId: tweetId ?? '', apiScore: score, bucket: 'medium', factors: {}, timestamp: Date.now() }));
       htmlCell.appendChild(overlay);
 
       // Set up hover reveal
@@ -1446,7 +1458,16 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
     const newSettings = changes.settings.newValue as Settings;
+    const trustedPhaseChanged = newSettings.trustedBlurPhase !== currentSettings?.trustedBlurPhase;
     currentSettings = newSettings;
+
+    // Pick up hover-reveal delay changes without a page reload
+    hoverRevealDelay = (newSettings.twitter?.hoverRevealDelay ?? 3) * 1000;
+
+    // Re-evaluate blur when the trusted-source cutoff changes
+    if (trustedPhaseChanged) {
+      refreshBlurState();
+    }
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;

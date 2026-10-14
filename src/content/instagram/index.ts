@@ -1,4 +1,4 @@
-import { InstagramPost, EngagementScore, AppState, Settings } from '../../shared/types';
+import { InstagramPost, EngagementScore, AppState, Settings, isTrustedExempt } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
@@ -114,11 +114,12 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Don't blur if scoring failed (no API score when API is expected)
   if (score.apiScore === undefined) return false;
 
-  // Pre-filter: whitelisted sources bypass blur transform
-  if (score.whitelisted) return false;
+  // Trusted sources bypass blur until the configured phase
+
+  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
 
   // Subscriptions-only: blur ALL non-whitelisted content
-  if (subscriptionsOnlyMode) return true;
+  if (subscriptionsOnlyMode && !score.whitelisted) return true;
 
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;

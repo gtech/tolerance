@@ -1,4 +1,4 @@
-import { YouTubeVideo, EngagementScore, AppState, Settings } from '../../shared/types';
+import { YouTubeVideo, EngagementScore, AppState, Settings, isTrustedExempt } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
@@ -156,6 +156,8 @@ async function updateBlurThreshold(): Promise<void> {
           log.debug(` YouTube blur threshold updated - phase: ${newPhase}, threshold: ${newThreshold}`);
           currentBlurThreshold = newThreshold;
           currentPhase = newPhase;
+          // Re-evaluate visible posts (e.g. trusted sources crossing their cutoff)
+          refreshBlurState();
         }
       }
     }
@@ -169,11 +171,12 @@ function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; white
   // Don't blur if scoring failed
   if (score.scoreFailed) return false;
 
-  // Pre-filter: whitelisted sources bypass blur transform
-  if (score.whitelisted) return false;
+  // Trusted sources bypass blur until the configured phase
+
+  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
 
   // Subscriptions-only: blur ALL non-whitelisted content
-  if (subscriptionsOnlyMode) return true;
+  if (subscriptionsOnlyMode && !score.whitelisted) return true;
 
   const displayScore = score.apiScore;
   // Quality Mode uses aggressive threshold (20)
@@ -320,6 +323,12 @@ function injectStyles(): void {
       font-weight: 600;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .tolerance-blur-label.medium {
+      background: rgba(243, 156, 18, 0.9);
+    }
+    .tolerance-blur-label.low {
+      background: rgba(39, 174, 96, 0.9);
     }
     .tolerance-pending .tolerance-blur-label {
       background: rgba(149, 165, 166, 0.9);
@@ -531,7 +540,25 @@ function removePendingBlur(video: YouTubeVideo): void {
 }
 
 // Apply blur effect to high-engagement videos
-function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, blurIntensity: number = 40): void {
+// Build the label shown over a blurred video, colored by score bucket
+function buildBlurLabel(score: EngagementScore): HTMLElement {
+  const label = document.createElement('div');
+  label.className = `tolerance-blur-label ${score.bucket}`;
+  const rounded = Math.round(score.apiScore);
+  let text: string;
+  if (subscriptionsOnlyMode && !score.whitelisted) {
+    text = 'Not subscribed';
+  } else {
+    text = score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
+    if (score.whitelisted) text += ' (trusted, blurred late in session)';
+  }
+  label.textContent = text;
+  label.style.maxWidth = '80%';
+  label.style.textAlign = 'center';
+  return label;
+}
+
+function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurIntensity: number = 40): void {
   if (!video.element) return;
 
   // Remove pending state if present
@@ -568,25 +595,13 @@ function applyBlurToVideo(video: YouTubeVideo, score: number, reason?: string, b
     e.stopPropagation();
   });
 
-  const label = document.createElement('div');
-  label.className = 'tolerance-blur-label';
-  if (subscriptionsOnlyMode) {
-    label.textContent = 'Not subscribed';
-  } else {
-    label.textContent = reason
-      ? `High engagement (${Math.round(score)}): ${reason}`
-      : `High engagement (${Math.round(score)})`;
-  }
-  label.style.maxWidth = '80%';
-  label.style.textAlign = 'center';
-
-  overlay.appendChild(label);
+  overlay.appendChild(buildBlurLabel(score));
   video.element.appendChild(overlay);
 
   // Show onboarding tooltip on first blur (one-time)
   showOnboardingTooltip(video.element);
 
-  log.debug(` Blurred high-engagement video ${video.id}, score=${score}`);
+  log.debug(` Blurred video ${video.id}, score=${score.apiScore}, bucket=${score.bucket}`);
 }
 
 // Current state
@@ -796,7 +811,7 @@ async function processVideos(): Promise<void> {
 
           // Re-apply blur if needed (based on adaptive threshold)
           if (shouldBlurScore(cached.score)) {
-            applyBlurToVideo(video, displayScore, cached.score.apiReason, 8);
+            applyBlurToVideo(video, cached.score, 8);
           }
         }
       }
@@ -873,7 +888,7 @@ async function processVideos(): Promise<void> {
         // Handle blur based on engagement level (uses adaptive threshold)
         if (shouldBlurScore(score)) {
           // Blur videos above threshold (threshold lowers as session progresses)
-          applyBlurToVideo(video, displayScore, score.apiReason, 8);
+          applyBlurToVideo(video, score, 8);
         } else {
           // Remove blur for videos below threshold
           removePendingBlur(video);
@@ -947,9 +962,9 @@ function refreshBlurState(): void {
     // Determine if should blur
     let shouldBlur = false;
     if (score !== undefined && !isNaN(score)) {
-      if (isWhitelisted) {
+      if (isWhitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) {
         shouldBlur = false;
-      } else if (subscriptionsOnlyMode) {
+      } else if (subscriptionsOnlyMode && !isWhitelisted) {
         shouldBlur = true;
       } else {
         const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -968,45 +983,29 @@ function refreshBlurState(): void {
       // Set up hover reveal
       setupHoverReveal(htmlElement);
 
-      // Find thumbnail for overlay
-      const thumbnail = htmlElement.querySelector(
-        'a.yt-lockup-view-model__content-image, ' +
-        'yt-thumbnail-view-model, ' +
-        '.ytThumbnailViewModelImage, ' +
-        '#thumbnail, ' +
-        'ytd-thumbnail'
-      ) as HTMLElement;
-
-      if (thumbnail) {
-        if (getComputedStyle(thumbnail).position === 'static') {
-          thumbnail.style.position = 'relative';
-        }
-
-        // Remove any existing overlay first
-        const existingOverlay = thumbnail.querySelector('.tolerance-blur-overlay');
-        if (existingOverlay) existingOverlay.remove();
-
-        const overlay = document.createElement('div');
-        overlay.className = 'tolerance-blur-overlay';
-        if (opaqueBlurEnabled) {
-          overlay.style.background = 'rgb(140, 140, 140)';
-        }
-        overlay.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-
-        const label = document.createElement('div');
-        label.className = 'tolerance-blur-label';
-        label.textContent = subscriptionsOnlyMode
-          ? 'Not subscribed'
-          : `High engagement content (${score})`;
-        label.style.maxWidth = '80%';
-        label.style.textAlign = 'center';
-
-        overlay.appendChild(label);
-        thumbnail.appendChild(overlay);
+      // Overlay on the card root (direct child) so the label stays crisp
+      if (getComputedStyle(htmlElement).position === 'static') {
+        htmlElement.style.position = 'relative';
       }
+
+      // Remove any existing overlay first
+      const existingOverlay = htmlElement.querySelector('.tolerance-blur-overlay');
+      if (existingOverlay) existingOverlay.remove();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'tolerance-blur-overlay';
+      if (opaqueBlurEnabled) {
+        overlay.style.background = 'rgb(140, 140, 140)';
+      }
+      overlay.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      overlay.appendChild(cached?.score
+        ? buildBlurLabel(cached.score)
+        : buildBlurLabel({ postId: videoId ?? '', apiScore: score, bucket: 'medium', factors: {}, timestamp: Date.now() }));
+      htmlElement.appendChild(overlay);
     } else if (!shouldBlur && isBlurred) {
       // Need to unblur this video
       element.classList.remove('tolerance-blurred');
@@ -1206,7 +1205,16 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
     const newSettings = changes.settings.newValue as Settings;
+    const trustedPhaseChanged = newSettings.trustedBlurPhase !== currentSettings?.trustedBlurPhase;
     currentSettings = newSettings;
+
+    // Pick up hover-reveal delay changes without a page reload
+    hoverRevealDelay = (newSettings.twitter?.hoverRevealDelay ?? 3) * 1000;
+
+    // Re-evaluate blur when the trusted-source cutoff changes
+    if (trustedPhaseChanged) {
+      refreshBlurState();
+    }
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;

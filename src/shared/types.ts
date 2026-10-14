@@ -337,6 +337,24 @@ export interface WhitelistEntry {
   reason?: string;            // User's note about why they trust this source
 }
 
+// Session phase escalates as time online accumulates during the day
+export type SessionPhase = 'normal' | 'reduced' | 'wind-down' | 'minimal';
+
+// Phase from which trusted sources (whitelist + subscriptions) stop being
+// exempt and get blurred like anything else; 'never' keeps them exempt
+export type TrustedBlurPhase = 'reduced' | 'wind-down' | 'minimal' | 'never';
+
+const PHASE_ORDER: SessionPhase[] = ['normal', 'reduced', 'wind-down', 'minimal'];
+
+// True if a trusted source is still exempt from blur in the current phase
+export function isTrustedExempt(
+  phase: SessionPhase,
+  trustedBlurPhase: TrustedBlurPhase = 'minimal'
+): boolean {
+  if (trustedBlurPhase === 'never') return true;
+  return PHASE_ORDER.indexOf(phase) < PHASE_ORDER.indexOf(trustedBlurPhase);
+}
+
 // Check if a source is in the whitelist (case-insensitive)
 export function isWhitelisted(
   sourceId: string,
@@ -389,6 +407,8 @@ export interface Settings {
   qualityMode?: boolean;
   // Subscriptions Only - blur everything except subscribed sources
   subscriptionsOnly?: boolean;
+  // Phase at which trusted sources/subscriptions lose blur exemption (default: 'minimal')
+  trustedBlurPhase?: TrustedBlurPhase;
   // Blur Until Scored - blur posts while waiting for AI scoring (default: true)
   blurUntilScored?: boolean;
   // Logging level for console output

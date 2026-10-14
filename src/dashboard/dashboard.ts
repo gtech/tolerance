@@ -1,4 +1,4 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
+import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 
@@ -40,6 +40,7 @@ async function init(): Promise<void> {
 
   // Set up event listeners
   setupEventListeners();
+  await setupTrustedBlurPhase();
 
   // Listen for storage changes to sync Quality Mode toggle
   chrome.storage.onChanged.addListener((changes) => {
@@ -84,6 +85,22 @@ async function init(): Promise<void> {
 async function getState(): Promise<AppState> {
   const result = await chrome.storage.local.get('state');
   return result.state || DEFAULT_STATE;
+}
+
+// Dropdown: session phase at which trusted sources/subscriptions get blurred too
+async function setupTrustedBlurPhase(): Promise<void> {
+  const select = document.getElementById('trusted-blur-phase') as HTMLSelectElement | null;
+  if (!select) return;
+
+  const settings = await getSettings();
+  select.value = settings.trustedBlurPhase ?? 'minimal';
+
+  select.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({
+      settings: { ...current, trustedBlurPhase: select.value as TrustedBlurPhase },
+    });
+  });
 }
 
 async function getSettings(): Promise<Settings> {

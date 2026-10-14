@@ -852,6 +852,17 @@
       <div id="whitelist-list" style="background: #141414; border-radius: 8px; padding: 12px;">
         <div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>
       </div>
+
+      <!-- When trusted sources lose their blur exemption -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap;">
+        <label for="trusted-blur-phase" style="color: #aaa; font-size: 13px;">Blur trusted sources & subscriptions too, starting in:</label>
+        <select id="trusted-blur-phase" style="padding: 8px 12px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; color: #ccc; font-size: 14px;">
+          <option value="reduced">Reduced phase</option>
+          <option value="wind-down">Wind-down phase</option>
+          <option value="minimal">Minimal phase (default)</option>
+          <option value="never">Never</option>
+        </select>
+      </div>
     </div>
 
     <!-- API Setup Section - Moved to top -->
