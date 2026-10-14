@@ -355,6 +355,13 @@ export function isTrustedExempt(
   return PHASE_ORDER.indexOf(phase) < PHASE_ORDER.indexOf(trustedBlurPhase);
 }
 
+// How long a "Scoring..." blur stays up before giving up and revealing the post.
+// Returns null when the blur should stay until scoring resolves (setting = 0).
+export function pendingBlurTimeoutMs(seconds: number | undefined): number | null {
+  const s = seconds ?? 5;
+  return s <= 0 ? null : s * 1000;
+}
+
 // Check if a source is in the whitelist (case-insensitive)
 export function isWhitelisted(
   sourceId: string,
@@ -411,6 +418,8 @@ export interface Settings {
   trustedBlurPhase?: TrustedBlurPhase;
   // Blur Until Scored - blur posts while waiting for AI scoring (default: true)
   blurUntilScored?: boolean;
+  // Seconds before an unscored post's blur gives up and reveals it (default: 5, 0 = wait until scored)
+  blurUntilScoredTimeout?: number;
   // Logging level for console output
   logLevel?: LogLevel;
   // Platform toggles - enable/disable Tolerance on each platform

@@ -1,4 +1,4 @@
-import { YouTubeVideo, EngagementScore, AppState, Settings, isTrustedExempt } from '../../shared/types';
+import { YouTubeVideo, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
@@ -513,16 +513,17 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
     overlay.appendChild(label);
     video.element.appendChild(overlay);
 
-    // Auto-remove pending blur after 5s if scoring hasn't resolved it
+    // Auto-remove pending blur if scoring hasn't resolved it (null = wait until scored)
     const videoEl = video.element;
-    setTimeout(() => {
+    const pendingTimeoutMs = pendingBlurTimeoutMs(currentSettings?.blurUntilScoredTimeout);
+    if (pendingTimeoutMs !== null) setTimeout(() => {
       if (videoEl && videoEl.classList.contains('tolerance-pending')) {
         videoEl.classList.remove('tolerance-pending');
         videoEl.classList.remove('tolerance-revealed');
         videoEl.style.removeProperty('--tolerance-blur');
         overlay.remove();
       }
-    }, 5000);
+    }, pendingTimeoutMs);
   }
 }
 

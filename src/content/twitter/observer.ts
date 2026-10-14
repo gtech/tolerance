@@ -10,7 +10,13 @@ let lastCallTime = 0;
 let lastKnownTweetCount = 0;
 const THROTTLE_MS = 1000; // Process at most once per second
 
-export function setupTwitterObserver(callback: () => Promise<void>): void {
+// onCellsAdded runs synchronously inside the MutationObserver callback (before the
+// browser paints the new cells), so it must stay cheap. The throttled callback does
+// the heavy scrape/score work.
+export function setupTwitterObserver(
+  callback: () => Promise<void>,
+  onCellsAdded?: (cells: HTMLElement[]) => void
+): void {
   // Disconnect existing observer if any
   if (timelineObserver) {
     timelineObserver.disconnect();
@@ -59,20 +65,33 @@ export function setupTwitterObserver(callback: () => Promise<void>): void {
     // MutationObserver for DOM changes
     timelineObserver = new MutationObserver((mutations) => {
       let hasNewTweets = false;
+      const addedCells = new Set<HTMLElement>();
 
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement) {
-            if (
-              node.querySelector?.('[data-testid="tweet"]') ||
-              node.matches?.('[data-testid="cellInnerDiv"]')
-            ) {
-              hasNewTweets = true;
-              break;
-            }
+          if (!(node instanceof HTMLElement)) continue;
+          const isCell = node.matches('[data-testid="cellInnerDiv"]');
+          const containsTweet = node.matches('[data-testid="tweet"]') || !!node.querySelector('[data-testid="tweet"]');
+          if (!isCell && !containsTweet) continue;
+          hasNewTweets = true;
+          if (!onCellsAdded) continue;
+
+          // The tweet may arrive as a whole cell, or be rendered into an existing cell
+          const cell = isCell ? node : node.closest<HTMLElement>('[data-testid="cellInnerDiv"]');
+          if (cell) {
+            addedCells.add(cell);
+          } else {
+            node.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]').forEach(c => addedCells.add(c));
           }
         }
-        if (hasNewTweets) break;
+      }
+
+      if (addedCells.size > 0 && onCellsAdded) {
+        try {
+          onCellsAdded([...addedCells]);
+        } catch (e) {
+          log.error(' onCellsAdded failed:', e);
+        }
       }
 
       if (hasNewTweets) {

@@ -1,4 +1,4 @@
-import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt } from '../../shared/types';
+import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
@@ -265,14 +265,15 @@ function applyPendingBlur(post: FacebookPost): void {
     });
     element.appendChild(overlay);
 
-    // Auto-remove pending blur after 5s if scoring hasn't resolved it
-    setTimeout(() => {
+    // Auto-remove pending blur if scoring hasn't resolved it (null = wait until scored)
+    const pendingTimeoutMs = pendingBlurTimeoutMs(currentSettings?.blurUntilScoredTimeout);
+    if (pendingTimeoutMs !== null) setTimeout(() => {
       if (element.classList.contains('tolerance-pending')) {
         element.classList.remove('tolerance-pending');
         element.classList.remove('tolerance-video-blocked');
         overlay.remove();
       }
-    }, 5000);
+    }, pendingTimeoutMs);
   }
 }
 

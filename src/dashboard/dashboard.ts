@@ -272,6 +272,10 @@ function populateSettings(settings: Settings): void {
   if (blurUntilScoredToggle) {
     blurUntilScoredToggle.checked = settings.blurUntilScored !== false;
   }
+  const blurUntilScoredTimeoutSelect = document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null;
+  if (blurUntilScoredTimeoutSelect) {
+    blurUntilScoredTimeoutSelect.value = String(settings.blurUntilScoredTimeout ?? 5);
+  }
 
   // Opaque Blur toggle
   const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
@@ -692,6 +696,7 @@ function setupEventListeners(): void {
   if (blurUntilScoredToggle) {
     blurUntilScoredToggle.addEventListener('change', saveSettings);
   }
+  document.getElementById('blur-until-scored-timeout')?.addEventListener('change', saveSettings);
 
   // Opaque Blur toggle
   const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
@@ -1033,6 +1038,7 @@ async function saveSettings(): Promise<void> {
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,
+    blurUntilScoredTimeout: parseInt((document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null)?.value || '5', 10),
     calibration: {
       ...existing.calibration,
       storePostContent: (document.getElementById('store-post-content') as HTMLInputElement)?.checked ?? false,

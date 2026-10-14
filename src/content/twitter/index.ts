@@ -1,4 +1,4 @@
-import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt } from '../../shared/types';
+import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
@@ -561,6 +561,11 @@ function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
   if (!cell) return;
 
+  applyPendingBlurToCell(cell, blurIntensity);
+}
+
+// Apply pending blur directly to a timeline cell
+function applyPendingBlurToCell(cell: HTMLElement, blurIntensity: number = 40): void {
   // Don't blur if already blurred or pending
   if (cell.classList.contains('tolerance-blurred') ||
       cell.classList.contains('tolerance-pending')) return;
@@ -597,15 +602,44 @@ function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
     overlay.appendChild(label);
     cell.appendChild(overlay);
 
-    // Auto-remove pending blur after 5s if scoring hasn't resolved it
-    setTimeout(() => {
+    // Auto-remove pending blur if scoring hasn't resolved it (null = wait until scored)
+    const pendingTimeoutMs = pendingBlurTimeoutMs(currentSettings?.blurUntilScoredTimeout);
+    if (pendingTimeoutMs !== null) setTimeout(() => {
       if (cell.classList.contains('tolerance-pending')) {
         cell.classList.remove('tolerance-pending');
         cell.classList.remove('tolerance-revealed');
         cell.style.removeProperty('--tolerance-blur');
         overlay.remove();
       }
-    }, 5000);
+    }, pendingTimeoutMs);
+  }
+}
+
+// Called synchronously from the MutationObserver (before paint) for newly added
+// timeline cells. Blurs unscored tweets right away instead of waiting for the
+// throttled processTweets pass, which can be stuck behind an in-flight scoring request.
+function handleCellsAdded(cells: HTMLElement[]): void {
+  if (!isExtensionValid() || isTweetDetailPage()) return;
+  const twitterSettings = currentSettings?.twitter;
+  if (!twitterSettings?.blurHighEngagement || twitterSettings.reorderEnabled) return;
+
+  for (const cell of cells) {
+    if (!cell.querySelector('article[data-testid="tweet"]')) continue;
+    if (cell.querySelector('.tolerance-score-badge')) continue;
+    const tweetId = findTweetIdFromCell(cell);
+    if (!tweetId) continue;
+
+    const cached = scoreCache.get(tweetId);
+    if (cached) {
+      // Already scored - Twitter recreated the cell. Re-blur immediately if needed;
+      // the badge is re-injected on the next processTweets pass.
+      if (shouldBlurScore(cached.score)) {
+        const article = cell.querySelector('article[data-testid="tweet"]') as HTMLElement;
+        applyBlurToTweet({ id: tweetId, element: article } as Tweet, cached.score, twitterSettings.blurIntensity);
+      }
+    } else if (!processedTweetIds.has(tweetId) && currentSettings?.blurUntilScored !== false) {
+      applyPendingBlurToCell(cell, twitterSettings.blurIntensity ?? 8);
+    }
   }
 }
 
@@ -898,7 +932,7 @@ async function initCore(): Promise<void> {
   await processTweets();
 
   // Set up observer for infinite scroll
-  setupTwitterObserver(handleNewTweets);
+  setupTwitterObserver(handleNewTweets, handleCellsAdded);
 
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {
@@ -915,7 +949,7 @@ async function initCore(): Promise<void> {
       log.debug(' Re-initializing after navigation, path:', window.location.pathname);
 
       // Re-setup timeline observer for new DOM
-      setupTwitterObserver(handleNewTweets);
+      setupTwitterObserver(handleNewTweets, handleCellsAdded);
 
       const reorderEnabled = currentSettings?.twitter?.reorderEnabled ?? false;
       if (currentState?.mode === 'active' && !isTweetDetailPage() && reorderEnabled) {

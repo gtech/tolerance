@@ -1,4 +1,4 @@
-import { RedditPost, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt } from '../shared/types';
+import { RedditPost, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { scrapeNewRedditPosts, serializeNewRedditPost } from './scraper-new';
@@ -459,13 +459,14 @@ function applyPendingBlur(post: RedditPost): void {
       });
       element.appendChild(overlay);
 
-      // Auto-remove pending blur after 5s if scoring hasn't resolved it
-      setTimeout(() => {
+      // Auto-remove pending blur if scoring hasn't resolved it (null = wait until scored)
+      const pendingTimeoutMs = pendingBlurTimeoutMs(currentSettings?.blurUntilScoredTimeout);
+      if (pendingTimeoutMs !== null) setTimeout(() => {
         if (element.classList.contains('tolerance-pending')) {
           element.classList.remove('tolerance-pending');
           overlay.remove();
         }
-      }, 5000);
+      }, pendingTimeoutMs);
     }
   } catch (err) {
     log.debug(` Failed to apply pending blur: ${err}`);
