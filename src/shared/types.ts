@@ -203,6 +203,7 @@ export interface EngagementScore {
     score: number;
     reason?: string;
     ownScore: number;        // The post's own score before folding in the anchor
+    ownReason?: string;      // The post's own reason before folding in the anchor
   };
 }
 

@@ -15,24 +15,43 @@ export function anchorCacheId(anchor: TweetAnchor): string {
 }
 
 // A post is as much of a pull as the post it's responding to: the effective
-// score is max(own, anchor). No-op if the anchor scored lower.
+// score is max(own, anchor). Re-folding is safe: a previously folded score is
+// recomputed from the post's own score, so a later (higher or lower) anchor
+// score replaces the old one. Returns whether the score changed.
 export function foldAnchorScore(
   score: EngagementScore,
   anchor: TweetAnchor,
   anchorScore: EngagementScore
-): void {
-  if (anchorScore.scoreFailed || score.scoreFailed) return;
-  if (anchorScore.apiScore <= score.apiScore) return;
+): boolean {
+  if (anchorScore.scoreFailed || score.scoreFailed) return false;
+  const ownScore = score.anchor?.ownScore ?? score.apiScore;
+  const ownReason = score.anchor ? score.anchor.ownReason : score.apiReason;
+
+  if (anchorScore.apiScore <= ownScore) {
+    if (!score.anchor) return false;
+    // Anchor no longer outscores the post: back to its own score
+    score.apiScore = ownScore;
+    score.apiReason = ownReason;
+    score.bucket = scoreToBucket(ownScore, 'twitter');
+    delete score.anchor;
+    return true;
+  }
+
+  if (score.anchor && score.anchor.score === anchorScore.apiScore && score.anchor.author === anchor.author) {
+    return false;
+  }
 
   score.anchor = {
     kind: anchor.kind,
     author: anchor.author,
     score: anchorScore.apiScore,
     reason: anchorScore.apiReason,
-    ownScore: score.apiScore,
+    ownScore,
+    ownReason,
   };
   score.apiScore = anchorScore.apiScore;
   score.bucket = scoreToBucket(score.apiScore, 'twitter');
   const verb = anchor.kind === 'quote' ? 'Quotes' : 'Replies to';
   score.apiReason = `${verb} @${anchor.author}'s bait: ${anchorScore.apiReason ?? 'high engagement-bait score'}`;
+  return true;
 }

@@ -277,8 +277,8 @@ async function applyAnchorScores(
   scores: EngagementScore[]
 ): Promise<EngagementScore[]> {
   const byId = new Map(scores.map(s => [s.postId, s]));
-  // Skip tweets whose score already has an anchor folded in
-  const anchored = tweets.filter(t => t.anchor && !byId.get(t.id)?.anchor);
+  // Already-folded scores are re-folded too, so they track the anchor's latest score
+  const anchored = tweets.filter(t => t.anchor && byId.has(t.id));
   if (anchored.length === 0) return [];
 
   const anchorIds = [...new Set(anchored.map(t => anchorCacheId(t.anchor!)))];
@@ -319,11 +319,10 @@ async function applyAnchorScores(
     const anchorScore = anchorScores.get(anchorCacheId(t.anchor!));
     if (!score || !anchorScore) continue;
     const before = score.apiScore;
-    foldAnchorScore(score, t.anchor!, anchorScore);
-    if (score.anchor) {
+    if (foldAnchorScore(score, t.anchor!, anchorScore)) {
       changed.push(score);
       log.debug(` Anchor folded into ${t.id}: ${before} -> ${score.apiScore} (${t.anchor!.kind} of @${t.anchor!.author})`);
-    } else {
+    } else if (!score.anchor) {
       log.debug(` Anchor for ${t.id} (@${t.anchor!.author}, ${anchorScore.apiScore}) not higher than own score ${score.apiScore}`);
     }
   }

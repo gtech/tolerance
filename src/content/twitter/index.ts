@@ -7,12 +7,18 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { anchorCacheId } from '../../shared/anchor-utils';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
 
 // Cache scores for badge re-injection when Twitter recreates DOM elements
 const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number; author: string }>();
+
+// Anchor (by anchorCacheId) each tweet was last scored with. A reply's parent can
+// render after the reply was first scraped, so later passes re-check tweets whose
+// anchor has appeared or changed since.
+const anchorSent = new Map<string, string>();
 
 // Processing lock to prevent concurrent processTweets calls
 let isProcessing = false;
@@ -941,6 +947,7 @@ async function initCore(): Promise<void> {
     // Reset state on navigation
     processedTweetIds.clear();
     scoreCache.clear();
+    anchorSent.clear();
     hasPreloaded = false;
     isProcessing = false; // Reset lock in case it got stuck
     pendingProcess = false;
@@ -1007,11 +1014,15 @@ async function processTweets(): Promise<void> {
     // Separate into new tweets (need scoring) and processed tweets (may need badge re-injection)
     const newTweets: Tweet[] = [];
     const tweetsNeedingBadge: Tweet[] = [];
+    const tweetsNeedingAnchor: Tweet[] = [];
 
     for (const tweet of allTweets) {
       if (!processedTweetIds.has(tweet.id)) {
         newTweets.push(tweet);
       } else {
+        if (tweet.anchor && scoreCache.has(tweet.id) && anchorSent.get(tweet.id) !== anchorCacheId(tweet.anchor)) {
+          tweetsNeedingAnchor.push(tweet);
+        }
         // Check if this processed tweet needs badge re-injection
         // (Twitter may have recreated the DOM element)
         const cell = tweet.element?.closest('[data-testid="cellInnerDiv"]');
@@ -1053,6 +1064,10 @@ async function processTweets(): Promise<void> {
           }
         }
       }
+    }
+
+    if (tweetsNeedingAnchor.length > 0) {
+      await recheckAnchors(tweetsNeedingAnchor);
     }
 
     if (newTweets.length === 0) {
@@ -1101,6 +1116,7 @@ async function processTweets(): Promise<void> {
     // NOW mark as processed since we got scores successfully
     for (const tweet of newTweets) {
       processedTweetIds.add(tweet.id);
+      if (tweet.anchor) anchorSent.set(tweet.id, anchorCacheId(tweet.anchor));
     }
 
     const scores = new Map<string, EngagementScore>();
@@ -1218,6 +1234,48 @@ async function processTweets(): Promise<void> {
       log.debug(' Processing queued tweets');
       // Use setTimeout to avoid deep recursion
       setTimeout(() => processTweets(), 50);
+    }
+  }
+}
+
+// Re-score already-processed tweets whose anchor showed up (or changed) after they
+// were first scored. Their own scores are cached, so the background only folds in
+// the anchor's score; update the badge and blur if the result changed.
+async function recheckAnchors(tweets: Tweet[]): Promise<void> {
+  for (const tweet of tweets) anchorSent.set(tweet.id, anchorCacheId(tweet.anchor!));
+  log.debug(` Re-checking anchors for ${tweets.length} tweets: ${tweets.map(t => `${t.id}->@${t.anchor!.author}`).join(', ')}`);
+
+  const result = await sendMessage({ type: 'SCORE_TWEETS', tweets: tweets.map(serializeTweet) }) as { scores?: EngagementScore[] } | null;
+  if (!result?.scores) return;
+
+  const twitterSettings = currentSettings?.twitter;
+  for (const score of result.scores) {
+    const tweet = tweets.find(t => t.id === score.postId);
+    const cached = scoreCache.get(score.postId);
+    if (!tweet || !cached) continue;
+    if (cached.score.apiScore === score.apiScore && cached.score.apiReason === score.apiReason) continue;
+
+    log.debug(` Anchor re-check changed ${tweet.id}: ${cached.score.apiScore} -> ${score.apiScore}`);
+    cached.score = score;
+
+    const cell = tweet.element?.closest('[data-testid="cellInnerDiv"]');
+    cell?.querySelector('.tolerance-score-badge')?.remove();
+    injectScoreBadge(tweet, {
+      score: score.apiScore,
+      bucket: score.bucket,
+      reason: score.apiReason,
+      originalPosition: cached.originalPosition,
+      newPosition: cached.originalPosition,
+      scoringFailed: false,
+      hasImage: !!tweet.imageUrl,
+      hasQuote: tweet.isQuoteTweet,
+      mediaType: tweet.mediaType,
+    });
+
+    if (twitterSettings?.blurHighEngagement && !twitterSettings.reorderEnabled && shouldBlurScore(score)) {
+      // Already blurred: re-apply so the overlay label shows the new reason
+      if (!cell?.classList.contains('tolerance-revealed')) cell?.classList.remove('tolerance-blurred');
+      applyBlurToTweet(tweet, score, twitterSettings.blurIntensity);
     }
   }
 }

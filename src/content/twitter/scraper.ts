@@ -148,13 +148,22 @@ function parseTweetElement(element: HTMLElement): Tweet | null {
 // that line geometrically (class names churn; layout doesn't): a narrow element in
 // the avatar column sitting just above this tweet's avatar, or below the previous
 // tweet's avatar.
+// When Twitter collapses the middle of a conversation, a "Show more replies" cell
+// (no tweet) sits between the two; the line above this tweet's avatar still links
+// them, so skip a couple of tweet-less cells in that case.
 function findThreadParent(element: HTMLElement): TweetAnchor | undefined {
   const cell = element.closest('[data-testid="cellInnerDiv"]');
-  const prevCell = cell?.previousElementSibling as HTMLElement | null;
-  const prevArticle = prevCell?.querySelector<HTMLElement>('article[data-testid="tweet"]');
+  let prevCell = cell?.previousElementSibling as HTMLElement | null;
+  let prevArticle = prevCell?.querySelector<HTMLElement>('article[data-testid="tweet"]');
+  let skipped = 0;
+  while (!prevArticle && prevCell && skipped < 2) {
+    prevCell = prevCell.previousElementSibling as HTMLElement | null;
+    prevArticle = prevCell?.querySelector<HTMLElement>('article[data-testid="tweet"]');
+    skipped++;
+  }
   if (!prevArticle) return undefined;
 
-  const hasLineBelow = hasConnectorLine(prevArticle, 'below');
+  const hasLineBelow = skipped === 0 && hasConnectorLine(prevArticle, 'below');
   const hasLineAbove = !hasLineBelow && hasConnectorLine(element, 'above');
   if (!hasLineAbove && !hasLineBelow) return undefined;
 
@@ -165,7 +174,7 @@ function findThreadParent(element: HTMLElement): TweetAnchor | undefined {
   const parentText = prevArticle.querySelector('[data-testid="tweetText"]')?.textContent?.trim() || '';
   if (!id || !parentAuthor) return undefined;
 
-  log.debug(` Thread parent detected: @${parentAuthor} (${id}) [line above=${hasLineAbove}, below=${hasLineBelow}]`);
+  log.debug(` Thread parent detected: @${parentAuthor} (${id}) [line above=${hasLineAbove}, below=${hasLineBelow}, skipped=${skipped}]`);
   return { kind: 'reply', id, author: parentAuthor, text: parentText };
 }
 

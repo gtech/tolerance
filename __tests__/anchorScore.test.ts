@@ -53,3 +53,28 @@ describe('foldAnchorScore', () => {
     expect(score.apiScore).toBe(20);
   });
 });
+
+describe('foldAnchorScore re-folding', () => {
+  it('tracks a later, higher anchor score', () => {
+    const score = makeScore('1', 20, 'own');
+    expect(foldAnchorScore(score, quote, makeScore('a', 60, 'first'))).toBe(true);
+    expect(foldAnchorScore(score, quote, makeScore('a', 90, 'second'))).toBe(true);
+    expect(score.apiScore).toBe(90);
+    expect(score.anchor).toMatchObject({ score: 90, ownScore: 20, ownReason: 'own' });
+  });
+
+  it('is a no-op when the anchor score is unchanged', () => {
+    const score = makeScore('1', 20, 'own');
+    foldAnchorScore(score, quote, makeScore('a', 60));
+    expect(foldAnchorScore(score, quote, makeScore('a', 60))).toBe(false);
+  });
+
+  it('restores the own score when the anchor drops below it', () => {
+    const score = makeScore('1', 40, 'own');
+    foldAnchorScore(score, quote, makeScore('a', 80));
+    expect(foldAnchorScore(score, quote, makeScore('a', 30))).toBe(true);
+    expect(score.apiScore).toBe(40);
+    expect(score.apiReason).toBe('own');
+    expect(score.anchor).toBeUndefined();
+  });
+});
