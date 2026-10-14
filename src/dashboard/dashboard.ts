@@ -1,4 +1,4 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase } from '../shared/types';
+import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { showGroundingInvite } from '../content/grounding';
@@ -371,7 +371,7 @@ function populateSettings(settings: Settings): void {
   }
   const blurUntilScoredTimeoutSelect = document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null;
   if (blurUntilScoredTimeoutSelect) {
-    blurUntilScoredTimeoutSelect.value = String(settings.blurUntilScoredTimeout ?? 5);
+    blurUntilScoredTimeoutSelect.value = String(settings.blurUntilScoredTimeout ?? DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT);
   }
 
   // Opaque Blur toggle
@@ -1114,7 +1114,7 @@ async function saveSettings(): Promise<void> {
     scheduler: {
       ...existing.scheduler, // Preserve progressive boredom settings
       highEngagementRatio: parseFloat(ratioInput?.value || '0.2'),
-      cooldownPosts: parseInt(cooldownInput?.value || '5', 10),
+      cooldownPosts: parseInt(cooldownInput?.value || String(DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT), 10),
       enabled: true,
     },
     productivityCardEnabled: productivityCardEnabledInput?.checked ?? false,
@@ -1136,7 +1136,7 @@ async function saveSettings(): Promise<void> {
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,
-    blurUntilScoredTimeout: parseInt((document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null)?.value || '5', 10),
+    blurUntilScoredTimeout: parseInt((document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null)?.value || String(DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT), 10),
     calibration: {
       ...existing.calibration,
       storePostContent: (document.getElementById('store-post-content') as HTMLInputElement)?.checked ?? false,

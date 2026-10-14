@@ -1,4 +1,4 @@
-import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry } from '../shared/types';
+import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import {
@@ -67,6 +67,17 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Schedule narrative theme discovery (daily)
   chrome.alarms.create('narrativeDiscovery', { periodInMinutes: 1440 }); // 24 hours
+
+  // One-time: 5s was the old blur-until-scored default and was saved into settings
+  // by any dashboard save, so treat a stored 5 as "default" and move it to 15
+  const { migratedBlurTimeout15 } = await chrome.storage.local.get('migratedBlurTimeout15');
+  if (!migratedBlurTimeout15) {
+    const current = await getSettings();
+    if (current.blurUntilScoredTimeout === 5) {
+      await setSettings({ ...current, blurUntilScoredTimeout: DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT });
+    }
+    await chrome.storage.local.set({ migratedBlurTimeout15: true });
+  }
 
   // Schedule subscription sync if subscriptions-only mode is enabled
   const installedSettings = await getSettings();

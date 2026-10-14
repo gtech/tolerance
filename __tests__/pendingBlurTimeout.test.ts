@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { pendingBlurTimeoutMs } from '../src/shared/types';
 
 describe('pendingBlurTimeoutMs', () => {
-  it('defaults to 5 seconds when unset', () => {
-    expect(pendingBlurTimeoutMs(undefined)).toBe(5000);
+  it('defaults to 15 seconds when unset', () => {
+    expect(pendingBlurTimeoutMs(undefined)).toBe(15000);
   });
 
   it('converts seconds to milliseconds', () => {

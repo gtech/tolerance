@@ -376,10 +376,14 @@ export function isTrustedExempt(
   return PHASE_ORDER.indexOf(phase) < PHASE_ORDER.indexOf(trustedBlurPhase);
 }
 
+// Shorter than this and posts routinely reveal before their score arrives, which
+// undoes the point of the blur (unpredictable glimpses are the hook)
+export const DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT = 15;
+
 // How long a "Scoring..." blur stays up before giving up and revealing the post.
 // Returns null when the blur should stay until scoring resolves (setting = 0).
 export function pendingBlurTimeoutMs(seconds: number | undefined): number | null {
-  const s = seconds ?? 5;
+  const s = seconds ?? DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT;
   return s <= 0 ? null : s * 1000;
 }
 
@@ -441,7 +445,7 @@ export interface Settings {
   blurUntilScored?: boolean;
   // Grounding breaks: invite a short exercise every N minutes of continuous scrolling
   grounding?: GroundingSettings;
-  // Seconds before an unscored post's blur gives up and reveals it (default: 5, 0 = wait until scored)
+  // Seconds before an unscored post's blur gives up and reveals it (default: 15, 0 = wait until scored)
   blurUntilScoredTimeout?: number;
   // Logging level for console output
   logLevel?: LogLevel;
