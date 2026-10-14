@@ -78,3 +78,21 @@ describe('foldAnchorScore re-folding', () => {
     expect(score.anchor).toBeUndefined();
   });
 });
+
+describe('foldAnchorScore down a thread', () => {
+  it('carries the root bait through a self-thread reply and names the root', () => {
+    // @king_of_bob bait (80) -> @patrick reply (folded to 80) -> @patrick self-reply (20)
+    const reply = makeScore('2', 30, 'reply');
+    foldAnchorScore(reply, { kind: 'reply', id: '1', author: 'king_of_bob', text: 't' }, makeScore('1', 80, 'outrage bait'));
+    const selfReply = makeScore('3', 20, 'mildly reflective');
+    foldAnchorScore(selfReply, { kind: 'reply', id: '2', author: 'patrick', text: 't', selfThread: true }, reply);
+    expect(selfReply.apiScore).toBe(80);
+    expect(selfReply.apiReason).toBe("In a thread off @king_of_bob's bait: outrage bait");
+  });
+
+  it('labels a self-thread continuation of bait', () => {
+    const score = makeScore('2', 20);
+    foldAnchorScore(score, { kind: 'reply', id: '1', author: 'x', text: 't', selfThread: true }, makeScore('1', 75, 'rage bait'));
+    expect(score.apiReason).toBe('Continues a bait thread: rage bait');
+  });
+});

@@ -132,6 +132,7 @@ export interface TweetAnchor {
   id?: string;               // Status ID when known (thread parents); quotes are keyed by content
   author: string;
   text: string;
+  selfThread?: boolean;      // Reply to the author's own tweet (thread continuation)
 }
 
 // ==========================================

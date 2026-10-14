@@ -51,7 +51,19 @@ export function foldAnchorScore(
   };
   score.apiScore = anchorScore.apiScore;
   score.bucket = scoreToBucket(score.apiScore, 'twitter');
-  const verb = anchor.kind === 'quote' ? 'Quotes' : 'Replies to';
-  score.apiReason = `${verb} @${anchor.author}'s bait: ${anchorScore.apiReason ?? 'high engagement-bait score'}`;
+  score.apiReason = anchorReason(anchor, anchorScore);
   return true;
+}
+
+// Point at the original bait: when the anchor itself inherited its score (a reply
+// further down a conversation), name the root post rather than nesting reasons.
+function anchorReason(anchor: TweetAnchor, anchorScore: EngagementScore): string {
+  const root = anchorScore.anchor;
+  if (root) {
+    return `In a thread off @${root.author}'s bait: ${root.reason ?? 'high engagement-bait score'}`;
+  }
+  const reason = anchorScore.apiReason ?? 'high engagement-bait score';
+  if (anchor.kind === 'quote') return `Quotes @${anchor.author}'s bait: ${reason}`;
+  if (anchor.selfThread) return `Continues a bait thread: ${reason}`;
+  return `Replies to @${anchor.author}'s bait: ${reason}`;
 }

@@ -81,15 +81,16 @@ export function parseTweetElement(element: HTMLElement): Tweet | null {
     const isThread = element.querySelector('[data-testid="Tweet-User-Avatar"]')?.closest('div')
       ?.querySelector('[style*="border-left"]') !== null;
 
-    // Anchor: the post this tweet is reacting to. Self-quotes and self-threads
-    // aren't bait-responses, so they're skipped.
+    // Anchor: the post this tweet is reacting to. Self-quotes are skipped. Self-thread
+    // replies are kept: the parent's score already carries whatever bait it replies
+    // to, and a thread hanging off bait pulls you into it just the same.
     let anchor: TweetAnchor | undefined;
     if (quotedTweet && quotedTweet.text && quotedTweet.author.toLowerCase() !== author.toLowerCase()) {
       anchor = { kind: 'quote', author: quotedTweet.author, text: quotedTweet.text };
     } else {
       const parent = findThreadParent(element);
-      if (parent && parent.author.toLowerCase() !== author.toLowerCase()) {
-        anchor = parent;
+      if (parent) {
+        anchor = parent.author.toLowerCase() === author.toLowerCase() ? { ...parent, selfThread: true } : parent;
       }
     }
 
