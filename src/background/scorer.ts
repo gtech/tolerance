@@ -275,11 +275,12 @@ export async function scorePosts(
 async function applyAnchorScores(
   tweets: Omit<Tweet, 'element'>[],
   scores: EngagementScore[]
-): Promise<void> {
-  const anchored = tweets.filter(t => t.anchor);
-  if (anchored.length === 0) return;
-
+): Promise<EngagementScore[]> {
   const byId = new Map(scores.map(s => [s.postId, s]));
+  // Skip tweets whose score already has an anchor folded in
+  const anchored = tweets.filter(t => t.anchor && !byId.get(t.id)?.anchor);
+  if (anchored.length === 0) return [];
+
   const anchorIds = [...new Set(anchored.map(t => anchorCacheId(t.anchor!)))];
   const anchorScores = await getCachedScores(anchorIds.filter(id => !byId.has(id)));
   for (const id of anchorIds) {
@@ -312,6 +313,7 @@ async function applyAnchorScores(
   }));
   if (fresh.length > 0) await cacheScores(fresh);
 
+  const changed: EngagementScore[] = [];
   for (const t of anchored) {
     const score = byId.get(t.id);
     const anchorScore = anchorScores.get(anchorCacheId(t.anchor!));
@@ -319,9 +321,13 @@ async function applyAnchorScores(
     const before = score.apiScore;
     foldAnchorScore(score, t.anchor!, anchorScore);
     if (score.anchor) {
+      changed.push(score);
       log.debug(` Anchor folded into ${t.id}: ${before} -> ${score.apiScore} (${t.anchor!.kind} of @${t.anchor!.author})`);
+    } else {
+      log.debug(` Anchor for ${t.id} (@${t.anchor!.author}, ${anchorScore.apiScore}) not higher than own score ${score.apiScore}`);
     }
   }
+  return changed;
 }
 
 // Score tweets - adapts Twitter content to the scoring system
@@ -499,11 +505,6 @@ export async function scoreTweets(
 
   log.debug(` Tweet scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  // Responses to bait count as bait: fold in the score of the quoted / replied-to post
-  if (apiEnabled) {
-    await applyAnchorScores(uncached, newScores);
-  }
-
   await applyCounterStrategies(newScores, 'twitter');
 
   if (newScores.length > 0) {
@@ -537,6 +538,14 @@ export async function scoreTweets(
       const newScore = newScores.find(s => s.postId === tweet.id);
       if (newScore) allScores.push(newScore);
     }
+  }
+
+  // Responses to bait count as bait: fold in the score of the quoted / replied-to
+  // post. Runs over cached scores too, so replies scored before their anchor was
+  // known (or before this feature) get updated.
+  if (apiEnabled) {
+    const changed = await applyAnchorScores(tweets, allScores);
+    if (changed.length > 0) await cacheScores(changed);
   }
 
   // Final safety net: enforce video/gif score floor on ALL scores

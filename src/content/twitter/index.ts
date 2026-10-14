@@ -546,6 +546,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   } else if (info.reason) {
     titleParts.push(info.reason);
   }
+  if (tweet.anchor) titleParts.push(`Responds to @${tweet.anchor.author} (${tweet.anchor.kind})`);
   titleParts.push(`Position: ${info.newPosition + 1}`);
   if (info.mediaType) titleParts.push(`Type: ${info.mediaType}`);
   badge.title = titleParts.join('\n');
