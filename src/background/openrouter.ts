@@ -1,4 +1,5 @@
 import { log } from '../shared/constants';
+import { extractScoreFromText } from '../shared/score-parse';
 // API client for engagement scoring
 // Supports OpenRouter and any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, etc.)
 
@@ -1191,19 +1192,12 @@ async function callApi(
 
     console.error('API: Could not parse JSON from content:', content.slice(0, 300));
 
-    // Fallback: try to extract score from text
-    const scoreMatch = content.match(/(?:score[:\s]*)?(\d+)/i);
-    if (scoreMatch) {
-      const score = parseInt(scoreMatch[1], 10);
-      if (score >= 1 && score <= 10) {
-        log.debug('API: Extracted score from fallback pattern:', score);
-        return {
-          score,
-          reason: 'Extracted from non-JSON response',
-          cost,
-          fullResponse: data,
-        };
-      }
+    // Fallback: an explicitly labelled score only. Otherwise return null: the post
+    // stays a failed score (neutral 50, not cached) and is re-scored next time.
+    const extracted = extractScoreFromText(content);
+    if (extracted) {
+      log.debug('API: Extracted score from fallback pattern:', extracted.score);
+      return { ...extracted, cost, fullResponse: data };
     }
 
     console.error('API: Could not extract score from:', content);

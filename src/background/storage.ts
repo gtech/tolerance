@@ -1,5 +1,6 @@
 import { log } from '../shared/constants';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { LEGACY_FALLBACK_REASON } from '../shared/score-parse';
 import {
   SessionLog,
   PostImpression,
@@ -208,7 +209,8 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
-    if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed) {
+    if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
+        cached.apiReason !== LEGACY_FALLBACK_REASON) {
       result.set(id, cached);
     }
   }
