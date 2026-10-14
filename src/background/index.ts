@@ -31,6 +31,7 @@ import {
   submitCalibrationFeedback,
   getEffectiveBlurThreshold,
   getEffectivePhaseThresholds,
+  getScoreRecords,
 } from './storage';
 import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
@@ -93,6 +94,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     });
   }
 
+  if (chrome.contextMenus) {
+    chrome.contextMenus.create({
+      id: 'tolerance-debug-post',
+      title: 'Tolerance: debug this post',
+      contexts: ['all'],
+      documentUrlPatterns: ['*://twitter.com/*', '*://x.com/*'],
+    });
+  }
+
   // Open dashboard on first install to prompt API key setup
   if (details.reason === 'install') {
     chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html') });
@@ -110,6 +120,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Guard for Firefox where contextMenus may not be immediately available
 if (chrome.contextMenus?.onClicked) {
   chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'tolerance-debug-post' && tab?.id) {
+    chrome.tabs.sendMessage(tab.id, { type: 'DEBUG_CLICKED_POST' }).catch(() => {});
+    return;
+  }
   if (info.menuItemId !== 'tolerance-trust-author' || !tab?.id) return;
 
   try {
@@ -234,6 +248,13 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   if (message.type === 'GROUNDING_EVENT') {
     const { event, exercise, host } = message as unknown as { event: string; exercise?: string; host?: string };
     logGroundingEvent({ event, exercise, host }).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // Twitter "debug this post" report: raw cache records for the post and its anchor
+  if (message.type === 'DEBUG_SCORE_RECORDS') {
+    const { ids } = message as unknown as { ids: string[] };
+    getScoreRecords(ids).then(records => sendResponse({ records })).catch(() => sendResponse({ records: {} }));
     return true;
   }
 

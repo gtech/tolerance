@@ -8,6 +8,7 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { anchorCacheId } from '../../shared/anchor-utils';
+import { buildDebugReport, showDebugReport } from './debug';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -1507,6 +1508,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then(base64 => sendResponse({ success: true, base64 }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true; // Keep channel open for async response
+  }
+
+  if (message.type === 'DEBUG_CLICKED_POST') {
+    if (lastRightClickedElement) {
+      buildDebugReport(lastRightClickedElement, id => ({
+        processed: processedTweetIds.has(id),
+        anchorSent: anchorSent.get(id),
+        contentScore: scoreCache.get(id)?.score,
+      })).then(showDebugReport);
+    }
+    sendResponse({ ok: true });
+    return false;
   }
 
   if (message.type === 'GET_CLICKED_AUTHOR') {

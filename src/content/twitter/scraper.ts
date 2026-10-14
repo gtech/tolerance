@@ -22,7 +22,7 @@ export function scrapeVisibleTweets(): Tweet[] {
   return tweets;
 }
 
-function parseTweetElement(element: HTMLElement): Tweet | null {
+export function parseTweetElement(element: HTMLElement): Tweet | null {
   try {
     // Get tweet ID from the permalink (status URL)
     const permalinkElement = element.querySelector<HTMLAnchorElement>(

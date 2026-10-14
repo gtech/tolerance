@@ -216,6 +216,14 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   return result;
 }
 
+// Raw cache records (including failed / expired ones) for the debug report
+export async function getScoreRecords(postIds: string[]): Promise<Record<string, EngagementScore | null>> {
+  const db = await getDB();
+  const out: Record<string, EngagementScore | null> = {};
+  for (const id of postIds) out[id] = (await db.get('scores', id)) ?? null;
+  return out;
+}
+
 export async function cacheScores(scores: EngagementScore[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('scores', 'readwrite');
