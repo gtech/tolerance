@@ -1,4 +1,4 @@
-import { Tweet } from '../../shared/types';
+import { Tweet, TweetAnchor } from '../../shared/types';
 import { log } from '../../shared/constants';
 
 // Scrape tweet data from Twitter/X DOM
@@ -81,6 +81,18 @@ function parseTweetElement(element: HTMLElement): Tweet | null {
     const isThread = element.querySelector('[data-testid="Tweet-User-Avatar"]')?.closest('div')
       ?.querySelector('[style*="border-left"]') !== null;
 
+    // Anchor: the post this tweet is reacting to. Self-quotes and self-threads
+    // aren't bait-responses, so they're skipped.
+    let anchor: TweetAnchor | undefined;
+    if (quotedTweet && quotedTweet.text && quotedTweet.author.toLowerCase() !== author.toLowerCase()) {
+      anchor = { kind: 'quote', author: quotedTweet.author, text: quotedTweet.text };
+    } else {
+      const parent = findThreadParent(element);
+      if (parent && parent.author.toLowerCase() !== author.toLowerCase()) {
+        anchor = parent;
+      }
+    }
+
     // Media type detection
     const mediaType = detectMediaType(element);
 
@@ -119,6 +131,7 @@ function parseTweetElement(element: HTMLElement): Tweet | null {
       retweetedBy,
       quotedTweet,
       replyToAuthor,
+      anchor,
       hashtags,
       mentions,
       urls,
@@ -128,6 +141,50 @@ function parseTweetElement(element: HTMLElement): Tweet | null {
     console.error('Tolerance: Failed to parse tweet element:', error);
     return null;
   }
+}
+
+// In timeline conversations Twitter renders the parent tweet in the cell directly
+// above the reply, joined by a thin vertical line between the two avatars. Detect
+// that line geometrically (class names churn; layout doesn't): a narrow element in
+// the avatar column sitting just above this tweet's avatar, or below the previous
+// tweet's avatar.
+function findThreadParent(element: HTMLElement): TweetAnchor | undefined {
+  const cell = element.closest('[data-testid="cellInnerDiv"]');
+  const prevCell = cell?.previousElementSibling as HTMLElement | null;
+  const prevArticle = prevCell?.querySelector<HTMLElement>('article[data-testid="tweet"]');
+  if (!prevArticle) return undefined;
+
+  const hasLineBelow = hasConnectorLine(prevArticle, 'below');
+  const hasLineAbove = !hasLineBelow && hasConnectorLine(element, 'above');
+  if (!hasLineAbove && !hasLineBelow) return undefined;
+
+  const href = prevArticle.querySelector('a[href*="/status/"]')?.getAttribute('href') || '';
+  const id = href.match(/\/status\/(\d+)/)?.[1];
+  const parentAuthor = prevArticle.querySelector('[data-testid="User-Name"] a[href^="/"]')
+    ?.getAttribute('href')?.replace('/', '') || '';
+  const parentText = prevArticle.querySelector('[data-testid="tweetText"]')?.textContent?.trim() || '';
+  if (!id || !parentAuthor) return undefined;
+
+  log.debug(` Thread parent detected: @${parentAuthor} (${id}) [line above=${hasLineAbove}, below=${hasLineBelow}]`);
+  return { kind: 'reply', id, author: parentAuthor, text: parentText };
+}
+
+function hasConnectorLine(article: HTMLElement, where: 'above' | 'below'): boolean {
+  const avatar = article.querySelector<HTMLElement>('[data-testid="Tweet-User-Avatar"]');
+  if (!avatar) return false;
+  const a = avatar.getBoundingClientRect();
+  if (a.width === 0) return false;
+  const avatarCenter = a.left + a.width / 2;
+
+  // Read-only layout queries (no writes in between), so this is one layout pass per batch
+  for (const div of article.querySelectorAll<HTMLElement>('div')) {
+    const r = div.getBoundingClientRect();
+    if (r.width === 0 || r.width > 4 || r.height < 4) continue;
+    if (Math.abs(r.left + r.width / 2 - avatarCenter) > 4) continue;
+    if (where === 'above' && r.bottom <= a.top + 2) return true;
+    if (where === 'below' && r.top >= a.bottom - 2) return true;
+  }
+  return false;
 }
 
 function parseMetric(element: HTMLElement, type: string): number {

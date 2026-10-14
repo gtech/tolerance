@@ -115,12 +115,22 @@ export interface Tweet extends SocialPost {
     imageUrl?: string;        // Image in quoted tweet (if any)
   };
   replyToAuthor?: string;    // If reply, who they're replying to
+  anchor?: TweetAnchor;      // Post this tweet is responding to (quoted or replied-to), if visible
   // Content
   hashtags: string[];
   mentions: string[];
   urls: string[];            // Expanded URLs in tweet
   isVerified: boolean;       // Blue check / verified
   followerCount?: number;    // Author's followers (if available)
+}
+
+// The post a tweet is reacting to. A thoughtful reply to opinion-farming still
+// pulls the reader into the bait, so the anchor's score counts against the reply.
+export interface TweetAnchor {
+  kind: 'quote' | 'reply';
+  id?: string;               // Status ID when known (thread parents); quotes are keyed by content
+  author: string;
+  text: string;
 }
 
 // ==========================================
@@ -185,6 +195,14 @@ export interface EngagementScore {
   timestamp: number;
   whitelisted?: boolean; // Pre-filter: source is in user's trusted whitelist
   scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
+  // Set when the post's anchor (quoted / replied-to post) scored higher than the post itself
+  anchor?: {
+    kind: 'quote' | 'reply';
+    author: string;
+    score: number;
+    reason?: string;
+    ownScore: number;        // The post's own score before folding in the anchor
+  };
 }
 
 export interface ScoreFactors {

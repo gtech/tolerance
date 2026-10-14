@@ -16,6 +16,7 @@ import {
 import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies } from './storage';
 import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
+import { anchorCacheId, foldAnchorScore } from '../shared/anchor-utils';
 import { getSubscriptionList, isSubscribed } from './subscriptions';
 
 // Twitter video/gif thumbnails are often uninformative first frames,
@@ -268,6 +269,61 @@ export async function scorePosts(
   return allScores;
 }
 
+// Score each anchored tweet's anchor (quoted tweet or thread parent) and fold it
+// into the tweet's score. Anchor scores are reused from this batch or the cache
+// when possible (a viral bait post gets quoted many times), else scored as text.
+async function applyAnchorScores(
+  tweets: Omit<Tweet, 'element'>[],
+  scores: EngagementScore[]
+): Promise<void> {
+  const anchored = tweets.filter(t => t.anchor);
+  if (anchored.length === 0) return;
+
+  const byId = new Map(scores.map(s => [s.postId, s]));
+  const anchorIds = [...new Set(anchored.map(t => anchorCacheId(t.anchor!)))];
+  const anchorScores = await getCachedScores(anchorIds.filter(id => !byId.has(id)));
+  for (const id of anchorIds) {
+    const inBatch = byId.get(id);
+    if (inBatch && !inBatch.scoreFailed) anchorScores.set(id, inBatch);
+  }
+
+  // Score the anchors we haven't seen, once each
+  const toScore = new Map<string, Omit<Tweet, 'element'>['anchor']>();
+  for (const t of anchored) {
+    const id = anchorCacheId(t.anchor!);
+    if (!anchorScores.has(id) && t.anchor!.text) toScore.set(id, t.anchor);
+  }
+  const fresh: EngagementScore[] = [];
+  await Promise.all([...toScore].map(async ([id, anchor]) => {
+    try {
+      const result = await scoreTextPost(anchor!.text, `@${anchor!.author}`, 0, 0);
+      if (!result) return;
+      const score = createPendingScore(id);
+      score.apiScore = result.score * 10;
+      score.apiReason = result.reason;
+      score.scoreFailed = false;
+      score.bucket = scoreToBucket(score.apiScore, 'twitter');
+      anchorScores.set(id, score);
+      // Thread parents are real tweets already cached under their own ID; only cache quote anchors
+      if (id.startsWith('anchor:')) fresh.push(score);
+    } catch (err) {
+      console.error('Anchor scoring failed:', err);
+    }
+  }));
+  if (fresh.length > 0) await cacheScores(fresh);
+
+  for (const t of anchored) {
+    const score = byId.get(t.id);
+    const anchorScore = anchorScores.get(anchorCacheId(t.anchor!));
+    if (!score || !anchorScore) continue;
+    const before = score.apiScore;
+    foldAnchorScore(score, t.anchor!, anchorScore);
+    if (score.anchor) {
+      log.debug(` Anchor folded into ${t.id}: ${before} -> ${score.apiScore} (${t.anchor!.kind} of @${t.anchor!.author})`);
+    }
+  }
+}
+
 // Score tweets - adapts Twitter content to the scoring system
 export async function scoreTweets(
   tweets: Omit<Tweet, 'element'>[]
@@ -442,6 +498,11 @@ export async function scoreTweets(
   const t3 = performance.now();
 
   log.debug(` Tweet scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
+
+  // Responses to bait count as bait: fold in the score of the quoted / replied-to post
+  if (apiEnabled) {
+    await applyAnchorScores(uncached, newScores);
+  }
 
   await applyCounterStrategies(newScores, 'twitter');
 
