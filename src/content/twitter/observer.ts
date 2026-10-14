@@ -27,7 +27,12 @@ export function setupTwitterObserver(
 
   // Wait for timeline to exist
   const findAndObserve = () => {
-    const timeline = document.querySelector('[data-testid="primaryColumn"] section[role="region"]');
+    // Watch the whole primary column rather than the timeline section: X replaces
+    // the section (e.g. switching For you / Following, which doesn't change the URL),
+    // which would leave the observer on a detached node
+    const timeline = document.querySelector('[data-testid="primaryColumn"] section[role="region"]')
+      ? document.querySelector('main') ?? document.querySelector('[data-testid="primaryColumn"]')
+      : null;
     if (!timeline) {
       // Try again in a bit - Twitter's SPA might not have rendered yet
       setTimeout(findAndObserve, 1000);

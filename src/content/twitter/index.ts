@@ -330,6 +330,14 @@ function injectStyles(): void {
       transition: filter 0.3s ease !important;
     }
 
+    /* Gate: every tweet cell is blurred until this script has dealt with it
+       (pending blur, real blur, or marked done). Pure CSS, so cells the
+       observer misses or reaches late are still covered from first paint. */
+    html.tolerance-gate [data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred) > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
+      filter: blur(var(--tolerance-gate-blur, 8px)) !important;
+      pointer-events: none !important;
+    }
+
     /* Revealed state (set by JS after hover delay) */
     .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
     .tolerance-pending.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
@@ -476,6 +484,8 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     return;
   }
 
+  markCellDone(cell);
+
   // Don't add duplicate badges
   if (cell.querySelector('.tolerance-score-badge')) {
     log.debug(` Badge already exists for tweet ${tweet.id}`);
@@ -614,6 +624,7 @@ function applyPendingBlurToCell(cell: HTMLElement, blurIntensity: number = 40): 
     const pendingTimeoutMs = pendingBlurTimeoutMs(currentSettings?.blurUntilScoredTimeout);
     if (pendingTimeoutMs !== null) setTimeout(() => {
       if (cell.classList.contains('tolerance-pending')) {
+        markCellDone(cell);
         cell.classList.remove('tolerance-pending');
         cell.classList.remove('tolerance-revealed');
         cell.style.removeProperty('--tolerance-blur');
@@ -627,7 +638,12 @@ function applyPendingBlurToCell(cell: HTMLElement, blurIntensity: number = 40): 
 // timeline cells. Blurs unscored tweets right away instead of waiting for the
 // throttled processTweets pass, which can be stuck behind an in-flight scoring request.
 function handleCellsAdded(cells: HTMLElement[]): void {
-  if (!isExtensionValid() || isTweetDetailPage()) return;
+  if (!isExtensionValid()) {
+    // Extension reloaded/updated under this page: nothing will clear the gate now
+    document.documentElement.classList.remove('tolerance-gate');
+    return;
+  }
+  if (isTweetDetailPage()) return;
   const twitterSettings = currentSettings?.twitter;
   if (!twitterSettings?.blurHighEngagement || twitterSettings.reorderEnabled) return;
 
@@ -658,6 +674,7 @@ function removePendingBlur(tweet: Tweet): void {
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
   if (!cell) return;
 
+  markCellDone(cell);
   cell.classList.remove('tolerance-pending');
   cell.classList.remove('tolerance-revealed');
   cell.style.removeProperty('--tolerance-blur');
@@ -805,6 +822,23 @@ function isTimelinePage(): boolean {
 }
 
 // Check if we're on a tweet detail page
+// Turn the CSS gate on where pending blur applies (feeds, with blur-until-scored on)
+function updateGate(): void {
+  const twitter = currentSettings?.twitter;
+  const on = isExtensionValid() &&
+    currentSettings?.platforms?.twitter !== false &&
+    !!twitter?.blurHighEngagement && !twitter.reorderEnabled &&
+    currentSettings?.blurUntilScored !== false &&
+    !isTweetDetailPage();
+  document.documentElement.classList.toggle('tolerance-gate', on);
+  document.documentElement.style.setProperty('--tolerance-gate-blur', `${twitter?.blurIntensity ?? 8}px`);
+}
+
+// Release a cell from the gate: it's been scored, revealed by timeout, or isn't scorable
+function markCellDone(cell: Element | null | undefined): void {
+  cell?.setAttribute('data-tolerance-done', '');
+}
+
 // Hand-off from early.ts: drop its document_start CSS blur once our own pending
 // blur covers the feed (or once we know we won't blur at all)
 function removeEarlyBlur(): void {
@@ -831,6 +865,7 @@ function takeOverEarlyBlur(): void {
     if (cells.length > 0) handleCellsAdded(cells);
   });
   earlyCellObserver.observe(document.body, { childList: true, subtree: true });
+  updateGate();
   removeEarlyBlur();
 }
 
@@ -981,6 +1016,7 @@ async function initCore(): Promise<void> {
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {
     log.debug(' Navigation detected, resetting state');
+    updateGate();
     // Reset state on navigation
     processedTweetIds.clear();
     scoreCache.clear();
@@ -1047,6 +1083,16 @@ async function processTweets(): Promise<void> {
     // Scrape all visible tweets
     const allTweets = scrapeVisibleTweets();
     const t1 = performance.now();
+
+    // Tweet cells the scraper can't parse (no status link, e.g. some ads) will never
+    // be scored; release them from the CSS gate
+    const scrapedIds = new Set(allTweets.map(t => t.id));
+    for (const cell of document.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]:not([data-tolerance-done])')) {
+      const article = cell.querySelector('article[data-testid="tweet"]');
+      if (!article) continue;
+      const id = article.querySelector('a[href*="/status/"]')?.getAttribute('href')?.match(/\/status\/(\d+)/)?.[1];
+      if (!id || !scrapedIds.has(id)) markCellDone(cell);
+    }
 
     // Separate into new tweets (need scoring) and processed tweets (may need badge re-injection)
     const newTweets: Tweet[] = [];
@@ -1602,6 +1648,7 @@ chrome.storage.onChanged.addListener((changes) => {
     const newSettings = changes.settings.newValue as Settings;
     const trustedPhaseChanged = newSettings.trustedBlurPhase !== currentSettings?.trustedBlurPhase;
     currentSettings = newSettings;
+    updateGate();
 
     // Pick up hover-reveal delay changes without a page reload
     hoverRevealDelay = (newSettings.twitter?.hoverRevealDelay ?? 3) * 1000;
