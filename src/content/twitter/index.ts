@@ -804,6 +804,35 @@ function isTimelinePage(): boolean {
 }
 
 // Check if we're on a tweet detail page
+// Hand-off from early.ts: drop its document_start CSS blur once our own pending
+// blur covers the feed (or once we know we won't blur at all)
+function removeEarlyBlur(): void {
+  document.getElementById('tolerance-early-blur')?.remove();
+}
+
+// Pending-blur every tweet cell already on the page, and keep doing so for cells
+// added before the timeline observer is set up (it waits on initial scoring).
+let earlyCellObserver: MutationObserver | null = null;
+function takeOverEarlyBlur(): void {
+  const cellsIn = (nodes: Iterable<Node>): HTMLElement[] => {
+    const cells: HTMLElement[] = [];
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (node.matches('[data-testid="cellInnerDiv"]')) cells.push(node);
+      else cells.push(...node.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]'));
+    }
+    return cells;
+  };
+  handleCellsAdded(cellsIn([document.body]));
+  earlyCellObserver?.disconnect();
+  earlyCellObserver = new MutationObserver(mutations => {
+    const cells = cellsIn(mutations.flatMap(m => [...m.addedNodes]));
+    if (cells.length > 0) handleCellsAdded(cells);
+  });
+  earlyCellObserver.observe(document.body, { childList: true, subtree: true });
+  removeEarlyBlur();
+}
+
 function isTweetDetailPage(): boolean {
   return window.location.pathname.includes('/status/');
 }
@@ -860,6 +889,7 @@ async function initCore(): Promise<void> {
   const stateResult = await sendMessage({ type: 'GET_STATE' });
   if (!stateResult || !('state' in stateResult)) {
     log.debug(' Failed to get state, extension inactive');
+    removeEarlyBlur();
     return;
   }
 
@@ -874,6 +904,7 @@ async function initCore(): Promise<void> {
   // Check if Twitter platform is enabled
   if (currentSettings.platforms?.twitter === false) {
     log.debug(' Twitter platform disabled in settings, extension inactive');
+    removeEarlyBlur();
     return;
   }
 
@@ -905,6 +936,9 @@ async function initCore(): Promise<void> {
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? false;
+
+  // Settings are known: switch from early.ts's CSS blur to the real pending blur
+  takeOverEarlyBlur();
 
   if (currentState.mode === 'baseline') {
     const daysRemaining = calculateBaselineDaysRemaining();
@@ -940,6 +974,8 @@ async function initCore(): Promise<void> {
 
   // Set up observer for infinite scroll
   setupTwitterObserver(handleNewTweets, handleCellsAdded);
+  earlyCellObserver?.disconnect();
+  earlyCellObserver = null;
 
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {

@@ -65,6 +65,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/twitter/early.ts'],
+    outfile: 'dist/twitter-early.js',
+    format: 'iife', // Content scripts need IIFE (document_start blur before twitter.js loads)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/content/tracker.ts'],
     outfile: 'dist/tracker.js',
     format: 'iife', // Content scripts need IIFE (lightweight heartbeat for other social media sites)

@@ -73,6 +73,16 @@
         "*://x.com/*"
       ],
       "js": [
+        "twitter-early.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://twitter.com/*",
+        "*://x.com/*"
+      ],
+      "js": [
         "twitter.js"
       ],
       "run_at": "document_idle"
