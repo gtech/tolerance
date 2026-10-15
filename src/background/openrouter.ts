@@ -692,7 +692,7 @@ export async function scoreImagePost(
   numComments: number,
   postId?: string,
   bodyText?: string,
-  platform?: 'reddit' | 'twitter' | 'instagram'
+  platform?: 'reddit' | 'twitter' | 'instagram' | 'facebook'
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
   const apiConfigured = await isApiConfigured();
@@ -710,14 +710,16 @@ export async function scoreImagePost(
     : '{"score": <1-10>, "reason": "<15 words max>"}';
 
   // Determine platform - explicit parameter takes precedence
-  const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
+  const isSocial = platform === 'twitter' || platform === 'instagram' || platform === 'facebook' || source.startsWith('@');
   const platformName = platform === 'instagram' ? 'Instagram' :
+                       platform === 'facebook' ? 'Facebook' :
                        platform === 'twitter' ? 'Twitter' :
                        source.startsWith('@') ? 'Twitter' : 'Reddit';
   const scoreLabel = isSocial ? 'Likes' : 'Upvotes';
   const scoreText = score !== null ? `${scoreLabel}: ${score}` : `${scoreLabel}: (not yet visible)`;
   const sourceLabel = isSocial ? `Author: ${source}` : `Subreddit: r/${source}`;
   const contentLabel = platform === 'instagram' ? 'Caption' :
+                       platform === 'facebook' ? 'Post' :
                        isSocial ? 'Tweet' : 'Title';
 
   // Log what we're scoring
@@ -799,7 +801,7 @@ export async function scoreVideoPost(
   thumbnailUrl: string,
   score: number | null,
   numComments: number,
-  platform?: 'reddit' | 'twitter' | 'instagram'
+  platform?: 'reddit' | 'twitter' | 'instagram' | 'facebook'
 ): Promise<ScoreResponse | null> {
   // Check if API is configured (OpenRouter key OR custom endpoint)
   const apiConfigured = await isApiConfigured();
@@ -817,14 +819,16 @@ export async function scoreVideoPost(
     : '{"score": <1-10>, "reason": "<15 words max>"}';
 
   // Determine platform - explicit parameter takes precedence
-  const isSocial = platform === 'twitter' || platform === 'instagram' || source.startsWith('@');
+  const isSocial = platform === 'twitter' || platform === 'instagram' || platform === 'facebook' || source.startsWith('@');
   const platformName = platform === 'instagram' ? 'Instagram' :
+                       platform === 'facebook' ? 'Facebook' :
                        platform === 'twitter' ? 'Twitter' :
                        source.startsWith('@') ? 'Twitter' : 'Reddit';
   const scoreLabel = isSocial ? 'Likes' : 'Upvotes';
   const scoreText = score !== null ? `${scoreLabel}: ${score}` : `${scoreLabel}: (not yet visible)`;
   const sourceLabel = isSocial ? `Author: ${source}` : `Subreddit: r/${source}`;
   const contentLabel = platform === 'instagram' ? 'Caption' :
+                       platform === 'facebook' ? 'Post' :
                        isSocial ? 'Tweet' : 'Title';
 
   // Use image model from config for thumbnail-based scoring
@@ -1013,7 +1017,7 @@ async function callApi(
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: isImageCall ? 40 : 4000,
+      max_tokens: isImageCall ? 150 : 4000, // 40 truncated the JSON mid-reason
       stream: false,
     };
 
@@ -1061,6 +1065,7 @@ async function callApi(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error: ${response.status} for model=${model}`, errorText);
+      lastCallError = `API error ${response.status} (${model}): ${errorText.slice(0, 160)}`;
 
       // Check for budget exhaustion / key limit / rate limit errors (402, 403, 429)
       if (response.status === 402 || response.status === 403 || response.status === 429) {
@@ -1121,6 +1126,7 @@ async function callApi(
 
     if (!content) {
       console.error('API: No content in response');
+      lastCallError = `Empty reply from ${model}`;
       return null;
     }
 
@@ -1201,14 +1207,23 @@ async function callApi(
     }
 
     console.error('API: Could not extract score from:', content);
+    lastCallError = `Unreadable reply from ${model}: "${content.slice(0, 160)}"`;
     return null;
   } catch (error) {
     console.error('API call failed:', error);
+    lastCallError = `Request failed: ${error instanceof Error ? error.message : String(error)}`;
     return null;
   }
 }
 
 // Internal wrapper - calls callApi with loaded config
+// Why the most recent call returned null, for showing on failed scores (best effort:
+// concurrent calls can overwrite it)
+let lastCallError: string | null = null;
+export function getLastCallError(): string | null {
+  return lastCallError;
+}
+
 async function callOpenRouter(
   prompt: string,
   model?: string,
@@ -1220,6 +1235,7 @@ async function callOpenRouter(
   const config = await getProviderConfig();
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
+  lastCallError = null;
   return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
 }
 

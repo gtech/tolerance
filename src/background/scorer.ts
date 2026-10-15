@@ -14,7 +14,7 @@ import {
   scoreToBucket,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies } from './storage';
-import { scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
+import { getLastCallError, scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 import { anchorCacheId, foldAnchorScore } from '../shared/anchor-utils';
 import { getSubscriptionList, isSubscribed } from './subscriptions';
@@ -1180,6 +1180,8 @@ export async function scoreFacebookPosts(
 
     if (apiEnabled) {
       postsForApi.push({ post, score });
+    } else {
+      score.apiReason = 'Scoring failed: no API key configured';
     }
   }
 
@@ -1210,10 +1212,11 @@ export async function scoreFacebookPosts(
           post.caption || post.text,
           post.authorDisplayName,
           post.likeCount,
-          post.commentCount,
-          settings.openRouterApiKey!
+          post.commentCount
         );
-        if (apiResult) {
+        if (!apiResult) {
+          score.apiReason = `Scoring failed: ${getLastCallError() ?? 'no response'}`;
+        } else {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
           score.scoreFailed = false;
@@ -1230,6 +1233,7 @@ export async function scoreFacebookPosts(
         }
       } catch (err) {
         console.error('Facebook text API scoring failed:', err);
+        score.apiReason = `Scoring failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     });
     await Promise.all(textPromises);
@@ -1251,7 +1255,6 @@ export async function scoreFacebookPosts(
             imageUrl,
             post.likeCount,
             post.commentCount,
-            settings.openRouterApiKey!,
             'facebook'
           );
         } else {
@@ -1264,12 +1267,13 @@ export async function scoreFacebookPosts(
             post.commentCount,
             post.id,
             undefined,
-            settings.openRouterApiKey!,
             'facebook'
           );
         }
 
-        if (apiResult) {
+        if (!apiResult) {
+          score.apiReason = `Scoring failed: ${getLastCallError() ?? 'no response'}`;
+        } else {
           const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
           score.scoreFailed = false;
@@ -1286,6 +1290,7 @@ export async function scoreFacebookPosts(
         }
       } catch (err) {
         console.error('Facebook media API scoring failed:', err);
+        score.apiReason = `Scoring failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     });
     await Promise.all(mediaPromises);

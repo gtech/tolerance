@@ -107,7 +107,7 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
-  if (score.apiScore === undefined) return false;
+  if (score.apiScore === undefined || score.scoreFailed) return false;
   // Trusted sources bypass blur until the configured phase
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
@@ -199,6 +199,24 @@ function injectStyles(): void {
       background: rgba(0, 0, 0, 0.15) !important;
     }
 
+    .tolerance-blur-overlay {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tolerance-blur-label {
+      max-width: 80%;
+      text-align: center;
+      background: rgba(231, 76, 60, 0.9);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .tolerance-blur-label.medium { background: rgba(243, 156, 18, 0.9); }
+    .tolerance-blur-label.low { background: rgba(39, 174, 96, 0.9); }
     .tolerance-blur-overlay::after {
       content: 'Hover 3s to reveal';
       color: rgba(255, 255, 255, 0.9);
@@ -514,7 +532,8 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
 
   // Create badge
   const displayScore = score.apiScore;
-  const scoringFailed = score.apiScore === undefined;
+  // A failed score carries the placeholder 50; show it as "?" with the error instead
+  const scoringFailed = score.apiScore === undefined || !!score.scoreFailed;
   const badge = document.createElement('div');
   badge.className = `tolerance-score-badge ${scoringFailed ? 'failed' : score.bucket}`;
   badge.textContent = scoringFailed ? '?' : displayScore.toString();
@@ -523,9 +542,8 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
     void showFreeTierExhaustedDialog(currentSettings);
 
     const isOwnKey = currentSettings?.apiTier === 'own-key';
-    badge.title = isOwnKey
-      ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.';
+    badge.title = score.apiReason ||
+      (isOwnKey ? 'Error receiving score.' : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.');
     badge.style.cursor = 'pointer';
     badge.style.pointerEvents = 'auto';
     badge.addEventListener('click', (e) => {
@@ -544,11 +562,24 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
 
   // Apply blur if score exceeds threshold
   if (shouldBlurScore(score)) {
-    applyBlur(element);
+    applyBlur(element, score);
   }
 }
 
-function applyBlur(element: HTMLElement): void {
+// "<score>: <reason>" pill shown on the blur, colored by bucket (as on Twitter)
+function buildBlurLabel(score: EngagementScore): HTMLElement {
+  const label = document.createElement('div');
+  label.className = `tolerance-blur-label ${score.bucket}`;
+  const rounded = Math.round(score.apiScore);
+  let text = subscriptionsOnlyMode && !score.whitelisted
+    ? 'Not following'
+    : score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
+  if (score.whitelisted && !subscriptionsOnlyMode) text += ' (trusted, blurred late in session)';
+  label.textContent = text;
+  return label;
+}
+
+function applyBlur(element: HTMLElement, score: EngagementScore): void {
   element.classList.add('tolerance-video-blocked');
 
   (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo = () => {
@@ -601,6 +632,7 @@ function applyBlur(element: HTMLElement): void {
     }
   });
 
+  overlay.appendChild(buildBlurLabel(score));
   element.appendChild(overlay);
 }
 
