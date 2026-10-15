@@ -21,6 +21,12 @@ const scoreCache = new Map<string, { score: EngagementScore; originalPosition: n
 // anchor has appeared or changed since.
 const anchorSent = new Map<string, string>();
 
+// Media type each tweet was last scored with. GIFs/videos often render a still or
+// nothing at first, so a tweet first scored as text/image is re-sent once it shows
+// as video (the background applies the video floor).
+const mediaTypeSent = new Map<string, Tweet['mediaType']>();
+const isVideoType = (t: Tweet['mediaType'] | undefined) => t === 'video' || t === 'gif';
+
 // Processing lock to prevent concurrent processTweets calls
 let isProcessing = false;
 let pendingProcess = false;
@@ -1032,6 +1038,7 @@ async function initCore(): Promise<void> {
     processedTweetIds.clear();
     scoreCache.clear();
     anchorSent.clear();
+    mediaTypeSent.clear();
     hasPreloaded = false;
     isProcessing = false; // Reset lock in case it got stuck
     pendingProcess = false;
@@ -1114,7 +1121,9 @@ async function processTweets(): Promise<void> {
       if (!processedTweetIds.has(tweet.id)) {
         newTweets.push(tweet);
       } else {
-        if (tweet.anchor && scoreCache.has(tweet.id) && anchorSent.get(tweet.id) !== anchorCacheId(tweet.anchor)) {
+        if (scoreCache.has(tweet.id) &&
+            ((tweet.anchor && anchorSent.get(tweet.id) !== anchorCacheId(tweet.anchor)) ||
+             (isVideoType(tweet.mediaType) && !isVideoType(mediaTypeSent.get(tweet.id))))) {
           tweetsNeedingAnchor.push(tweet);
         }
         // Check if this processed tweet needs badge re-injection or is stuck on
@@ -1216,6 +1225,7 @@ async function processTweets(): Promise<void> {
     for (const tweet of newTweets) {
       processedTweetIds.add(tweet.id);
       if (tweet.anchor) anchorSent.set(tweet.id, anchorCacheId(tweet.anchor));
+      mediaTypeSent.set(tweet.id, tweet.mediaType);
     }
 
     const scores = new Map<string, EngagementScore>();
@@ -1343,12 +1353,16 @@ async function processTweets(): Promise<void> {
   }
 }
 
-// Re-score already-processed tweets whose anchor showed up (or changed) after they
-// were first scored. Their own scores are cached, so the background only folds in
-// the anchor's score; update the badge and blur if the result changed.
+// Re-score already-processed tweets whose anchor showed up (or changed), or whose
+// media turned out to be video, after they were first scored. Their own scores are
+// cached, so the background only folds in the anchor's score / applies the video
+// floor; update the badge and blur if the result changed.
 async function recheckAnchors(tweets: Tweet[]): Promise<void> {
-  for (const tweet of tweets) anchorSent.set(tweet.id, anchorCacheId(tweet.anchor!));
-  log.debug(` Re-checking anchors for ${tweets.length} tweets: ${tweets.map(t => `${t.id}->@${t.anchor!.author}`).join(', ')}`);
+  for (const tweet of tweets) {
+    if (tweet.anchor) anchorSent.set(tweet.id, anchorCacheId(tweet.anchor));
+    mediaTypeSent.set(tweet.id, tweet.mediaType);
+  }
+  log.debug(` Re-checking ${tweets.length} tweets (anchor appeared or media became video): ${tweets.map(t => `${t.id}${t.anchor ? '->@' + t.anchor.author : ''} ${t.mediaType}`).join(', ')}`);
 
   const result = await sendMessage({ type: 'SCORE_TWEETS', tweets: tweets.map(serializeTweet) }) as { scores?: EngagementScore[] } | null;
   if (!result?.scores) return;

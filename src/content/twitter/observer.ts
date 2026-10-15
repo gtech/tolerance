@@ -77,7 +77,13 @@ export function setupTwitterObserver(
           if (!(node instanceof HTMLElement)) continue;
           const isCell = node.matches('[data-testid="cellInnerDiv"]');
           const containsTweet = node.matches('[data-testid="tweet"]') || !!node.querySelector('[data-testid="tweet"]');
-          if (!isCell && !containsTweet) continue;
+          if (!isCell && !containsTweet) {
+            // A GIF/video finishing loading inside an already-scored tweet: re-scan so
+            // its media type (and the video score floor) is picked up
+            const isMedia = node.matches('video, [data-testid="videoPlayer"]') || !!node.querySelector('video, [data-testid="videoPlayer"]');
+            if (isMedia && node.closest('article[data-testid="tweet"]')) hasNewTweets = true;
+            continue;
+          }
           hasNewTweets = true;
           if (!onCellsAdded) continue;
 

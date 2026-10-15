@@ -21,7 +21,16 @@ import { getSubscriptionList, isSubscribed } from './subscriptions';
 
 // Twitter video/gif thumbnails are often uninformative first frames,
 // but videos inherently grab more attention than text posts
-const TWITTER_VIDEO_SCORE_FLOOR = 35;
+const TWITTER_VIDEO_SCORE_FLOOR = 40;
+const VIDEO_FLOOR_NOTE = ` (video: counted as at least ${TWITTER_VIDEO_SCORE_FLOOR})`;
+
+// Raise a video/gif tweet's score to the floor, noting why in the reason
+function applyVideoFloor(score: EngagementScore): void {
+  if (score.apiScore === undefined || score.scoreFailed || score.apiScore >= TWITTER_VIDEO_SCORE_FLOOR) return;
+  score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
+  score.bucket = scoreToBucket(TWITTER_VIDEO_SCORE_FLOOR, 'twitter');
+  if (!score.apiReason?.endsWith(VIDEO_FLOOR_NOTE)) score.apiReason = `${score.apiReason ?? ''}${VIDEO_FLOOR_NOTE}`.trim();
+}
 
 // Apply enabled counter-strategy modifiers to scores with detected narratives.
 // Runs once per scoring batch, before caching, so the adjusted score flows
@@ -408,14 +417,12 @@ export async function scoreTweets(
           settings.openRouterApiKey!
         );
         if (apiResult) {
-          let apiScore = apiResult.score * 10;
-          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') {
-            apiScore = Math.max(apiScore, TWITTER_VIDEO_SCORE_FLOOR);
-          }
+          const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
+          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') applyVideoFloor(score);
         }
       } catch (err) {
         console.error('Tweet text API scoring failed:', err);
@@ -476,14 +483,12 @@ export async function scoreTweets(
             );
 
         if (apiResult) {
-          let apiScore = apiResult.score * 10;
-          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') {
-            apiScore = Math.max(apiScore, TWITTER_VIDEO_SCORE_FLOOR);
-          }
+          const apiScore = apiResult.score * 10;
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
+          if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') applyVideoFloor(score);
 
           // Apply narrative detection from LLM response
           if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
@@ -547,6 +552,7 @@ export async function scoreTweets(
     if (changed.length > 0) await cacheScores(changed);
   }
 
+  const flooredCached: EngagementScore[] = [];
   // Final safety net: enforce video/gif score floor on ALL scores
   // This catches cached scores, race conditions, and any scoring path
   // that might have missed the floor
@@ -555,11 +561,13 @@ export async function scoreTweets(
       const score = allScores.find(s => s.postId === tweet.id);
       if (score && score.apiScore !== undefined && score.apiScore < TWITTER_VIDEO_SCORE_FLOOR) {
         log.debug(` Video floor applied: tweet ${tweet.id} score ${score.apiScore} -> ${TWITTER_VIDEO_SCORE_FLOOR}`);
-        score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
-        score.bucket = scoreToBucket(TWITTER_VIDEO_SCORE_FLOOR, 'twitter');
+        applyVideoFloor(score);
+        flooredCached.push(score);
       }
     }
   }
+  // Persist, so the cache matches what's shown (e.g. a GIF first scraped before it loaded)
+  if (flooredCached.length > 0) await cacheScores(flooredCached);
 
   return allScores;
 }
