@@ -4,7 +4,7 @@
 
 A browser extension that scores content by how hard it's trying to manipulate you, then makes the feed progressively higher quality so you spend precisely the amount of time you wish to.
 
-[Website](https://tolerance.lol) · [Download](https://github.com/gtech/tolerance/releases)
+[Website](https://tolerance.lol) · [Chrome](https://chromewebstore.google.com/detail/pmnbipkkofbjeblbmhffdgaddaofgeag) · [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tolerancelol/) · [Releases](https://github.com/gtech/tolerance/releases)
 
 ## How it works
 
@@ -24,6 +24,11 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 - TikTok (time tracking only)
 
 ## Installation
+
+### From the stores (easiest)
+
+- **Chrome:** [Chrome Web Store](https://chromewebstore.google.com/detail/pmnbipkkofbjeblbmhffdgaddaofgeag)
+- **Firefox:** [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/tolerancelol/)
 
 ### From release
 
