@@ -15,3 +15,13 @@ export function isFacebookFeedPath(pathname: string): boolean {
   if (pathname === '/' || pathname === '') return true;
   return /^\/groups\/[^/]+\/?$/.test(pathname);
 }
+
+// Reels: any feed item linking to a reel (the Reels tray, reel posts), plus trays
+// outside feed items, which the content script marks with REELS_HIDDEN_CLASS
+export const REELS_HIDDEN_CLASS = 'tolerance-reels-hidden';
+export const REEL_LINK = 'a[href*="/reel/"]';
+export function hideReelsCss(scope: string): string {
+  return `html.${scope} [aria-posinset]:has(${REEL_LINK}),
+  html.${scope} [style*="card-corner-radius"]:has([role="grid"] ${REEL_LINK}),
+  html.${scope} .${REELS_HIDDEN_CLASS} { display: none !important; }`;
+}

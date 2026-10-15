@@ -449,6 +449,8 @@ export interface Settings {
   blurUntilScoredTimeout?: number;
   // Logging level for console output
   logLevel?: LogLevel;
+  // Hide Facebook Reels (the Reels tray and reel posts in the feed). Default: true
+  hideFacebookReels?: boolean;
   // Platform toggles - enable/disable Tolerance on each platform
   platforms: {
     reddit: boolean;

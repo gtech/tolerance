@@ -44,6 +44,7 @@ async function init(): Promise<void> {
   setupEventListeners();
   await setupTrustedBlurPhase();
   await setupGroundingSettings();
+  await setupFacebookReelsSetting();
   setupStrictnessSlider();
 
   // Listen for storage changes to sync Quality Mode toggle
@@ -105,6 +106,17 @@ async function setupTrustedBlurPhase(): Promise<void> {
     await chrome.storage.local.set({
       settings: { ...current, trustedBlurPhase: select.value as TrustedBlurPhase },
     });
+  });
+}
+
+// Hide Facebook Reels card (on unless explicitly turned off)
+async function setupFacebookReelsSetting(): Promise<void> {
+  const toggle = document.getElementById('fb-reels-toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).hideFacebookReels !== false;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({ settings: { ...current, hideFacebookReels: toggle.checked } });
   });
 }
 

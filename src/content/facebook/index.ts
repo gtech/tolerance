@@ -2,7 +2,7 @@ import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pen
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
-import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss } from './gate';
+import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 
@@ -145,6 +145,9 @@ function injectStyles(): void {
   const style = document.createElement('style');
   style.id = 'tolerance-facebook-styles';
   style.textContent = `
+    /* Hide Reels (setting) */
+    ${hideReelsCss('tolerance-fb-hide-reels')}
+
     /* Gate: feed items stay blurred until handled (pending, badged, or unscorable) */
     ${fbGateCss('tolerance-fb-gate')}
 
@@ -265,6 +268,22 @@ function injectStyles(): void {
     }
   `;
   document.head.appendChild(style);
+}
+
+function reelsHidden(): boolean {
+  return currentSettings?.hideFacebookReels !== false && currentSettings?.platforms?.facebook !== false;
+}
+
+// Reels trays outside feed items (the [aria-posinset] case is pure CSS): hide the
+// whole card, header included
+function hideReelTrays(): void {
+  document.documentElement.classList.toggle('tolerance-fb-hide-reels', reelsHidden());
+  if (!reelsHidden()) return;
+  for (const grid of document.querySelectorAll<HTMLElement>('[role="grid"]')) {
+    if (!grid.querySelector(REEL_LINK) || grid.closest('[aria-posinset]')) continue;
+    const card = grid.closest<HTMLElement>('[style*="card-corner-radius"]')?.parentElement ?? grid;
+    card.classList.add(REELS_HIDDEN_CLASS);
+  }
 }
 
 // CSS gate on where pending blur applies
@@ -390,7 +409,8 @@ async function processPosts(): Promise<void> {
   processingStartTime = Date.now();
 
   try {
-    const posts = scrapeVisiblePosts();
+    hideReelTrays();
+    const posts = scrapeVisiblePosts().filter(p => !(reelsHidden() && p.element.querySelector(REEL_LINK)));
     log.debug(`Facebook: Found ${posts.length} posts`);
 
     // Feed items that aren't posts (suggestions, reels trays...) will never be
@@ -689,6 +709,7 @@ async function init(): Promise<void> {
   // Switch from early.ts's CSS blur to our own gate
   updateGate();
   removeEarlyBlur();
+  hideReelTrays();
 
   // Fetch initial blur threshold
   await updateBlurThreshold();
@@ -720,6 +741,7 @@ chrome.storage.onChanged.addListener((changes) => {
     const newSettings = changes.settings.newValue as Settings;
     currentSettings = newSettings;
     updateGate();
+    hideReelTrays();
     qualityModeEnabled = newSettings.qualityMode ?? false;
     subscriptionsOnlyMode = newSettings.subscriptionsOnly ?? false;
     refreshBlurState();

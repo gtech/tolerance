@@ -819,6 +819,28 @@
       background-color: #fff;
     }
 
+    /* Hide Facebook Reels Toggle Slider */
+    #fb-reels-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    #fb-reels-toggle:checked + #fb-reels-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    #fb-reels-toggle:checked + #fb-reels-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
     /* Grounding Breaks Toggle Slider */
     #grounding-slider:before {
       position: absolute;
@@ -1069,6 +1091,20 @@
         </div>
         <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
           Use a solid gray overlay instead of semi-transparent blur. Completely hides content with no visible motion or shapes.
+        </div>
+      </div>
+      <div class="card" id="fb-reels-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Hide Facebook Reels
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="fb-reels-toggle" checked style="opacity: 0; width: 0; height: 0;">
+            <span id="fb-reels-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Removes the Reels carousel and reel posts from your Facebook feed.
         </div>
       </div>
       <div class="card" id="grounding-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
