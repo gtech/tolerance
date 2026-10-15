@@ -2,7 +2,7 @@ import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedEx
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
-import { setupTwitterObserver, setupNavigationObserver } from './observer';
+import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
@@ -643,6 +643,8 @@ function handleCellsAdded(cells: HTMLElement[]): void {
     document.documentElement.classList.remove('tolerance-gate');
     return;
   }
+  // Cells arrive as soon as a navigation renders, before the URL poll would notice
+  checkNavigation();
   if (isTweetDetailPage()) return;
   const twitterSettings = currentSettings?.twitter;
   if (!twitterSettings?.blurHighEngagement || twitterSettings.reorderEnabled) return;

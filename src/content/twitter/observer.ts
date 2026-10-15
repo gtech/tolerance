@@ -159,22 +159,23 @@ export function setupTwitterObserver(
 }
 
 // Also observe for navigation changes (Twitter is a SPA)
+// Twitter is a SPA. Its history.pushState calls happen in the page's JS world, which
+// a content script can't hook (overriding history.pushState here only affects our
+// isolated world), so watch the path instead: popstate for back/forward, a poll
+// for link clicks, and checkNavigation() for callers that see DOM changes first.
+let lastPath = location.pathname;
+let navigationCallback: (() => void) | null = null;
+
+export function checkNavigation(): void {
+  if (location.pathname === lastPath) return;
+  lastPath = location.pathname;
+  navigationCallback?.();
+}
+
 export function setupNavigationObserver(callback: () => void): void {
-  // Twitter uses History API for navigation
-  const originalPushState = history.pushState;
-  const originalReplaceState = history.replaceState;
-
-  history.pushState = function (...args) {
-    originalPushState.apply(this, args);
-    callback();
-  };
-
-  history.replaceState = function (...args) {
-    originalReplaceState.apply(this, args);
-    callback();
-  };
-
-  window.addEventListener('popstate', callback);
+  navigationCallback = callback;
+  window.addEventListener('popstate', checkNavigation);
+  setInterval(checkNavigation, 250);
 }
 
 export function disconnectObservers(): void {
