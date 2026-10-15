@@ -5,13 +5,14 @@
 // style once its own pending blur is in place), or until settings say not to.
 
 import type { Settings } from '../../shared/types';
+import { isUnfilteredTwitterPath } from './paths';
 
 // Keep in sync with removeEarlyBlur() in ./index.ts
 const EARLY_BLUR_STYLE_ID = 'tolerance-early-blur';
 
 const FALLBACK_MS = 15000; // never leave the feed blurred if the main script fails
 
-if (!location.pathname.includes('/status/')) {
+if (!isUnfilteredTwitterPath(location.pathname)) {
   const style = document.createElement('style');
   style.id = EARLY_BLUR_STYLE_ID;
   style.textContent = `

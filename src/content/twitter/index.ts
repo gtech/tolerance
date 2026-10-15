@@ -8,6 +8,7 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { anchorCacheId } from '../../shared/anchor-utils';
+import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
 
 // Track processed tweets to avoid re-processing
@@ -179,8 +180,8 @@ function startRecoveryCheck(): void {
       return;
     }
 
-    // Skip recovery on detail pages
-    if (isTweetDetailPage()) return;
+    // Skip recovery on unfiltered pages (tweet detail, search)
+    if (isUnfilteredPage()) return;
 
     const timeSinceProcess = Date.now() - lastProcessTime;
     const hasVisibleTweets = document.querySelectorAll('[data-testid="tweet"]').length > 0;
@@ -664,7 +665,7 @@ function handleCellsAdded(cells: HTMLElement[]): void {
   }
   // Cells arrive as soon as a navigation renders, before the URL poll would notice
   checkNavigation();
-  if (isTweetDetailPage()) return;
+  if (isUnfilteredPage()) return;
   const twitterSettings = currentSettings?.twitter;
   if (!twitterSettings?.blurHighEngagement || twitterSettings.reorderEnabled) return;
 
@@ -787,7 +788,7 @@ function sleep(ms: number): Promise<void> {
 // Pre-load tweets by scrolling down then back up
 async function preloadTweets(): Promise<void> {
   if (hasPreloaded || isPreloading) return;
-  if (isTweetDetailPage()) return;
+  if (isUnfilteredPage()) return;
 
   isPreloading = true;
   log.debug(' Starting tweet preload...');
@@ -855,7 +856,7 @@ function updateGate(): void {
     currentSettings?.platforms?.twitter !== false &&
     !!twitter?.blurHighEngagement && !twitter.reorderEnabled &&
     currentSettings?.blurUntilScored !== false &&
-    !isTweetDetailPage();
+    !isUnfilteredPage();
   document.documentElement.classList.toggle('tolerance-gate', on);
   document.documentElement.style.setProperty('--tolerance-gate-blur', `${twitter?.blurIntensity ?? 8}px`);
 }
@@ -924,8 +925,10 @@ function takeOverEarlyBlur(): void {
   removeEarlyBlur();
 }
 
-function isTweetDetailPage(): boolean {
-  return window.location.pathname.includes('/status/');
+// Pages left unfiltered: single tweets (you chose to open it) and search results
+// (you're looking for something, not being fed)
+function isUnfilteredPage(): boolean {
+  return isUnfilteredTwitterPath(window.location.pathname);
 }
 
 // Initialize content script
@@ -1051,12 +1054,12 @@ async function initCore(): Promise<void> {
 
   // Pre-load tweets via scrolling (only needed when reordering is enabled)
   const twitterReorderEnabled = currentSettings?.twitter?.reorderEnabled ?? false;
-  if (currentState?.mode === 'active' && !isTweetDetailPage() && twitterReorderEnabled) {
+  if (currentState?.mode === 'active' && !isUnfilteredPage() && twitterReorderEnabled) {
     await preloadTweets();
   }
 
   // Wait for tweets to appear before processing
-  if (!isTweetDetailPage()) {
+  if (!isUnfilteredPage()) {
     await waitForTweets();
   }
 
@@ -1089,12 +1092,12 @@ async function initCore(): Promise<void> {
       setupTwitterObserver(handleNewTweets, handleCellsAdded);
 
       const reorderEnabled = currentSettings?.twitter?.reorderEnabled ?? false;
-      if (currentState?.mode === 'active' && !isTweetDetailPage() && reorderEnabled) {
+      if (currentState?.mode === 'active' && !isUnfilteredPage() && reorderEnabled) {
         await preloadTweets();
       }
 
       // Wait for tweets to appear after navigation
-      if (!isTweetDetailPage()) {
+      if (!isUnfilteredPage()) {
         await waitForTweets();
       }
 
@@ -1119,8 +1122,8 @@ async function handleNewTweets(): Promise<void> {
 async function processTweets(): Promise<void> {
   if (!isExtensionValid()) return;
 
-  // Don't process on tweet detail pages (like Reddit comments)
-  if (isTweetDetailPage()) {
+  // Don't process on unfiltered pages: tweet detail (like Reddit comments), search
+  if (isUnfilteredPage()) {
     return;
   }
 
