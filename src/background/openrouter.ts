@@ -50,12 +50,15 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'openai/gpt-oss-120b': { input: 0.039, output: 0.19 },
   'z-ai/glm-4.6v': { input: 0.3, output: 0.9 },
   'meta-llama/llama-4-scout': { input: 0.11, output: 0.34},
+  'google/gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
 };
 
 // Default models for OpenRouter
 const DEFAULT_TEXT_MODEL = 'openai/gpt-oss-120b';
-const DEFAULT_IMAGE_MODEL = 'meta-llama/llama-4-scout';
-const DEFAULT_VIDEO_MODEL = 'meta-llama/llama-4-scout';
+// Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
+// the rest at 0-40% uptime); Gemini 2.5 Flash Lite is similar in price and reliable
+const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash-lite';
+const DEFAULT_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
 // Provider configuration built from settings
@@ -655,12 +658,6 @@ export async function describeImages(
       max_tokens: 500,
       temperature: 0.3,
     };
-    if (config.type === 'openrouter') {
-      requestBody.provider = {
-        order: ['groq', 'cerebras'],
-        allow_fallbacks: true,
-      };
-    }
 
     const response = await fetch(config.endpoint, {
       method: 'POST',
@@ -1024,10 +1021,14 @@ async function callApi(
     // Only add OpenRouter-specific options
     if (config.type === 'openrouter') {
       requestBody.temperature = 0.3;
-      requestBody.provider = {
-        order: ['groq', 'cerebras'],
-        allow_fallbacks: true,
-      };
+      // Prefer the fast providers for the text model; vision calls go wherever
+      // OpenRouter routes the image model
+      if (!effectiveImageUrl) {
+        requestBody.provider = {
+          order: ['groq', 'cerebras'],
+          allow_fallbacks: true,
+        };
+      }
       // Only add JSON mode for OpenRouter non-vision requests
       if (!effectiveImageUrl) {
         requestBody.response_format = { type: 'json_object' };
