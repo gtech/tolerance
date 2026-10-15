@@ -71,6 +71,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/youtube/early.ts'],
+    outfile: 'dist/youtube-early.js',
+    format: 'iife', // Content scripts need IIFE (document_start blur before youtube.js loads)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/content/tracker.ts'],
     outfile: 'dist/tracker.js',
     format: 'iife', // Content scripts need IIFE (lightweight heartbeat for other social media sites)

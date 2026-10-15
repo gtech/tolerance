@@ -5,6 +5,7 @@ import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage } from './gate';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -288,6 +289,10 @@ function injectStyles(): void {
       transition: filter 0.3s ease !important;
     }
 
+    /* Gate: every video card is blurred until handled (pending, blurred, badged
+       or marked unscorable). Pure CSS, so cards are covered from first paint. */
+    ${gateCss('tolerance-yt-gate')}
+
     /* Revealed state (set by JS after hover delay) */
     .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
     .tolerance-pending.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
@@ -394,7 +399,6 @@ interface BadgeInfo {
 // YouTube recycles card elements: the same ytd-rich-item-renderer can be re-rendered
 // with a different video (feed refresh, returning to Home). Every card we touch is
 // stamped with the video it was handled for, so stale badges/blur can be detected.
-const VIDEO_ID_ATTR = 'data-tolerance-vid';
 
 function claimElement(video: YouTubeVideo): void {
   video.element?.setAttribute(VIDEO_ID_ATTR, video.id);
@@ -406,6 +410,7 @@ function resetElement(element: HTMLElement): void {
   element.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', 'tolerance-sidebar-video');
   element.style.removeProperty('--tolerance-blur');
   element.removeAttribute(VIDEO_ID_ATTR);
+  element.removeAttribute(DONE_ATTR);
 }
 
 // Bring a scored card's blur in line with its score
@@ -415,6 +420,42 @@ function settleVideo(video: YouTubeVideo, score: EngagementScore): void {
   } else if (video.element) {
     removePendingBlur(video);
     video.element.classList.remove('tolerance-blurred');
+  }
+}
+
+// CSS gate on where pending blur applies
+let gatePath = location.pathname;
+function updateGate(): void {
+  gatePath = location.pathname;
+  const on = isExtensionValid() &&
+    currentSettings?.platforms?.youtube !== false &&
+    currentSettings?.blurUntilScored !== false &&
+    !isUnscoredYouTubePage(location.pathname);
+  document.documentElement.classList.toggle('tolerance-yt-gate', on);
+}
+
+// Hand-off from early.ts
+function removeEarlyBlur(): void {
+  document.getElementById('tolerance-early-blur')?.remove();
+  document.documentElement.classList.remove('tolerance-yt-early');
+}
+
+// Called synchronously from the MutationObserver (before paint) for cards that were
+// added or whose video link changed. A card re-rendered with a different video is
+// reset so the CSS gate covers it again until it's handled.
+function handleCardsChanged(cards: HTMLElement[]): void {
+  if (!isExtensionValid()) {
+    document.documentElement.classList.remove('tolerance-yt-gate');
+    return;
+  }
+  if (location.pathname !== gatePath) updateGate();
+  for (const card of cards) {
+    const id = findVideoIdFromElement(card);
+    const claimed = card.getAttribute(VIDEO_ID_ATTR);
+    const done = card.getAttribute(DONE_ATTR);
+    if ((claimed && id && claimed !== id) || (done !== null && id && done !== id)) {
+      resetElement(card);
+    }
   }
 }
 
@@ -684,6 +725,7 @@ async function initCore(): Promise<void> {
   const stateResult = await sendMessage({ type: 'GET_STATE' });
   if (!stateResult || !('state' in stateResult)) {
     log.debug(' Failed to get state, extension inactive');
+    removeEarlyBlur();
     return;
   }
 
@@ -698,12 +740,17 @@ async function initCore(): Promise<void> {
   // Check if YouTube platform is enabled
   if (currentSettings.platforms?.youtube === false) {
     log.debug(' YouTube platform disabled in settings, extension inactive');
+    removeEarlyBlur();
     return;
   }
 
   // Inject styles only if platform is enabled
   injectStyles();
   injectOnboardingStyles();
+
+  // Switch from early.ts's CSS blur to our own gate
+  updateGate();
+  removeEarlyBlur();
 
   // Show tip about disabling video previews
   showVideoPreviewTip();
@@ -745,11 +792,12 @@ async function initCore(): Promise<void> {
   }
 
   // Set up observer for infinite scroll
-  setupYouTubeObserver(handleNewVideos);
+  setupYouTubeObserver(handleNewVideos, handleCardsChanged);
 
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {
     log.debug(' Navigation detected, resetting state');
+    updateGate();
     processedVideoIds.clear();
     scoreCache.clear();
     resetPageChannelCache();
@@ -761,7 +809,7 @@ async function initCore(): Promise<void> {
       log.debug(' Re-initializing after navigation, path:', window.location.pathname);
 
       // Re-setup observer for new DOM
-      setupYouTubeObserver(handleNewVideos);
+      setupYouTubeObserver(handleNewVideos, handleCardsChanged);
 
       if (!isShortsPage()) {
         await processVideos();
@@ -803,6 +851,15 @@ async function processVideos(): Promise<void> {
     // Scrape all visible videos
     const allVideos = scrapeVisibleVideos();
     const t1 = performance.now();
+
+    // Cards the scraper can't parse (ads, shelf headers, placeholders) will never be
+    // scored; release them from the CSS gate. Stamped with their current video ID
+    // (if any) so a later re-render with real content re-gates them.
+    const scrapedElements = new Set(allVideos.map(v => v.element));
+    for (const card of document.querySelectorAll<HTMLElement>(VIDEO_CARD_SELECTOR)) {
+      if (card.hasAttribute(VIDEO_ID_ATTR) || card.hasAttribute(DONE_ATTR) || scrapedElements.has(card)) continue;
+      card.setAttribute(DONE_ATTR, findVideoIdFromElement(card) ?? '');
+    }
 
     // Separate into new videos and videos needing badge re-injection
     const newVideos: YouTubeVideo[] = [];
@@ -868,7 +925,9 @@ async function processVideos(): Promise<void> {
     }
 
     // Get scores from background
-    const serializedVideos = newVideos.map(serializeVideo);
+    // Same video in two cards: score it once, badge both
+    const uniqueVideos = [...new Map(newVideos.map(v => [v.id, v])).values()];
+    const serializedVideos = uniqueVideos.map(serializeVideo);
     const t2 = performance.now();
     const scoreResult = await sendMessage({
       type: 'SCORE_VIDEOS',
@@ -1180,6 +1239,7 @@ chrome.storage.onChanged.addListener((changes) => {
     const newSettings = changes.settings.newValue as Settings;
     const trustedPhaseChanged = newSettings.trustedBlurPhase !== currentSettings?.trustedBlurPhase;
     currentSettings = newSettings;
+    updateGate();
 
     // Pick up hover-reveal delay changes without a page reload
     hoverRevealDelay = (newSettings.twitter?.hoverRevealDelay ?? 3) * 1000;

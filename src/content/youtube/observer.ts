@@ -2,12 +2,18 @@
 // YouTube uses custom web components and SPA navigation
 
 import { log } from '../../shared/constants';
+import { VIDEO_CARD_SELECTOR } from './gate';
 
 let contentObserver: MutationObserver | null = null;
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 500;
 
-export function setupYouTubeObserver(callback: () => Promise<void>): void {
+// onCardsChanged runs synchronously inside the MutationObserver callback (before the
+// browser paints), for video cards that were added or whose links changed.
+export function setupYouTubeObserver(
+  callback: () => Promise<void>,
+  onCardsChanged?: (cards: HTMLElement[]) => void
+): void {
   // Disconnect existing observer if any
   if (contentObserver) {
     contentObserver.disconnect();
@@ -17,6 +23,28 @@ export function setupYouTubeObserver(callback: () => Promise<void>): void {
 
   contentObserver = new MutationObserver((mutations) => {
     let hasNewVideos = false;
+
+    if (onCardsChanged) {
+      const cards = new Set<HTMLElement>();
+      for (const mutation of mutations) {
+        const nodes = mutation.type === 'attributes' ? [mutation.target] : [...mutation.addedNodes];
+        for (const node of nodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          const card = node.closest<HTMLElement>(VIDEO_CARD_SELECTOR);
+          if (card) cards.add(card);
+          if (mutation.type === 'childList') {
+            node.querySelectorAll<HTMLElement>(VIDEO_CARD_SELECTOR).forEach(c => cards.add(c));
+          }
+        }
+      }
+      if (cards.size > 0) {
+        try {
+          onCardsChanged([...cards]);
+        } catch (e) {
+          log.error(' onCardsChanged failed:', e);
+        }
+      }
+    }
 
     // Video selectors including new lockup model for sidebar
     const videoSelectors = 'ytd-rich-item-renderer, ytd-compact-video-renderer, ytd-video-renderer, yt-lockup-view-model';

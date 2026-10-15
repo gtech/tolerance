@@ -107,6 +107,15 @@
         "*://www.youtube.com/*"
       ],
       "js": [
+        "youtube-early.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www.youtube.com/*"
+      ],
+      "js": [
         "youtube.js"
       ],
       "run_at": "document_idle"

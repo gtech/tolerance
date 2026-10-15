@@ -54,7 +54,6 @@ export function resetPageChannelCache(): void {
 
 export function scrapeVisibleVideos(): YouTubeVideo[] {
   const videos: YouTubeVideo[] = [];
-  const seenIds = new Set<string>();
 
   // Homepage videos (rich grid) - these contain yt-lockup-view-model inside
   const homeVideos = document.querySelectorAll<HTMLElement>('ytd-rich-item-renderer');
@@ -75,10 +74,14 @@ export function scrapeVisibleVideos(): YouTubeVideo[] {
 
   log.debug(` Found ${homeVideos.length} home, ${sidebarVideos.length} sidebar, ${lockupVideos.length} lockup, ${listVideos.length} list videos`);
 
+  // One entry per card, not per video ID: the same video can appear in two cards
+  // (e.g. grid and a shelf), and each card needs its own badge and blur
+  const seenElements = new Set<HTMLElement>();
   for (const element of [...homeVideos, ...sidebarVideos, ...lockupVideos, ...listVideos]) {
+    if (seenElements.has(element)) continue;
+    seenElements.add(element);
     const video = parseVideoElement(element);
-    if (video && !seenIds.has(video.id)) {
-      seenIds.add(video.id);
+    if (video) {
       videos.push(video);
     }
   }
@@ -139,6 +142,14 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
     if (!title) {
       const h3 = element.querySelector('h3[title]');
       title = h3?.getAttribute('title') || '';
+    }
+    // Layouts the selectors above don't know (e.g. Shorts shelf lockups): any
+    // heading text, then the link's accessible label, then the thumbnail alt
+    if (!title) {
+      title = element.querySelector('h3, h4')?.textContent?.trim() ||
+        link?.getAttribute('aria-label')?.trim() ||
+        link?.getAttribute('title')?.trim() ||
+        element.querySelector('img[alt]')?.getAttribute('alt')?.trim() || '';
     }
 
     if (!title) {
