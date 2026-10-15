@@ -77,6 +77,12 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/facebook/early.ts'],
+    outfile: 'dist/facebook-early.js',
+    format: 'iife', // Content scripts need IIFE (document_start blur before facebook.js loads)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/content/tracker.ts'],
     outfile: 'dist/tracker.js',
     format: 'iife', // Content scripts need IIFE (lightweight heartbeat for other social media sites)

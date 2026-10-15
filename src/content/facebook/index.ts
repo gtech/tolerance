@@ -1,7 +1,8 @@
 import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
-import { scrapeVisiblePosts, serializePost } from './scraper';
+import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
+import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 
@@ -96,6 +97,7 @@ async function updateBlurThreshold(): Promise<void> {
           log.debug(`Facebook: Blur threshold updated - phase: ${newPhase}, threshold: ${newThreshold}`);
           currentBlurThreshold = newThreshold;
           currentPhase = newPhase;
+          refreshBlurState();
         }
       }
     }
@@ -143,6 +145,9 @@ function injectStyles(): void {
   const style = document.createElement('style');
   style.id = 'tolerance-facebook-styles';
   style.textContent = `
+    /* Gate: feed items stay blurred until handled (pending, badged, or unscorable) */
+    ${fbGateCss('tolerance-fb-gate')}
+
     /* Score badge on posts */
     .tolerance-score-badge {
       position: absolute !important;
@@ -213,40 +218,70 @@ function injectStyles(): void {
     }
 
     /* Container needs relative positioning for badge */
-    div[role="article"].tolerance-processed {
+    .tolerance-fb-post.tolerance-processed {
       position: relative;
     }
 
     /* Block videos when blurred */
-    div[role="article"].tolerance-video-blocked video {
+    .tolerance-fb-post.tolerance-video-blocked video {
       visibility: hidden !important;
       pointer-events: none !important;
     }
 
-    div[role="article"].tolerance-video-blocked audio {
+    .tolerance-fb-post.tolerance-video-blocked audio {
       visibility: hidden !important;
     }
 
     /* Pending blur (before scoring completes) */
-    div[role="article"].tolerance-pending {
+    .tolerance-fb-post.tolerance-pending {
       position: relative;
     }
 
-    div[role="article"].tolerance-pending .tolerance-blur-overlay::after {
+    .tolerance-fb-post.tolerance-pending .tolerance-blur-overlay::after {
       content: 'Scoring...';
     }
 
     /* Hide score badge while pending */
-    div[role="article"].tolerance-pending .tolerance-score-badge {
+    .tolerance-fb-post.tolerance-pending .tolerance-score-badge {
       display: none;
     }
   `;
   document.head.appendChild(style);
 }
 
+// CSS gate on where pending blur applies
+function updateGate(): void {
+  const on = isExtensionValid() && isValidFeedPage() &&
+    currentSettings?.platforms?.facebook !== false &&
+    currentSettings?.blurUntilScored !== false;
+  document.documentElement.classList.toggle('tolerance-fb-gate', on);
+}
+
+function removeEarlyBlur(): void {
+  document.getElementById('tolerance-early-blur')?.remove();
+  document.documentElement.classList.remove('tolerance-fb-early');
+}
+
+// Mark a post root as handled for this post
+function claimPost(post: FacebookPost): void {
+  post.element.classList.add('tolerance-fb-post');
+  post.element.setAttribute(FB_POST_ID_ATTR, post.id);
+}
+
+// Re-apply badge/blur for every visible scored post (threshold or mode changed)
+function refreshBlurState(): void {
+  for (const element of document.querySelectorAll<HTMLElement>(`[${FB_POST_ID_ATTR}]`)) {
+    const cached = scoreCache.get(element.getAttribute(FB_POST_ID_ATTR)!);
+    if (cached && !element.classList.contains('tolerance-pending')) {
+      injectBadge({ element } as FacebookPost, cached.score);
+    }
+  }
+}
+
 function applyPendingBlur(post: FacebookPost): void {
   const element = post.element;
   if (!element) return;
+  claimPost(post);
 
   if (element.classList.contains('tolerance-blurred') ||
       element.classList.contains('tolerance-pending')) return;
@@ -340,13 +375,24 @@ async function processPosts(): Promise<void> {
     const posts = scrapeVisiblePosts();
     log.debug(`Facebook: Found ${posts.length} posts`);
 
+    // Feed items that aren't posts (suggestions, reels trays...) will never be
+    // scored; release them from the CSS gate. Empty items (still loading or
+    // virtualized offscreen) stay gated until they have content.
+    const scraped = new Set(posts.map(p => p.element));
+    for (const item of document.querySelectorAll<HTMLElement>(POST_ROOT_SELECTOR)) {
+      if (scraped.has(item) || item.hasAttribute(FB_POST_ID_ATTR) || item.hasAttribute(FB_DONE_ATTR)) continue;
+      if ((item.textContent?.trim().length ?? 0) > 0) item.setAttribute(FB_DONE_ATTR, '');
+    }
+
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));
 
-    // Re-inject badges for posts that were processed but DOM was recreated
+    // Re-inject badges for posts that were processed but DOM was recreated, and
+    // settle any whose result landed on a detached element (stuck on "Scoring...")
     for (const post of posts) {
       if (processedPostIds.has(post.id)) {
         const cached = scoreCache.get(post.id);
-        if (cached && !post.element.querySelector('.tolerance-score-badge')) {
+        if (cached && (!post.element.querySelector('.tolerance-score-badge') ||
+                       post.element.classList.contains('tolerance-pending'))) {
           injectBadge(post, cached.score);
         }
       }
@@ -395,16 +441,15 @@ async function processPosts(): Promise<void> {
     try {
       response = await Promise.race([scorePromise, timeoutPromise]);
     } catch {
-      log.debug('Facebook: Scoring timed out, will retry on next scroll');
-      for (const post of postsNeedingScoring) {
-        removePendingBlur(post);
-        processedPostIds.delete(post.id);
-      }
+      // Keep the pending blur (its own timeout setting decides when to reveal) and retry
+      log.debug('Facebook: Scoring timed out, retrying');
+      retryUnscored(postsNeedingScoring);
       return;
     }
 
     if (!response || !(response as { scores?: EngagementScore[] }).scores) {
-      log.debug('Facebook: No scores returned');
+      log.debug('Facebook: No scores returned, retrying');
+      retryUnscored(postsNeedingScoring);
       return;
     }
 
@@ -416,13 +461,21 @@ async function processPosts(): Promise<void> {
       scoreMap.set(score.postId, score);
     }
 
+    const missing: FacebookPost[] = [];
     for (const post of postsNeedingScoring) {
       const score = scoreMap.get(post.id);
       if (score) {
         scoreCache.set(post.id, { score, author: post.authorDisplayName });
-        injectBadge(post, score);
+        // The element may have been re-rendered while scoring; badge the live one
+        const live = post.element.isConnected ? post.element
+          : document.querySelector<HTMLElement>(`[${FB_POST_ID_ATTR}="${CSS.escape(post.id)}"]`);
+        if (live) injectBadge({ ...post, element: live }, score);
+        else pendingProcess = true;
+      } else {
+        missing.push(post);
       }
     }
+    if (missing.length > 0) retryUnscored(missing);
   } catch (error) {
     log.error('Facebook: Error processing posts:', error);
   } finally {
@@ -435,9 +488,19 @@ async function processPosts(): Promise<void> {
   }
 }
 
+// Posts that didn't get a score: forget them so the next pass sends them again
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+function retryUnscored(posts: FacebookPost[]): void {
+  for (const post of posts) processedPostIds.delete(post.id);
+  if (!retryTimer) {
+    retryTimer = setTimeout(() => { retryTimer = null; void processPosts(); }, 3000);
+  }
+}
+
 function injectBadge(post: FacebookPost, score: EngagementScore): void {
   const element = post.element;
   if (!element) return;
+  if (post.id) claimPost(post);
 
   element.classList.add('tolerance-processed');
   element.classList.remove('tolerance-pending');
@@ -546,8 +609,21 @@ async function init(): Promise<void> {
 
   injectStyles();
 
+  // Navigation is watched from every page, so arriving at the feed from elsewhere works
+  setupNavigationObserver(() => {
+    processedPostIds.clear();
+    updateGate();
+    if (isValidFeedPage()) {
+      setupFacebookObserver(processPosts);
+      void processPosts();
+    } else {
+      disconnectObserver();
+    }
+  });
+
   if (!isValidFeedPage()) {
-    log.debug('Facebook: Not a valid feed page, skipping feed processing');
+    log.debug('Facebook: Not a valid feed page, waiting for navigation');
+    removeEarlyBlur();
     return;
   }
   log.debug('Facebook: Valid feed page, continuing init');
@@ -561,6 +637,7 @@ async function init(): Promise<void> {
 
       if (settings.platforms?.facebook === false) {
         log.debug('Facebook: Platform disabled in settings');
+        removeEarlyBlur();
         return;
       }
 
@@ -577,6 +654,10 @@ async function init(): Promise<void> {
     log.error('Facebook: Failed to get settings:', error);
   }
 
+  // Switch from early.ts's CSS blur to our own gate
+  updateGate();
+  removeEarlyBlur();
+
   // Fetch initial blur threshold
   await updateBlurThreshold();
 
@@ -586,24 +667,19 @@ async function init(): Promise<void> {
   // Initial process
   await processPosts();
 
-  // Set up observers
+  // Set up observer for new feed items
   setupFacebookObserver(processPosts);
-  setupNavigationObserver(() => {
-    processedPostIds.clear();
-    processPosts();
-  });
 
   log.debug('Facebook: Initialization complete');
 }
 
-// Start with delay for React hydration
-const HYDRATION_DELAY = 2000;
 
 log.debug('Facebook: Content script loaded');
 
 function startWithDelay(): void {
-  log.debug('Facebook: Starting init in', HYDRATION_DELAY, 'ms');
-  setTimeout(init, HYDRATION_DELAY);
+  // No hydration wait: the CSS gate covers posts until they're scored, and the
+  // observer picks up whatever React renders next
+  void init();
 }
 
 // Keep settings in sync
@@ -611,6 +687,10 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
     const newSettings = changes.settings.newValue as Settings;
     currentSettings = newSettings;
+    updateGate();
+    qualityModeEnabled = newSettings.qualityMode ?? false;
+    subscriptionsOnlyMode = newSettings.subscriptionsOnly ?? false;
+    refreshBlurState();
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;

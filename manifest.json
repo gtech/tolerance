@@ -80,6 +80,15 @@
         "*://www.facebook.com/*"
       ],
       "js": [
+        "facebook-early.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www.facebook.com/*"
+      ],
+      "js": [
         "facebook.js"
       ],
       "run_at": "document_idle"

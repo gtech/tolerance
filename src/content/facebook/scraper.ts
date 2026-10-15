@@ -7,35 +7,62 @@ import { log } from '../../shared/constants';
 // This scraper is intentionally forgiving — it's better to score a post with
 // partial data than to skip it entirely.
 
-export function scrapeVisiblePosts(): FacebookPost[] {
-  const posts: FacebookPost[] = [];
+// Post roots in the current (2026) feed: each post is a div[aria-posinset] under the
+// "Feed posts" heading, with its parts labelled by data-ad-rendering-role (on every
+// post, not just ads). role="article" is now only used for loading placeholders, but
+// is kept as a fallback for older layouts (groups, some regions).
+export const POST_ROOT_SELECTOR = '[aria-posinset]';
+const AUTHOR_ROLE = '[data-ad-rendering-role="profile_name"]';
+const ACTION_ROLE = '[data-ad-rendering-role$="_button"]';
 
-  // Facebook feed posts are in div[role="article"] elements
-  const articleElements = document.querySelectorAll<HTMLElement>('div[role="article"]');
+export function findPostElements(root: ParentNode = document): HTMLElement[] {
+  const found = new Set<HTMLElement>();
 
-  log.debug(`Facebook scraper: Found ${articleElements.length} article elements`);
+  // 1. Feed items that are posts (labelled parts). Suggestion boxes, reels trays etc.
+  //    have no labels. If no feed item has labels at all, Facebook has changed its
+  //    markup again: take every item rather than none.
+  const items = [...root.querySelectorAll<HTMLElement>(POST_ROOT_SELECTOR)]
+    .filter(el => !el.parentElement?.closest(POST_ROOT_SELECTOR));
+  const labelled = items.filter(el => el.querySelector('[data-ad-rendering-role]'));
+  for (const el of labelled.length > 0 ? labelled : items) found.add(el);
 
-  for (const element of articleElements) {
-    // Skip loading placeholders
-    if (element.querySelector('[aria-label="Loading..."]')) continue;
-
-    // Skip nested articles (articles inside articles)
-    const parentArticle = element.parentElement?.closest('div[role="article"]');
-    if (parentArticle) continue;
-
-    const post = parsePostElement(element);
-    if (post) {
-      posts.push(post);
-    }
+  // 2. Any other post-like block: from each author label, climb to the smallest
+  //    ancestor that also holds the like/comment buttons
+  for (const name of root.querySelectorAll<HTMLElement>(AUTHOR_ROLE)) {
+    if (name.closest(POST_ROOT_SELECTOR)) continue;
+    let el: HTMLElement | null = name.parentElement;
+    while (el && el !== document.body && !el.querySelector(ACTION_ROLE)) el = el.parentElement;
+    if (el && el !== document.body) found.add(el);
   }
 
+  // 3. Legacy articles (not loading placeholders, not nested)
+  for (const el of root.querySelectorAll<HTMLElement>('div[role="article"]')) {
+    if (el.querySelector('[aria-label="Loading..."], [role="status"]')) continue;
+    if (el.parentElement?.closest('div[role="article"]')) continue;
+    if ([...found].some(f => f.contains(el) || el.contains(f))) continue;
+    found.add(el);
+  }
+
+  // Drop any element nested inside another found one
+  return [...found].filter(el => ![...found].some(other => other !== el && other.contains(el)));
+}
+
+export function scrapeVisiblePosts(): FacebookPost[] {
+  const posts: FacebookPost[] = [];
+  const elements = findPostElements();
+  log.debug(`Facebook scraper: Found ${elements.length} post elements`);
+
+  for (const element of elements) {
+    const post = parsePostElement(element);
+    if (post) posts.push(post);
+  }
   return posts;
 }
 
 function parsePostElement(element: HTMLElement): FacebookPost | null {
   try {
     // Extract author info — be forgiving, use "Unknown" as fallback
-    const { authorDisplayName, authorUserId } = extractAuthorInfo(element);
+    const { authorDisplayName, authorUserId, postedIn } = extractAuthorInfo(element);
 
     // Extract post text content
     const caption = extractContent(element);
@@ -56,7 +83,9 @@ function parsePostElement(element: HTMLElement): FacebookPost | null {
     const isSponsored = detectSponsored(element);
 
     // Detect feed type
-    const { feedType, groupName, groupId } = detectFeedType();
+    const feed = detectFeedType();
+    const { feedType, groupId } = feed;
+    const groupName = feed.groupName ?? postedIn;
 
     // Extract media info
     const { mediaType, imageUrl, videoUrl, thumbnailUrl } = extractMediaInfo(element);
@@ -99,7 +128,27 @@ function parsePostElement(element: HTMLElement): FacebookPost | null {
 function extractAuthorInfo(element: HTMLElement): {
   authorDisplayName: string;
   authorUserId?: string;
+  postedIn?: string;          // Group the post was made in (current feed layout)
 } {
+  // Strategy 0 (current feed): the labelled author / page / group name. In group
+  // posts this is the group; the person who posted is the /user/ link beside it.
+  const profileName = element.querySelector<HTMLElement>('[data-ad-rendering-role="profile_name"]');
+  if (profileName) {
+    const text = profileName.textContent?.trim() || '';
+    let posterLink: HTMLAnchorElement | null = null;
+    for (let el = profileName.parentElement, i = 0; el && i < 4 && !posterLink; el = el.parentElement, i++) {
+      posterLink = el.querySelector<HTMLAnchorElement>('a[href*="/user/"]');
+    }
+    const poster = posterLink?.textContent?.trim();
+    if (poster && text) {
+      return { authorDisplayName: poster, authorUserId: extractUserIdFromHref(posterLink!.getAttribute('href') || ''), postedIn: text };
+    }
+    if (text) {
+      const link = profileName.querySelector<HTMLAnchorElement>('a');
+      return { authorDisplayName: text, authorUserId: extractUserIdFromHref(link?.getAttribute('href') || '') };
+    }
+  }
+
   // Strategy 1: Look for the heading area — Facebook posts typically have
   // an h2, h3, or h4 with a link to the author's profile
   const headings = element.querySelectorAll<HTMLElement>('h2, h3, h4');
@@ -185,6 +234,14 @@ function isUiText(text: string): boolean {
 }
 
 function extractContent(element: HTMLElement): string {
+  // Current feed: the labelled message, plus link/listing attachment title and description
+  const labelled = [
+    element.querySelector('[data-ad-rendering-role="story_message"]')?.textContent?.trim(),
+    element.querySelector('[data-ad-rendering-role="title"]')?.textContent?.trim(),
+    element.querySelector('[data-ad-rendering-role="description"]')?.textContent?.trim(),
+  ].filter((t): t is string => !!t);
+  if (labelled.length > 0) return labelled.join(' — ');
+
   // Collect text from dir="auto" elements (Facebook's standard text containers)
   const textParts: string[] = [];
   const textElements = element.querySelectorAll<HTMLElement>('div[dir="auto"], span[dir="auto"]');
@@ -249,7 +306,8 @@ function extractPostId(element: HTMLElement, author: string, content: string): s
   }
 
   // Fallback: hash of author + content for uniqueness
-  const hashInput = `${author}:${content.slice(0, 200)}`;
+  // Short prefix: the message grows when "See more" is expanded
+  const hashInput = `${author}:${content.slice(0, 80)}`;
   return `fb_hash_${simpleHash(hashInput)}`;
 }
 
@@ -315,8 +373,7 @@ function detectSponsored(element: HTMLElement): boolean {
     if (text === 'sponsored') return true;
   }
 
-  // Check for ad-specific attributes
-  if (element.querySelector('[data-ad-rendering-role]')) return true;
+  // (data-ad-rendering-role is no longer a signal: every feed post has it)
 
   // Check aria-label
   const ariaLabel = element.getAttribute('aria-label')?.toLowerCase() || '';
