@@ -499,7 +499,9 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     return;
   }
 
+  resetCellIfRecycled(cell);
   markCellDone(cell);
+  stampCell(cell, tweet.id);
 
   // Don't add duplicate badges
   if (cell.querySelector('.tolerance-score-badge')) {
@@ -594,6 +596,8 @@ function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
   if (!cell) return;
 
+  resetCellIfRecycled(cell);
+  stampCell(cell, tweet.id);
   applyPendingBlurToCell(cell, blurIntensity);
 }
 
@@ -666,8 +670,9 @@ function handleCellsAdded(cells: HTMLElement[]): void {
 
   for (const cell of cells) {
     if (!cell.querySelector('article[data-testid="tweet"]')) continue;
+    resetCellIfRecycled(cell);
     if (cell.querySelector('.tolerance-score-badge')) continue;
-    const tweetId = findTweetIdFromCell(cell);
+    const tweetId = cellTweetId(cell);
     if (!tweetId) continue;
 
     const cached = scoreCache.get(tweetId);
@@ -679,6 +684,7 @@ function handleCellsAdded(cells: HTMLElement[]): void {
         applyBlurToTweet({ id: tweetId, element: article } as Tweet, cached.score, twitterSettings.blurIntensity);
       }
     } else if (!processedTweetIds.has(tweetId) && currentSettings?.blurUntilScored !== false) {
+      stampCell(cell, tweetId);
       applyPendingBlurToCell(cell, twitterSettings.blurIntensity ?? 8);
     }
   }
@@ -725,6 +731,9 @@ function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: n
 
   const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
   if (!cell) return;
+
+  resetCellIfRecycled(cell);
+  stampCell(cell, tweet.id);
 
   // Remove pending state if present
   cell.classList.remove('tolerance-pending');
@@ -854,6 +863,35 @@ function updateGate(): void {
 // Release a cell from the gate: it's been scored, revealed by timeout, or isn't scorable
 function markCellDone(cell: Element | null | undefined): void {
   cell?.setAttribute('data-tolerance-done', '');
+}
+
+// X reuses timeline cells for different tweets. Every cell we badge/blur is stamped
+// with its tweet ID; a cell now showing another tweet is reset so the old badge and
+// blur don't carry over (and the CSS gate covers it again until it's handled).
+const TWEET_ID_ATTR = 'data-tolerance-tid';
+
+function stampCell(cell: Element | null | undefined, tweetId: string): void {
+  cell?.setAttribute(TWEET_ID_ATTR, tweetId);
+}
+
+// The tweet a cell shows now: its article's permalink, as the scraper reads it
+function cellTweetId(cell: Element): string | null {
+  const href = cell.querySelector('article[data-testid="tweet"] a[href*="/status/"]')?.getAttribute('href') || '';
+  return href.match(/\/status\/(\d+)/)?.[1] ?? null;
+}
+
+function resetCellIfRecycled(cell: HTMLElement): void {
+  const stamped = cell.getAttribute(TWEET_ID_ATTR);
+  if (!stamped) return;
+  const current = cellTweetId(cell);
+  if (!current || current === stamped) return;
+  log.debug(` Cell recycled: ${stamped} -> ${current}, resetting`);
+  cell.querySelectorAll(':scope > .tolerance-score-badge, :scope > .tolerance-blur-overlay, .tolerance-score-badge')
+    .forEach(n => n.remove());
+  cell.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed');
+  cell.style.removeProperty('--tolerance-blur');
+  cell.removeAttribute('data-tolerance-done');
+  cell.removeAttribute(TWEET_ID_ATTR);
 }
 
 // Hand-off from early.ts: drop its document_start CSS blur once our own pending
@@ -1118,6 +1156,8 @@ async function processTweets(): Promise<void> {
     const tweetsNeedingAnchor: Tweet[] = [];
 
     for (const tweet of allTweets) {
+      const tweetCell = tweet.element?.closest<HTMLElement>('[data-testid="cellInnerDiv"]');
+      if (tweetCell) resetCellIfRecycled(tweetCell);
       if (!processedTweetIds.has(tweet.id)) {
         newTweets.push(tweet);
       } else {
