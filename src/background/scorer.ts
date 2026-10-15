@@ -69,6 +69,16 @@ async function applyCounterStrategies(
   }
 }
 
+// Record the narrative theme the model matched, so counter-strategies can apply
+function recordNarrativeMatch(score: EngagementScore, narrativeMatches?: string[]): void {
+  if (!narrativeMatches || narrativeMatches.length === 0) return;
+  score.factors.narrative = {
+    themeId: narrativeMatches[0],
+    confidence: 'high',
+    matchedKeywords: [],
+  };
+}
+
 // Create a pending score — will be replaced by API result
 export function createPendingScore(postId: string): EngagementScore {
   return {
@@ -422,6 +432,7 @@ export async function scoreTweets(
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
           score.bucket = scoreToBucket(apiScore, 'twitter');
+          recordNarrativeMatch(score, apiResult.narrativeMatches);
           if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') applyVideoFloor(score);
         }
       } catch (err) {
@@ -908,6 +919,7 @@ export async function scoreVideos(
           score.scoreFailed = false;
           score.apiReason = result.reason;
           score.bucket = scoreToBucket(apiScore, 'youtube');
+          recordNarrativeMatch(score, result.narrativeMatches);
         }
       }
     } catch (err) {
