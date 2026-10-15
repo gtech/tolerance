@@ -103,7 +103,7 @@ export async function buildDebugReport(
     `"Replying to": ${tweet.isReply ? `yes (@${tweet.replyToAuthor ?? '?'})` : 'no'}`,
     `anchor now: ${tweet.anchor ? `${tweet.anchor.kind} @${tweet.anchor.author} id=${tweet.anchor.id ?? '-'} key=${anchorId}` : 'NONE'}`,
     `processed: ${st.processed}  anchor last sent: ${st.anchorSent ?? 'never'}`,
-    `cell classes: ${cell.className || '-'}`,
+    `cell classes: ${cell.className || '-'}  badge: ${cell.querySelector('.tolerance-score-badge')?.textContent ?? 'none'}`,
     '',
     `score on page:  ${scoreSummary(st.contentScore)}`,
     `score in cache: ${scoreSummary(records[tweet.id])}`,

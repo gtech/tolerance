@@ -1108,10 +1108,13 @@ async function processTweets(): Promise<void> {
         if (tweet.anchor && scoreCache.has(tweet.id) && anchorSent.get(tweet.id) !== anchorCacheId(tweet.anchor)) {
           tweetsNeedingAnchor.push(tweet);
         }
-        // Check if this processed tweet needs badge re-injection
-        // (Twitter may have recreated the DOM element)
+        // Check if this processed tweet needs badge re-injection or is stuck on
+        // "Scoring...": Twitter may have recreated the cell while it was being
+        // scored, so the new cell got the pending blur and the result went to
+        // the old, detached one
         const cell = tweet.element?.closest('[data-testid="cellInnerDiv"]');
-        if (cell && !cell.querySelector('.tolerance-score-badge') && scoreCache.has(tweet.id)) {
+        if (cell && scoreCache.has(tweet.id) &&
+            (!cell.querySelector('.tolerance-score-badge') || cell.classList.contains('tolerance-pending'))) {
           tweetsNeedingBadge.push(tweet);
         }
       }
@@ -1119,7 +1122,7 @@ async function processTweets(): Promise<void> {
 
     // Re-inject badges for processed tweets that lost them
     if (tweetsNeedingBadge.length > 0) {
-      log.debug(` Re-injecting ${tweetsNeedingBadge.length} badges for processed tweets`);
+      log.debug(` Re-injecting badges / settling blur for ${tweetsNeedingBadge.length} processed tweets`);
       for (const tweet of tweetsNeedingBadge) {
         const cached = scoreCache.get(tweet.id);
         if (cached) {
@@ -1142,10 +1145,12 @@ async function processTweets(): Promise<void> {
             mediaType: tweet.mediaType,
           });
 
-          // Re-apply blur if needed (based on adaptive threshold)
+          // Re-apply blur if needed (based on adaptive threshold), else clear any pending blur
           const twitterSettings = currentSettings?.twitter;
           if (twitterSettings?.blurHighEngagement && !twitterSettings?.reorderEnabled && shouldBlurScore(cached.score)) {
             applyBlurToTweet(tweet, cached.score, twitterSettings.blurIntensity);
+          } else {
+            removePendingBlur(tweet);
           }
         }
       }
@@ -1300,6 +1305,12 @@ async function processTweets(): Promise<void> {
           scoringFailed,
         });
       }
+    }
+
+    // Cells Twitter recreated while we were scoring got the results applied to their
+    // detached old element; run another pass to badge and settle the live ones
+    if (newTweets.some(t => t.element && !t.element.isConnected)) {
+      pendingProcess = true;
     }
 
     // Log impressions to storage
