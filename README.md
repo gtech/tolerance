@@ -20,6 +20,8 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 - Twitter/X
 - YouTube
 - Instagram
+- Facebook (Chrome only; on Firefox, Tolerance only tracks time there)
+- TikTok (time tracking only)
 
 ## Installation
 
@@ -50,23 +52,30 @@ pnpm build:firefox  # Firefox
 pnpm build:all      # Both (outputs to dist-chrome/ and dist-firefox/)
 ```
 
-Load the `dist/` folder as an unpacked extension.
+`pnpm build` and `pnpm build:firefox` output to `dist/`; load that folder as an unpacked extension.
 
 ## Setup
 
-Tolerance uses AI to score content. You need an API key from [OpenRouter](https://openrouter.ai/) (or any other OpenAI compatible endpoint).
+Tolerance uses AI to score content. In the dashboard, choose one of:
 
-1. Create an account at [openrouter.ai](https://openrouter.ai/)
-2. Go to Keys → Create Key
-3. Add credits ($5 is plenty to start)
-4. Paste the key in the Tolerance dashboard
+- **Free Tier.** Try it without setup, with limited daily usage. Tolerance issues you an OpenRouter key; scoring calls still go straight to OpenRouter.
+- **Your own key.** Get one from [tolerance.lol/account.html](https://tolerance.lol/account.html) or directly from [OpenRouter](https://openrouter.ai/) (Keys → Create Key, then add credits; $5 is plenty to start), and paste it into the dashboard.
+- **A custom endpoint.** Any OpenAI-compatible chat completions URL, including a local one such as Ollama (`http://localhost:11434/v1/chat/completions`).
+
+Text posts are scored by `openai/gpt-oss-120b` and images and videos by `google/gemini-2.5-flash-lite`. With a custom endpoint, you choose the text and vision models yourself.
 
 **Cost:** ~$1-2/month typical usage.
 
 ## Features
 
 ### Manipulation Scoring
-Every post gets a 0-100 score. High score = trying hard to hook you. Scores appear as badges.
+Every post gets a 0-100 score. High score = trying hard to hook you. Scores appear as badges; hover over a badge to see the reason.
+
+- **Video counts as at least 40.** Autoplaying video is a hook in itself, so video posts score at least 40.
+- **Blur until scored.** New posts stay blurred until their score arrives (up to 15 seconds by default), so you never glimpse bait before it's judged. A gate at page load stops the feed flashing before Tolerance starts.
+- **Failed scores count as 50.** If the API fails, the post is treated as a 50 and the error shows on hover.
+- **Threads and replies (Twitter).** A reply under a bait post is folded with it, and a thread continuing a bait post inherits its score. Search results are left unfiltered.
+- **Debug a post.** Right-click a tweet and choose "Tolerance: debug this post" to see its score, the reason, and why it was or wasn't blurred.
 
 ### Progressive Boredom
 
@@ -86,7 +95,19 @@ One toggle. Instantly blurs everything above score 20. Only genuine content rema
 Blurred content reveals after hovering for 3 seconds. Friction, not blocking.
 
 ### Adaptive Calibration
-Daily feedback ("too restricted / balanced / too easy") adjusts thresholds automatically.
+Daily feedback ("too restricted / balanced / too easy") adjusts thresholds automatically. The dashboard shows what's being blurred right now, including any adjustment from feedback, and lets you reset the adjustment.
+
+### Grounding Breaks
+After a stretch of continuous scrolling (20 minutes by default), Tolerance offers a short grounding exercise: a few slow breaths, 5-4-3-2-1, or feet on the floor. It's always optional, and a 5-minute break resets the clock.
+
+### Narrative Awareness
+Tolerance tracks recurring narratives in your feed: themes you define, plus emerging ones it discovers each day for you to confirm or dismiss. The dashboard shows today's exposure to each. A counter-strategy (thesis, antithesis, synthesis) for a narrative can raise or lower the scores of posts that match it.
+
+### Hide Facebook Reels
+On by default. Removes the Reels tray and posts that link to reels from your Facebook feed.
+
+### Claude Filter (optional, off by default)
+On claude.ai, rewrites Claude's responses through a second model to strip excessive praise and add gentle break reminders. Only what you see changes.
 
 ## Privacy
 
@@ -94,7 +115,7 @@ Daily feedback ("too restricted / balanced / too easy") adjusts thresholds autom
 - **No accounts.** Everything stored locally.
 - **Open source.** Read the code.
 
-Post titles and content are sent to OpenRouter for scoring. Nothing else leaves your browser.
+Post text, titles, and images or video thumbnails are sent to OpenRouter (or your custom endpoint) for scoring. If you use the Free Tier, tolerance.lol only issues your key and checks your plan. It never sees what you browse. Nothing else leaves your browser.
 
 ## Development
 
@@ -103,6 +124,7 @@ pnpm install    # Install dependencies
 pnpm build      # Build once (Chrome)
 pnpm build:firefox  # Build for Firefox
 pnpm dev        # Watch mode
+pnpm test       # Run tests (vitest)
 ```
 
 ## Source Code Submission (for Mozilla Add-ons reviewers)
@@ -131,6 +153,7 @@ All dependencies are listed in `package.json` and locked in `pnpm-lock.yaml`:
 - `idb` - IndexedDB wrapper (runtime)
 - `esbuild` - Bundler (dev)
 - `typescript` - Type checking (dev)
+- `vitest` - Tests (dev)
 - `@anthropic-ai/sdk` - Types only, not bundled (dev)
 - `@types/chrome` - TypeScript definitions (dev)
 
@@ -140,16 +163,25 @@ No obfuscation is used. Minification is applied only in production builds for sm
 
 ```
 src/
-├── background/     # Service worker (scoring, storage, API)
-│   ├── scorer.ts   # Hybrid heuristic + API scoring
-│   ├── scheduler.ts # Progressive boredom logic
-│   └── storage.ts  # IndexedDB persistence
-├── content/        # Reddit content script
-│   ├── twitter/    # Twitter/X
-│   └── youtube/    # YouTube
-├── popup/          # Extension popup
-├── dashboard/      # Settings dashboard
-└── shared/         # Types and constants
+├── background/         # Service worker (scoring, storage, API)
+│   ├── scorer.ts       # Scoring pipeline and caching
+│   ├── openrouter.ts   # LLM calls (text, image, video)
+│   ├── scheduler.ts    # Progressive boredom logic
+│   ├── storage.ts      # IndexedDB persistence
+│   ├── themeDiscovery.ts # Emerging narrative discovery
+│   ├── grounding.ts    # Grounding break timing
+│   ├── provisioning.ts # Free tier key provisioning
+│   └── rewriter.ts     # Claude filter rewrites
+├── content/            # Reddit content script, plus shared attention/grounding UI
+│   ├── twitter/        # Twitter/X (early.ts = page-load gate, debug.ts = debug report)
+│   ├── youtube/        # YouTube
+│   ├── facebook/       # Facebook
+│   ├── instagram/      # Instagram
+│   ├── claude-filter/  # claude.ai response filter
+│   └── tracker.ts      # Time tracking for TikTok (and Facebook on Firefox)
+├── popup/              # Extension popup
+├── dashboard/          # Settings dashboard
+└── shared/             # Types, constants and shared utilities
 ```
 
 ## Tips
