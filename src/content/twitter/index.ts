@@ -130,6 +130,15 @@ function shouldBlurScore(score: EngagementScore): boolean {
   return displayScore >= threshold;
 }
 
+// For the debug report: which rule decides this post's blur, with the numbers
+function describeBlurDecision(score: EngagementScore | undefined): string {
+  const mode = qualityModeEnabled ? `quality mode (threshold ${QUALITY_MODE_THRESHOLD})`
+    : subscriptionsOnlyMode ? 'subscriptions-only (everything not trusted)'
+    : `threshold ${currentBlurThreshold} (${currentPhase} phase, incl. daily-feedback adjustment)`;
+  if (!score) return `${mode}; no score`;
+  return `${mode}; score ${score.apiScore}${score.whitelisted ? ' trusted' : ''} -> ${shouldBlurScore(score) ? 'BLUR' : 'no blur'}`;
+}
+
 function startHeartbeat(): void {
   if (heartbeatIntervalId) return;
 
@@ -1575,6 +1584,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         processed: processedTweetIds.has(id),
         anchorSent: anchorSent.get(id),
         contentScore: scoreCache.get(id)?.score,
+        blurDecision: describeBlurDecision(scoreCache.get(id)?.score),
       })).then(showDebugReport);
     }
     sendResponse({ ok: true });

@@ -591,6 +591,7 @@ export type MessageType =
   | { type: 'GET_GLOBAL_SESSION' }
   // Adaptive calibration
   | { type: 'GET_ADAPTIVE_SETTINGS' }
+  | { type: 'RESET_THRESHOLD_ADJUSTMENT' }
   | { type: 'SUBMIT_CALIBRATION_FEEDBACK'; response: 'restricted' | 'balanced' | 'too_easy' }
   | { type: 'GET_FEEDBACK_PROMPT_STATUS' }  // Check if we should show feedback prompt
   | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal' }

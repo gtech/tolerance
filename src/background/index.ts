@@ -27,6 +27,7 @@ import {
   getCurrentPhase,
   clearScoreCache,
   getAdaptiveSettings,
+  setAdaptiveSettings,
   shouldShowFeedbackPrompt,
   submitCalibrationFeedback,
   getEffectiveBlurThreshold,
@@ -589,6 +590,13 @@ async function handleMessage(
     case 'GET_ADAPTIVE_SETTINGS': {
       const adaptive = await getAdaptiveSettings();
       return { type: 'ADAPTIVE_SETTINGS_RESULT', adaptive };
+    }
+
+    // Dashboard "reset": drop the daily-feedback threshold adjustment back to 0
+    case 'RESET_THRESHOLD_ADJUSTMENT': {
+      const adaptive = await getAdaptiveSettings();
+      await setAdaptiveSettings({ ...adaptive, blurThresholdOffset: 0 });
+      return { ok: true };
     }
 
     case 'GET_FEEDBACK_PROMPT_STATUS': {

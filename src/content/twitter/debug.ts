@@ -12,6 +12,7 @@ export interface DebugState {
   processed: boolean;
   anchorSent?: string;
   contentScore?: EngagementScore;
+  blurDecision?: string;     // How the blur threshold was applied to this post
 }
 
 const PANEL_ID = 'tolerance-debug-panel';
@@ -107,6 +108,7 @@ export async function buildDebugReport(
     '',
     `score on page:  ${scoreSummary(st.contentScore)}`,
     `score in cache: ${scoreSummary(records[tweet.id])}`,
+    `blur decision: ${st.blurDecision ?? 'unknown'}`,
     ...(anchorId ? [`anchor in cache: ${scoreSummary(records[anchorId])}`] : []),
     '',
     'cells above:',

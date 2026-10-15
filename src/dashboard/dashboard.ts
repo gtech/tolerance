@@ -76,6 +76,7 @@ async function init(): Promise<void> {
 
   // Set up threshold controls (top card + settings section)
   setupThresholdControls();
+  void renderThresholdNow();
 
   // Scroll to API setup section if hash is present
   if (window.location.hash === '#api-setup') {
@@ -2262,6 +2263,7 @@ async function saveCustomThresholds(): Promise<void> {
 
   await chrome.storage.local.set({ settings });
   console.log('Custom thresholds saved:', settings.customThresholds);
+  void renderThresholdNow();
 
   // Update status display
   const statusEl = document.getElementById('custom-thresholds-status');
@@ -2415,4 +2417,45 @@ async function removeWhitelistEntry(sourceId: string, platform: WhitelistEntry['
 
   // Re-render list
   renderWhitelist(settings.whitelist);
+}
+
+// "Right now" line under the strictness slider: the threshold actually applied this
+// moment, which is the current phase's setting plus the daily-feedback adjustment
+async function renderThresholdNow(): Promise<void> {
+  const box = document.getElementById('threshold-now');
+  const text = document.getElementById('threshold-now-text');
+  const resetBtn = document.getElementById('threshold-adjust-reset') as HTMLButtonElement | null;
+  if (!box || !text || !resetBtn) return;
+  try {
+    const session = await chrome.runtime.sendMessage({ type: 'GET_GLOBAL_SESSION' }) as { phase?: string } | null;
+    const phase = session?.phase ?? 'normal';
+    const [thresholdResult, adaptiveResult, settings] = await Promise.all([
+      chrome.runtime.sendMessage({ type: 'GET_EFFECTIVE_BLUR_THRESHOLD', phase }) as Promise<{ threshold?: number } | null>,
+      chrome.runtime.sendMessage({ type: 'GET_ADAPTIVE_SETTINGS' }) as Promise<{ adaptive?: { blurThresholdOffset?: number } } | null>,
+      getSettings(),
+    ]);
+    const threshold = thresholdResult?.threshold;
+    if (threshold === undefined) return;
+    const offset = adaptiveResult?.adaptive?.blurThresholdOffset ?? 0;
+    const phaseLabel = phase === 'wind-down' ? 'wind-down' : phase;
+
+    let line = threshold >= 100
+      ? `Right now (${phaseLabel} phase): nothing is blurred by score.`
+      : `Right now (${phaseLabel} phase): blurring scores of ${threshold} and up.`;
+    if (offset !== 0) {
+      line += ` That's your setting ${offset < 0 ? 'lowered' : 'raised'} by ${Math.abs(offset)} from your daily "too easy / too restricted" answers.`;
+    }
+    if (settings.qualityMode) line += ' Quality mode is on, which blurs everything scoring 21 or more.';
+    if (settings.subscriptionsOnly) line += ' Subscriptions-only is on, which blurs everything not trusted.';
+    text.textContent = line;
+    box.style.display = '';
+
+    resetBtn.style.display = offset !== 0 ? '' : 'none';
+    resetBtn.onclick = async () => {
+      await chrome.runtime.sendMessage({ type: 'RESET_THRESHOLD_ADJUSTMENT' });
+      await renderThresholdNow();
+    };
+  } catch {
+    // Background unavailable; leave the line hidden
+  }
 }
