@@ -391,8 +391,36 @@ interface BadgeInfo {
 }
 
 // Inject score badge on a video thumbnail
+// YouTube recycles card elements: the same ytd-rich-item-renderer can be re-rendered
+// with a different video (feed refresh, returning to Home). Every card we touch is
+// stamped with the video it was handled for, so stale badges/blur can be detected.
+const VIDEO_ID_ATTR = 'data-tolerance-vid';
+
+function claimElement(video: YouTubeVideo): void {
+  video.element?.setAttribute(VIDEO_ID_ATTR, video.id);
+}
+
+// Strip everything we added to a card (badge, overlay, blur state)
+function resetElement(element: HTMLElement): void {
+  element.querySelectorAll('.tolerance-score-badge, .tolerance-blur-overlay').forEach(n => n.remove());
+  element.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', 'tolerance-sidebar-video');
+  element.style.removeProperty('--tolerance-blur');
+  element.removeAttribute(VIDEO_ID_ATTR);
+}
+
+// Bring a scored card's blur in line with its score
+function settleVideo(video: YouTubeVideo, score: EngagementScore): void {
+  if (shouldBlurScore(score)) {
+    applyBlurToVideo(video, score, 8);
+  } else if (video.element) {
+    removePendingBlur(video);
+    video.element.classList.remove('tolerance-blurred');
+  }
+}
+
 function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   if (!video.element) return;
+  claimElement(video);
 
   // Don't add duplicate badges
   if (video.element.querySelector('.tolerance-score-badge')) {
@@ -480,6 +508,7 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
   if (video.element.classList.contains('tolerance-blurred') ||
       video.element.classList.contains('tolerance-pending')) return;
 
+  claimElement(video);
   video.element.style.setProperty('--tolerance-blur', `${blurIntensity}px`);
   video.element.classList.add('tolerance-pending');
 
@@ -568,6 +597,7 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
   // Don't blur twice
   if (video.element.classList.contains('tolerance-blurred')) return;
 
+  claimElement(video);
   video.element.style.setProperty('--tolerance-blur', `${blurIntensity}px`);
   video.element.classList.add('tolerance-blurred');
 
@@ -779,15 +809,22 @@ async function processVideos(): Promise<void> {
     const videosNeedingBadge: YouTubeVideo[] = [];
 
     for (const video of allVideos) {
+      // Card now shows a different video than the one we badged/blurred: start over
+      const claimed = video.element?.getAttribute(VIDEO_ID_ATTR);
+      if (video.element && claimed && claimed !== video.id) {
+        log.debug(` Card recycled: ${claimed} -> ${video.id}, resetting`);
+        resetElement(video.element);
+      }
+
       if (!processedVideoIds.has(video.id)) {
         newVideos.push(video);
       } else {
-        // Check if this processed video needs badge re-injection.
-        // Search anywhere in the card - badge placement varies by layout
-        // (thumbnail for grid videos, card root for sidebar videos).
-        if (video.element &&
-            !video.element.querySelector('.tolerance-score-badge') &&
-            scoreCache.has(video.id)) {
+        // Check if this processed video needs badge re-injection (or is stuck on
+        // "Scoring..."). Search anywhere in the card - badge placement varies by
+        // layout (thumbnail for grid videos, card root for sidebar videos).
+        if (video.element && scoreCache.has(video.id) &&
+            (!video.element.querySelector('.tolerance-score-badge') ||
+             video.element.classList.contains('tolerance-pending'))) {
           videosNeedingBadge.push(video);
         }
       }
@@ -810,10 +847,8 @@ async function processVideos(): Promise<void> {
             scoringFailed,
           });
 
-          // Re-apply blur if needed (based on adaptive threshold)
-          if (shouldBlurScore(cached.score)) {
-            applyBlurToVideo(video, cached.score, 8);
-          }
+          // Re-apply blur if needed (based on adaptive threshold), else clear pending
+          settleVideo(video, cached.score);
         }
       }
     }
@@ -944,79 +979,16 @@ async function sendMessage(message: unknown): Promise<unknown> {
 function refreshBlurState(): void {
   log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}, subscriptionsOnly=${subscriptionsOnlyMode}`);
 
-  // Get all videos that have been scored (have badges)
-  const videoElements = document.querySelectorAll('ytd-rich-item-renderer, ytd-compact-video-renderer, yt-lockup-view-model');
+  // Re-evaluate every scored card from the cached score of the video it shows now
+  // (not the badge text, which can belong to a previous video in a recycled card)
+  const videoElements = document.querySelectorAll<HTMLElement>(`[${VIDEO_ID_ATTR}]`);
 
   for (const element of videoElements) {
-    const badge = element.querySelector('.tolerance-score-badge');
-    if (!badge) continue;
-
-    const scoreText = badge.textContent?.trim();
-    const score = parseInt(scoreText || '0', 10);
-    if (isNaN(score)) continue;
-
-    // Look up cached score to check whitelisted status
-    const videoId = findVideoIdFromElement(element as HTMLElement);
-    const cached = videoId ? scoreCache.get(videoId) : null;
-    const isWhitelisted = cached?.score?.whitelisted ?? false;
-
-    // Determine if should blur
-    let shouldBlur = false;
-    if (score !== undefined && !isNaN(score)) {
-      if (isWhitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) {
-        shouldBlur = false;
-      } else if (subscriptionsOnlyMode && !isWhitelisted) {
-        shouldBlur = true;
-      } else {
-        const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
-        shouldBlur = score >= threshold;
-      }
-    }
-
-    const isBlurred = element.classList.contains('tolerance-blurred');
-
-    if (shouldBlur && !isBlurred) {
-      // Need to blur this video
-      const htmlElement = element as HTMLElement;
-      htmlElement.style.setProperty('--tolerance-blur', '8px');
-      htmlElement.classList.add('tolerance-blurred');
-
-      // Set up hover reveal
-      setupHoverReveal(htmlElement);
-
-      // Overlay on the card root (direct child) so the label stays crisp
-      if (getComputedStyle(htmlElement).position === 'static') {
-        htmlElement.style.position = 'relative';
-      }
-
-      // Remove any existing overlay first
-      const existingOverlay = htmlElement.querySelector('.tolerance-blur-overlay');
-      if (existingOverlay) existingOverlay.remove();
-
-      const overlay = document.createElement('div');
-      overlay.className = 'tolerance-blur-overlay';
-      if (opaqueBlurEnabled) {
-        overlay.style.background = 'rgb(140, 140, 140)';
-      }
-      overlay.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      });
-
-      overlay.appendChild(cached?.score
-        ? buildBlurLabel(cached.score)
-        : buildBlurLabel({ postId: videoId ?? '', apiScore: score, bucket: 'medium', factors: {}, timestamp: Date.now() }));
-      htmlElement.appendChild(overlay);
-    } else if (!shouldBlur && isBlurred) {
-      // Need to unblur this video
-      element.classList.remove('tolerance-blurred');
-      element.classList.remove('tolerance-revealed');
-      (element as HTMLElement).style.removeProperty('--tolerance-blur');
-
-      // Remove overlay
-      const overlay = element.querySelector('.tolerance-blur-overlay');
-      if (overlay) overlay.remove();
-    }
+    const videoId = findVideoIdFromElement(element);
+    if (!videoId || videoId !== element.getAttribute(VIDEO_ID_ATTR)) continue; // recycled; next pass resets it
+    const cached = scoreCache.get(videoId);
+    if (!cached || element.classList.contains('tolerance-pending')) continue;
+    settleVideo({ id: videoId, element } as YouTubeVideo, cached.score);
   }
 }
 

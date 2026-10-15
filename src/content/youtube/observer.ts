@@ -22,6 +22,16 @@ export function setupYouTubeObserver(callback: () => Promise<void>): void {
     const videoSelectors = 'ytd-rich-item-renderer, ytd-compact-video-renderer, ytd-video-renderer, yt-lockup-view-model';
 
     for (const mutation of mutations) {
+      // A recycled card is re-rendered in place: its video link changes but no
+      // video element is added
+      if (mutation.type === 'attributes') {
+        const target = mutation.target as HTMLElement;
+        if (target.closest?.(videoSelectors)) {
+          hasNewVideos = true;
+          break;
+        }
+        continue;
+      }
       for (const node of mutation.addedNodes) {
         if (node instanceof HTMLElement) {
           // Check if this is a video element or contains video elements
@@ -52,6 +62,8 @@ export function setupYouTubeObserver(callback: () => Promise<void>): void {
   contentObserver.observe(document.body, {
     childList: true,
     subtree: true,
+    attributes: true,
+    attributeFilter: ['href'],
   });
 }
 
