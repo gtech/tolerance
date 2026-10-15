@@ -1065,10 +1065,15 @@ async function callApi(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`API error: ${response.status} for model=${model}`, errorText);
-      lastCallError = `API error ${response.status} (${model}): ${errorText.slice(0, 160)}`;
+      // A 429 from the model's provider ("rate-limited upstream") is transient and says
+      // nothing about the user's key; only key/account limits set the error state
+      const upstreamLimited = response.status === 429 && /upstream|provider returned error/i.test(errorText);
+      lastCallError = upstreamLimited
+        ? `${UPSTREAM_RATE_LIMITED} (${model})`
+        : `API error ${response.status} (${model}): ${errorText.slice(0, 160)}`;
 
       // Check for budget exhaustion / key limit / rate limit errors (402, 403, 429)
-      if (response.status === 402 || response.status === 403 || response.status === 429) {
+      if (!upstreamLimited && (response.status === 402 || response.status === 403 || response.status === 429)) {
         await setApiErrorState({
           exhausted: true,
           message: config.isFreeTier
@@ -1220,6 +1225,7 @@ async function callApi(
 // Why the most recent call returned null, for showing on failed scores (best effort:
 // concurrent calls can overwrite it)
 let lastCallError: string | null = null;
+const UPSTREAM_RATE_LIMITED = 'Rate limited by the model provider';
 export function getLastCallError(): string | null {
   return lastCallError;
 }
@@ -1235,6 +1241,12 @@ async function callOpenRouter(
   const config = await getProviderConfig();
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
+  lastCallError = null;
+  const result = await callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
+  if (result || !getLastCallError()?.startsWith(UPSTREAM_RATE_LIMITED)) return result;
+
+  // Provider rate limit: one retry after a short, jittered pause
+  await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1500));
   lastCallError = null;
   return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
 }

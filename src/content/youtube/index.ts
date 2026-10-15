@@ -169,8 +169,8 @@ async function updateBlurThreshold(): Promise<void> {
 
 // Check if a score should be blurred based on current threshold
 function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; whitelisted?: boolean }): boolean {
-  // Don't blur if scoring failed
-  if (score.scoreFailed) return false;
+  // A failed score keeps its placeholder of 50 and is blurred like any 50, so a
+  // rate-limited or broken API doesn't leave everything unblurred
 
   // Trusted sources bypass blur until the configured phase
 

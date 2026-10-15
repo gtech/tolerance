@@ -462,7 +462,7 @@ export async function scoreTweets(
               imageUrl,
               tweet.likeCount,
               tweet.numComments,
-              settings.openRouterApiKey!
+              'twitter'
             )
           : await scoreImagePost(
               content,
@@ -472,7 +472,7 @@ export async function scoreTweets(
               tweet.numComments,
               '', // no postId for tweets
               undefined,
-              settings.openRouterApiKey!
+              'twitter'
             );
 
         if (apiResult) {

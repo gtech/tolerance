@@ -107,7 +107,8 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
-  if (score.apiScore === undefined || score.scoreFailed) return false;
+  // A failed score keeps its placeholder of 50 and is blurred like any 50
+  if (score.apiScore === undefined) return false;
   // Trusted sources bypass blur until the configured phase
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
@@ -220,6 +221,7 @@ function injectStyles(): void {
     }
     .tolerance-blur-label.medium { background: rgba(243, 156, 18, 0.9); }
     .tolerance-blur-label.low { background: rgba(39, 174, 96, 0.9); }
+    .tolerance-blur-label.failed { background: rgba(127, 140, 141, 0.9); }
     .tolerance-blur-overlay::after {
       content: 'Hover 3s to reveal';
       color: rgba(255, 255, 255, 0.9);
@@ -589,11 +591,13 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
 // "<score>: <reason>" pill shown on the blur, colored by bucket (as on Twitter)
 function buildBlurLabel(score: EngagementScore): HTMLElement {
   const label = document.createElement('div');
-  label.className = `tolerance-blur-label ${score.bucket}`;
+  label.className = `tolerance-blur-label ${score.scoreFailed ? 'failed' : score.bucket}`;
   const rounded = Math.round(score.apiScore);
   let text = subscriptionsOnlyMode && !score.whitelisted
     ? 'Not following'
-    : score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
+    : score.scoreFailed
+      ? `Couldn't score, counted as ${rounded}: ${(score.apiReason ?? '').replace(/^Scoring failed: /, '')}`
+      : score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
   if (score.whitelisted && !subscriptionsOnlyMode) text += ' (trusted, blurred late in session)';
   label.textContent = text;
   return label;
