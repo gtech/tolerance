@@ -1,6 +1,7 @@
 import { log } from '../shared/constants';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { LEGACY_FALLBACK_REASON } from '../shared/score-parse';
+import { SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import {
   SessionLog,
   PostImpression,
@@ -209,8 +210,9 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
+    // Scores from an older scoring spec are re-scored rather than mixed with new ones
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
-        cached.apiReason !== LEGACY_FALLBACK_REASON) {
+        cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION) {
       result.set(id, cached);
     }
   }

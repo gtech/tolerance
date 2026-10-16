@@ -6,3 +6,4 @@ dist-firefox/
 *.zip
 data/
 docs/youtube_subscriptions.html
+test_key.env

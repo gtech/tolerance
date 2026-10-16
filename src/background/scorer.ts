@@ -14,6 +14,7 @@ import {
   scoreToBucket,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies } from './storage';
+import { SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { getLastCallError, scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
 import { anchorCacheId, foldAnchorScore } from '../shared/anchor-utils';
@@ -25,6 +26,13 @@ const TWITTER_VIDEO_SCORE_FLOOR = 40;
 const VIDEO_FLOOR_NOTE = ` (video: counted as at least ${TWITTER_VIDEO_SCORE_FLOOR})`;
 
 // Raise a video/gif tweet's score to the floor, noting why in the reason
+// Record which scoring spec produced an API score, with its sub-ratings
+function stampSpec(score: EngagementScore, result: ScoreResponse): void {
+  score.specVersion = SCORING_SPEC_VERSION;
+  if (result.dims) score.dims = result.dims;
+  else delete score.dims;
+}
+
 function applyVideoFloor(score: EngagementScore): void {
   if (score.apiScore === undefined || score.scoreFailed || score.apiScore >= TWITTER_VIDEO_SCORE_FLOOR) return;
   score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
@@ -316,10 +324,11 @@ async function applyAnchorScores(
   const fresh: EngagementScore[] = [];
   await Promise.all([...toScore].map(async ([id, anchor]) => {
     try {
-      const result = await scoreTextPost(anchor!.text, `@${anchor!.author}`, 0, 0);
+      const result = await scoreTextPost(anchor!.text, `@${anchor!.author}`, null, 0, 'twitter');
       if (!result) return;
       const score = createPendingScore(id);
       score.apiScore = result.score * 10;
+      stampSpec(score, result);
       score.apiReason = result.reason;
       score.scoreFailed = false;
       score.bucket = scoreToBucket(score.apiScore, 'twitter');
@@ -424,10 +433,11 @@ export async function scoreTweets(
           `@${tweet.author}`,
           tweet.likeCount,
           tweet.numComments,
-          settings.openRouterApiKey!
+          'twitter'
         );
         if (apiResult) {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -495,6 +505,7 @@ export async function scoreTweets(
 
         if (apiResult) {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -606,6 +617,7 @@ async function enrichTextPostsBatch(
     log.debug(` Post ${post.id} (${post.mediaType}): apiResult=${apiResult ? 'found' : 'missing'}`);
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
+      stampSpec(score, apiResult);
       score.apiScore = apiScore;
       score.scoreFailed = false;
       score.apiReason = apiResult.reason;
@@ -680,6 +692,7 @@ async function enrichTextPostsBatchWithGalleries(
     log.debug(` Looking for post ${post.id}, found: ${apiResult ? 'yes' : 'no'}`);
     if (apiResult) {
       const apiScore = apiResult.score * 10;
+      stampSpec(score, apiResult);
       score.apiScore = apiScore;
       score.scoreFailed = false;
       score.apiReason = apiResult.reason;
@@ -778,6 +791,7 @@ async function enrichWithApiScore(
 
     if (apiResult) {
       const apiScore = apiResult.score * 10; // Normalize 1-10 to 0-100
+      stampSpec(score, apiResult);
       score.apiScore = apiScore;
       score.scoreFailed = false;
       score.apiReason = apiResult.reason;
@@ -904,7 +918,7 @@ export async function scoreVideos(
       subreddit: video.channel || '@unknown', // Channel name in subreddit field
       score: null, // No score/likes visible before clicking
       numComments: 0, // No comments visible
-      platform: 'twitter' as const, // Use Twitter format (@channel)
+      platform: 'youtube' as const,
     }));
 
     try {
@@ -915,6 +929,7 @@ export async function scoreVideos(
         const result = batchResults.get(video.id);
         if (result) {
           const apiScore = result.score * 10;
+          stampSpec(score, result);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = result.reason;
@@ -1037,10 +1052,11 @@ export async function scoreInstagramPosts(
           `@${post.author}`,
           post.likeCount,
           post.commentCount,
-          settings.openRouterApiKey!
+          'instagram'
         );
         if (apiResult) {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -1079,8 +1095,7 @@ export async function scoreInstagramPosts(
             post.author,
             post.videoUrl,
             post.likeCount,
-            post.commentCount,
-            settings.openRouterApiKey!
+            post.commentCount
           );
         } else if (isVideo) {
           // Fallback to thumbnail scoring if no video URL available
@@ -1092,7 +1107,6 @@ export async function scoreInstagramPosts(
             imageUrl,
             post.likeCount,
             post.commentCount,
-            settings.openRouterApiKey!,
             'instagram'
           );
         } else {
@@ -1106,13 +1120,13 @@ export async function scoreInstagramPosts(
             post.commentCount,
             post.id,
             undefined,
-            settings.openRouterApiKey!,
             'instagram'
           );
         }
 
         if (apiResult) {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -1232,12 +1246,14 @@ export async function scoreFacebookPosts(
           post.caption || post.text,
           post.authorDisplayName,
           post.likeCount,
-          post.commentCount
+          post.commentCount,
+          'facebook'
         );
         if (!apiResult) {
           score.apiReason = `Scoring failed: ${getLastCallError() ?? 'no response'}`;
         } else {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -1295,6 +1311,7 @@ export async function scoreFacebookPosts(
           score.apiReason = `Scoring failed: ${getLastCallError() ?? 'no response'}`;
         } else {
           const apiScore = apiResult.score * 10;
+          stampSpec(score, apiResult);
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;

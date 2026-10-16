@@ -1,3 +1,4 @@
+import type { ScoreDims } from './scoring-spec';
 // Core types for Tolerance
 import type { GroundingSettings } from './grounding-utils';
 
@@ -197,6 +198,8 @@ export interface EngagementScore {
   timestamp: number;
   whitelisted?: boolean; // Pre-filter: source is in user's trusted whitelist
   scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
+  specVersion?: number;  // Scoring spec that produced apiScore (shared/scoring-spec.ts)
+  dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
   // Set when the post's anchor (quoted / replied-to post) scored higher than the post itself
   anchor?: {
     kind: 'quote' | 'reply';

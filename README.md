@@ -67,14 +67,16 @@ Tolerance uses AI to score content. In the dashboard, choose one of:
 - **Your own key.** Get one from [tolerance.lol/account.html](https://tolerance.lol/account.html) or directly from [OpenRouter](https://openrouter.ai/) (Keys → Create Key, then add credits; $5 is plenty to start), and paste it into the dashboard.
 - **A custom endpoint.** Any OpenAI-compatible chat completions URL, including a local one such as Ollama (`http://localhost:11434/v1/chat/completions`).
 
-Text posts are scored by `openai/gpt-oss-120b` and images and videos by `google/gemini-2.5-flash-lite`. With a custom endpoint, you choose the text and vision models yourself.
+Posts are scored by `google/gemini-2.5-flash-lite` (text, images and video thumbnails). With a custom endpoint, you choose the text and vision models yourself.
 
 **Cost:** ~$1-2/month typical usage.
 
 ## Features
 
-### Manipulation Scoring
-Every post gets a 0-100 score. High score = trying hard to hook you. Scores appear as badges; hover over a badge to see the reason.
+### Cheap-Payoff Scoring
+Every post gets a 0-100 score for how hard it grabs attention for how little reading or thinking it asks, and how little it leaves behind. Outrage bait scores high, but so do a clever one-liner, a cute dog or a relatable meme; a dense explainer scores low. Scores appear as badges; hover over a badge to see the reason.
+
+The scoring rubric lives in one place (`src/shared/scoring-spec.ts`) and is versioned: when it changes, older cached scores are re-scored. `pnpm eval:scoring` runs a set of test posts through it and reports which land outside their expected range (needs an OpenRouter key in `OPENROUTER_API_KEY` or `test_key.env`).
 
 - **Video counts as at least 40.** Autoplaying video is a hook in itself, so video posts score at least 40.
 - **Blur until scored.** New posts stay blurred until their score arrives (up to 15 seconds by default), so you never glimpse bait before it's judged. A gate at page load stops the feed flashing before Tolerance starts.

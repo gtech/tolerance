@@ -1,0 +1,478 @@
+[
+ {
+  "id": "jakeup",
+  "platform": "twitter",
+  "source": "@myhandle",
+  "text": "babe pls stop saying it's \"small\". it's the Flash model. it's very token efficient. it's on the pareto frontier\n\nand stop saying I'm \"premature\", it's called \"low latency\"",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "clever one-glance joke"
+ },
+ {
+  "id": "tw-dunk",
+  "platform": "twitter",
+  "source": "@politicsguy",
+  "text": "Imagine being this stupid and still getting elected. Every single person who voted for this clown should be embarrassed.",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "tribal outrage"
+ },
+ {
+  "id": "tw-curiosity",
+  "platform": "twitter",
+  "source": "@growthhacker",
+  "text": "I made $47,000 last month with one simple trick nobody talks about. Here's exactly how 🧵👇",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "curiosity gap, engagement farming"
+ },
+ {
+  "id": "tw-relatable",
+  "platform": "twitter",
+  "source": "@sadgirl",
+  "text": "me: i'm going to bed early tonight\nme at 3:47am: watching a documentary about the history of salt",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "relatable meme format"
+ },
+ {
+  "id": "tw-technical",
+  "platform": "twitter",
+  "source": "@dbengineer",
+  "text": "Long thread on why your Postgres query planner ignores your index. 1/ The planner estimates selectivity from pg_statistic. If your column has a skewed distribution and default_statistics_target is 100, the histogram buckets can hide the heavy hitters, so the planner thinks a seq scan is cheaper. Here's how to check: run EXPLAIN (ANALYZE, BUFFERS) and compare estimated rows vs actual rows at each node...",
+  "expect": [
+   1,
+   3
+  ],
+  "note": "dense technical"
+ },
+ {
+  "id": "tw-announce",
+  "platform": "twitter",
+  "source": "@pythonorg",
+  "text": "Python 3.14.1 is now available. This maintenance release contains about 200 bug fixes. Release notes and downloads: python.org/downloads",
+  "expect": [
+   1,
+   4
+  ],
+  "note": "plain useful info"
+ },
+ {
+  "id": "tw-hottake",
+  "platform": "twitter",
+  "source": "@vcguy",
+  "text": "Hot take: if you're not working 80 hours a week in your 20s you're choosing to be mediocre. Sorry not sorry.",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "provocative hot take"
+ },
+ {
+  "id": "tw-quiet",
+  "platform": "twitter",
+  "source": "@friend",
+  "text": "Finished the first draft of the paper on soil microbiomes. Going to let it sit for a week before editing.",
+  "expect": [
+   1,
+   4
+  ],
+  "note": "low-hook personal update"
+ },
+ {
+  "id": "tw-pun",
+  "platform": "twitter",
+  "source": "@dadjokes",
+  "text": "I told my wife she was drawing her eyebrows too high. She looked surprised.",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "one-glance pun"
+ },
+ {
+  "id": "tw-drama",
+  "platform": "twitter",
+  "source": "@popcrave",
+  "text": "Taylor Swift and Travis Kelce reportedly seen arguing outside restaurant in NYC, fans speculate about breakup",
+  "expect": [
+   7,
+   9
+  ],
+  "note": "celebrity drama"
+ },
+ {
+  "id": "tw-ratio",
+  "platform": "twitter",
+  "source": "@engagementfarm",
+  "text": "Reply with the last photo in your camera roll. No cheating 👀",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "engagement farming"
+ },
+ {
+  "id": "tw-argument",
+  "platform": "twitter",
+  "source": "@economist_writer",
+  "text": "A careful argument that housing supply elasticity, not interest rates, explains most of the regional variation in rent growth since 2015. The key evidence is that metros with similar rate exposure but different permitting regimes diverged sharply; I walk through the data and the two strongest counterarguments below.",
+  "expect": [
+   2,
+   4
+  ],
+  "note": "careful argument"
+ },
+ {
+  "id": "tw-doom",
+  "platform": "twitter",
+  "source": "@aidoomer",
+  "text": "We have maybe 18 months left. Nobody in power understands what is coming. Screenshot this.",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "fear bait"
+ },
+ {
+  "id": "tw-wholesome",
+  "platform": "twitter",
+  "source": "@goodnews",
+  "text": "This 92-year-old grandma just graduated college alongside her granddaughter and the whole auditorium gave her a standing ovation 🥹",
+  "expect": [
+   6,
+   9
+  ],
+  "note": "wholesome quick hit"
+ },
+ {
+  "id": "tw-quote-reply",
+  "platform": "twitter",
+  "source": "@techbro",
+  "text": "lmao this is the most unhinged thing I've read all year",
+  "expect": [
+   6,
+   9
+  ],
+  "note": "reaction bait, no content"
+ },
+ {
+  "id": "rd-cute",
+  "platform": "reddit",
+  "source": "aww",
+  "text": "My dog fell asleep holding his favourite toy and I can't handle it",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "cute dog"
+ },
+ {
+  "id": "rd-aita",
+  "platform": "reddit",
+  "source": "AmItheAsshole",
+  "text": "AITA for refusing to attend my sister's wedding after she banned my newborn?",
+  "expect": [
+   7,
+   9
+  ],
+  "note": "drama, judgement bait"
+ },
+ {
+  "id": "rd-askhistorians",
+  "platform": "reddit",
+  "source": "AskHistorians",
+  "text": "How did medieval European merchants manage credit and debt across long distances before modern banking?",
+  "expect": [
+   1,
+   3
+  ],
+  "note": "substantive question"
+ },
+ {
+  "id": "rd-news",
+  "platform": "reddit",
+  "source": "worldnews",
+  "text": "EU agrees new rules requiring USB-C charging for laptops from 2026",
+  "expect": [
+   3,
+   5
+  ],
+  "note": "plain news"
+ },
+ {
+  "id": "rd-rage",
+  "platform": "reddit",
+  "source": "pics",
+  "text": "This is what my landlord thinks is an acceptable 'renovated' apartment for $3,200/month",
+  "expect": [
+   7,
+   9
+  ],
+  "note": "rage-ish relatable"
+ },
+ {
+  "id": "rd-til",
+  "platform": "reddit",
+  "source": "todayilearned",
+  "text": "TIL that octopuses have three hearts and blue blood",
+  "expect": [
+   5,
+   7
+  ],
+  "note": "novelty snack"
+ },
+ {
+  "id": "rd-meme",
+  "platform": "reddit",
+  "source": "ProgrammerHumor",
+  "text": "When the code works on the first try and you don't know why",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "meme"
+ },
+ {
+  "id": "rd-help",
+  "platform": "reddit",
+  "source": "learnpython",
+  "text": "How do I read a CSV file and skip the header row?",
+  "expect": [
+   1,
+   3
+  ],
+  "note": "boring useful question"
+ },
+ {
+  "id": "rd-showerthought",
+  "platform": "reddit",
+  "source": "Showerthoughts",
+  "text": "Your stomach thinks all potatoes are mashed.",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "clever one-liner"
+ },
+ {
+  "id": "rd-politics",
+  "platform": "reddit",
+  "source": "politics",
+  "text": "Republicans just revealed exactly who they are with this vote",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "tribal vague outrage"
+ },
+ {
+  "id": "rd-longform",
+  "platform": "reddit",
+  "source": "TrueReddit",
+  "text": "The quiet collapse of local newspapers and what it means for municipal corruption: a 6,000-word investigation",
+  "expect": [
+   2,
+   4
+  ],
+  "note": "long-form"
+ },
+ {
+  "id": "rd-gaming",
+  "platform": "reddit",
+  "source": "WC3",
+  "text": "Patch 2.0.3 notes: Mountain King storm bolt mana cost increased from 75 to 85, Priest heal range reduced",
+  "expect": [
+   2,
+   4
+  ],
+  "note": "niche patch notes"
+ },
+ {
+  "id": "yt-shocked",
+  "platform": "youtube",
+  "source": "MrBeast",
+  "text": "I Survived 100 Days Trapped In A Desert!",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "spectacle"
+ },
+ {
+  "id": "yt-lecture",
+  "platform": "youtube",
+  "source": "MIT OpenCourseWare",
+  "text": "Lecture 14: Linear Programming Duality",
+  "expect": [
+   1,
+   3
+  ],
+  "note": "lecture"
+ },
+ {
+  "id": "yt-essay",
+  "platform": "youtube",
+  "source": "Hbomberguy",
+  "text": "Plagiarism and You(Tube)",
+  "expect": [
+   4,
+   7
+  ],
+  "note": "long video essay with drama"
+ },
+ {
+  "id": "yt-clickbait",
+  "platform": "youtube",
+  "source": "TechReviewer",
+  "text": "DON'T Buy The iPhone 17 Until You Watch This!!",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "clickbait"
+ },
+ {
+  "id": "yt-tutorial",
+  "platform": "youtube",
+  "source": "Fireship",
+  "text": "Rust in 100 Seconds",
+  "expect": [
+   4,
+   6
+  ],
+  "note": "snackable but informative"
+ },
+ {
+  "id": "yt-cat",
+  "platform": "youtube",
+  "source": "Funny Animals",
+  "text": "Funniest Cats of 2026 😹 Try Not To Laugh",
+  "expect": [
+   7,
+   9
+  ],
+  "note": "cute compilation"
+ },
+ {
+  "id": "yt-reaction",
+  "platform": "youtube",
+  "source": "xQc",
+  "text": "xQc Reacts to the Most Insane Fails of the Week",
+  "expect": [
+   7,
+   9
+  ],
+  "note": "reaction content"
+ },
+ {
+  "id": "yt-wc3",
+  "platform": "youtube",
+  "source": "Grubby",
+  "text": "Grubby | WC3 | Orc vs Night Elf on Amazonia, full game commentary",
+  "expect": [
+   3,
+   5
+  ],
+  "note": "long gameplay"
+ },
+ {
+  "id": "yt-documentary",
+  "platform": "youtube",
+  "source": "DW Documentary",
+  "text": "How Japan's rice farmers are adapting to climate change | DW Documentary",
+  "expect": [
+   2,
+   4
+  ],
+  "note": "documentary"
+ },
+ {
+  "id": "fb-chain",
+  "platform": "facebook",
+  "source": "Aunt Linda",
+  "text": "Only 1% of people will share this. Type AMEN if you believe in miracles 🙏",
+  "expect": [
+   9,
+   10
+  ],
+  "note": "engagement farming"
+ },
+ {
+  "id": "fb-event",
+  "platform": "facebook",
+  "source": "Springfield Library",
+  "text": "The library will be closed Monday for the holiday. Regular hours resume Tuesday at 9am.",
+  "expect": [
+   1,
+   3
+  ],
+  "note": "notice"
+ },
+ {
+  "id": "ig-gym",
+  "platform": "instagram",
+  "source": "@fitguru",
+  "text": "POV: you finally stopped making excuses 💪 Comment 'READY' and I'll send you my free plan",
+  "expect": [
+   8,
+   10
+  ],
+  "note": "aspiration + engagement farming"
+ },
+ {
+  "id": "ig-art",
+  "platform": "instagram",
+  "source": "@watercolourist",
+  "text": "Spent 40 hours on this one. Swipe to see the process from sketch to final wash.",
+  "expect": [
+   4,
+   7
+  ],
+  "note": "craft showcase"
+ },
+ {
+  "id": "img-puppy",
+  "platform": "twitter",
+  "source": "@dogdad",
+  "text": "look at this guy",
+  "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Golde33443.jpg/330px-Golde33443.jpg",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "cute puppy photo"
+ },
+ {
+  "id": "img-kitten",
+  "platform": "instagram",
+  "source": "@catsofinsta",
+  "text": "",
+  "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Kittyply_edit1.jpg/330px-Kittyply_edit1.jpg",
+  "expect": [
+   6,
+   8
+  ],
+  "note": "kitten, no caption"
+ },
+ {
+  "id": "img-btree",
+  "platform": "twitter",
+  "source": "@dbengineer",
+  "text": "How a B-tree keeps lookups O(log n): each node holds several sorted keys and child pointers, so the tree stays shallow. Splits propagate upward on insert; here's the structure after inserting 1-7.",
+  "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/B-tree.svg/330px-B-tree.svg.png",
+  "expect": [
+   1,
+   4
+  ],
+  "note": "technical diagram"
+ }
+]

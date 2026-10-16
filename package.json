@@ -16,7 +16,8 @@
     "bump": "node scripts/bump-version.js",
     "release": "node scripts/release.js",
     "ship": "pnpm build && git add -A && git commit -m \"update\" && git push",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:scoring": "node scripts/eval/run.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
