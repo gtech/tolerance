@@ -1,4 +1,4 @@
-import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, isWhitelisted, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
@@ -125,8 +125,7 @@ function shouldBlurScore(score: EngagementScore): boolean {
   if (score.apiScore === undefined) return false;
 
   // Trusted sources bypass blur until the configured phase
-
-  if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
+  if (trustExempts(score)) return false;
 
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
@@ -137,13 +136,27 @@ function shouldBlurScore(score: EngagementScore): boolean {
   return displayScore >= threshold;
 }
 
+// Trust covers the author's own words. A trusted author replying to or quoting
+// untrusted bait still carries it, so an inherited score is judged like any other.
+function inheritsUntrustedBait(score: EngagementScore): boolean {
+  return !!score.anchor && !isWhitelisted(score.anchor.author, 'twitter', currentSettings?.whitelist);
+}
+
+function trustExempts(score: EngagementScore): boolean {
+  return !!score.whitelisted && !inheritsUntrustedBait(score)
+    && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase);
+}
+
 // For the debug report: which rule decides this post's blur, with the numbers
 function describeBlurDecision(score: EngagementScore | undefined): string {
   const mode = qualityModeEnabled ? `quality mode (threshold ${QUALITY_MODE_THRESHOLD})`
     : subscriptionsOnlyMode ? 'subscriptions-only (everything not trusted)'
     : `threshold ${currentBlurThreshold} (${currentPhase} phase, incl. daily-feedback adjustment)`;
   if (!score) return `${mode}; no score`;
-  return `${mode}; score ${score.apiScore}${score.whitelisted ? ' trusted' : ''} -> ${shouldBlurScore(score) ? 'BLUR' : 'no blur'}`;
+  const trust = !score.whitelisted ? ''
+    : inheritsUntrustedBait(score) ? ` trusted, but inherited from untrusted @${score.anchor!.author}`
+    : trustExempts(score) ? ' trusted (exempt this phase)' : ' trusted (not exempt this phase)';
+  return `${mode}; score ${score.apiScore}${trust} -> ${shouldBlurScore(score) ? 'BLUR' : 'no blur'}`;
 }
 
 function startHeartbeat(): void {
@@ -718,7 +731,7 @@ function buildBlurLabel(score: EngagementScore): HTMLElement {
     text = 'Not following';
   } else {
     text = score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
-    if (score.whitelisted) text += ' (trusted, blurred late in session)';
+    if (score.whitelisted && !inheritsUntrustedBait(score)) text += ' (trusted, blurred late in session)';
   }
   label.textContent = text;
   label.style.maxWidth = '80%';
@@ -1506,7 +1519,7 @@ function refreshBlurState(): void {
 
     // Determine if should blur (same rules as shouldBlurScore)
     let shouldBlur = false;
-    if (isWhitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) {
+    if (cached?.score ? trustExempts(cached.score) : isWhitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) {
       shouldBlur = false;
     } else if (subscriptionsOnlyMode && !isWhitelisted) {
       shouldBlur = true;
