@@ -403,7 +403,8 @@ export async function scoreTweets(
 
   for (const item of tweetsForApi) {
     // Check for direct media on main tweet
-    const hasDirectMedia = (item.tweet.mediaType === 'image' || item.tweet.mediaType === 'video' || item.tweet.mediaType === 'gif')
+    // Galleries (2-4 photos) are scored from their first photo
+    const hasDirectMedia = (item.tweet.mediaType === 'image' || item.tweet.mediaType === 'gallery' || item.tweet.mediaType === 'video' || item.tweet.mediaType === 'gif')
       && (item.tweet.imageUrl || item.tweet.thumbnailUrl);
 
     // Check for media in quoted tweet (if main tweet has no direct media)
