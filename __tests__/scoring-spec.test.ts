@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBatchPrompt, buildSinglePrompt, parseDims, scoreFromDims } from '../src/shared/scoring-spec';
+import { buildBatchPrompt, buildSinglePrompt, parseDims, readScore, scoreFromDims } from '../src/shared/scoring-spec';
 
 describe('scoring spec prompts', () => {
   it('labels each platform correctly', () => {
@@ -49,5 +49,26 @@ describe('scoreFromDims', () => {
   it('ranks a quick hit above substantive content', () => {
     expect(scoreFromDims({ hook: 8, effort: 2, pull: 8, value: 2 })).toBeGreaterThanOrEqual(8);
     expect(scoreFromDims({ hook: 3, effort: 8, pull: 3, value: 8 })).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('readScore', () => {
+  it('uses the model score, clamped, including numeric strings', () => {
+    expect(readScore({ score: 7 })).toBe(7);
+    expect(readScore({ score: 0 })).toBe(1);
+    expect(readScore({ score: 14 })).toBe(10);
+    expect(readScore({ score: '6' })).toBe(6);
+  });
+  it('falls back to the sub-ratings when the score is missing (Gemini drops it for whole batches)', () => {
+    const item = { id: 'x', hook: 8, effort: 2, pull: 7, value: 4, reason: 'Classic comedy, instantly funny.' };
+    const s = readScore(item);
+    expect(s).toBe(scoreFromDims({ hook: 8, effort: 2, pull: 7, value: 4 }));
+    expect(Number.isFinite(s)).toBe(true);
+  });
+  it('returns undefined rather than NaN when nothing is usable', () => {
+    expect(readScore({ reason: 'no numbers' })).toBeUndefined();
+    expect(readScore({ score: 'seven' })).toBeUndefined();
+    expect(readScore({ score: '' })).toBeUndefined();
+    expect(readScore(null)).toBeUndefined();
   });
 });

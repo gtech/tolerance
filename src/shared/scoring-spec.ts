@@ -142,7 +142,7 @@ ${list}
 
 ${RUBRIC}${mediaNotes(posts)}${themeSection(themes, true)}
 
-Respond with ONLY valid JSON, one object per post in order: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
+Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
 }
 
 const clampRating = (n: unknown): number | undefined =>
@@ -158,15 +158,28 @@ export function parseDims(obj: unknown): ScoreDims | undefined {
   return { hook, effort, pull, value };
 }
 
-// A score computed from the sub-ratings with fixed weights, as a cross-check in
-// the eval (scripts/eval). Production uses the model's own score: with Gemini
-// 2.5 Flash Lite that fitted the eval better (40/40 vs 37/40). For gpt-oss-120b,
-// whose own score ignored value, this formula did better (36-39/40 vs 32-36).
-// Fitted on the eval: hook and value carry nearly all the signal; effort adds
-// little once value is known.
+// A score computed from the sub-ratings with fixed weights. Production uses the
+// model's own score (with Gemini 2.5 Flash Lite it fitted the eval better, 40/40
+// vs 37/40), and falls back to this when the model leaves the score out, which
+// Gemini sometimes does for a whole batch. Fitted on the eval with gpt-oss-120b
+// sub-ratings: hook and value carry nearly all the signal; effort adds little
+// once value is known.
 export const SCORE_WEIGHTS = { base: 5, hook: 0.5, effort: 0, pull: 0, value: -0.75 };
 
 export function scoreFromDims(d: ScoreDims, w = SCORE_WEIGHTS): number {
   const raw = w.base + w.hook * (d.hook - 5) + w.effort * (d.effort - 5) + w.pull * (d.pull - 5) + w.value * (d.value - 5);
   return Math.min(10, Math.max(1, Math.round(raw)));
+}
+
+// The 1-10 score from a parsed response item: the model's own score, else one
+// computed from its sub-ratings. Undefined when neither is usable, so the post is
+// left unscored (and re-scored) rather than given a made-up number. (A missing
+// score used to become NaN, which reached the page as 0.)
+export function readScore(item: unknown): number | undefined {
+  if (!item || typeof item !== 'object') return undefined;
+  const raw = (item as Record<string, unknown>).score;
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  if (Number.isFinite(n)) return Math.min(10, Math.max(1, n));
+  const dims = parseDims(item);
+  return dims ? scoreFromDims(dims) : undefined;
 }

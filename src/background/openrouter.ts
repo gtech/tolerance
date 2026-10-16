@@ -7,7 +7,7 @@ import { getSettings, getNarrativeThemes } from './storage';
 import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
-import { buildBatchPrompt, buildSinglePrompt, parseDims, ScoreDims, ScorePlatform, ScoringPost } from '../shared/scoring-spec';
+import { buildBatchPrompt, buildSinglePrompt, parseDims, readScore, ScoreDims, ScorePlatform, ScoringPost } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -288,8 +288,13 @@ export async function scoreTextPostsBatch(
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         // Try different ID field names the LLM might use
-        const itemId = item.id || (item as unknown as { postId?: string }).postId ||
-                      (item as unknown as { post_id?: string }).post_id;
+        const itemId = String(item.id || (item as unknown as { postId?: string }).postId ||
+                      (item as unknown as { post_id?: string }).post_id || '').trim();
+        const itemScore = readScore(item);
+        if (itemScore === undefined) {
+          log.debug(` Batch item ${itemId || i} has no usable score, leaving it unscored:`, JSON.stringify(item).slice(0, 200));
+          continue;
+        }
         const reason = item.reason || '';
 
         // Convert narrative indices to theme IDs
@@ -312,7 +317,7 @@ export async function scoreTextPostsBatch(
         }
 
         const scoreResponse: ScoreResponse = {
-          score: Math.min(10, Math.max(1, item.score)),
+          score: itemScore,
           reason,
           cost: costPerPost,
           narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
@@ -410,8 +415,13 @@ export async function scoreTextPostsBatchWithGalleries(
 
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
-        const itemId = item.id || (item as unknown as { postId?: string }).postId ||
-                      (item as unknown as { post_id?: string }).post_id;
+        const itemId = String(item.id || (item as unknown as { postId?: string }).postId ||
+                      (item as unknown as { post_id?: string }).post_id || '').trim();
+        const itemScore = readScore(item);
+        if (itemScore === undefined) {
+          log.debug(` Batch item ${itemId || i} has no usable score, leaving it unscored:`, JSON.stringify(item).slice(0, 200));
+          continue;
+        }
         const reason = item.reason || '';
 
         // Convert narrative indices to theme IDs
@@ -427,7 +437,7 @@ export async function scoreTextPostsBatchWithGalleries(
         }
 
         const scoreResponse: ScoreResponse = {
-          score: Math.min(10, Math.max(1, item.score)),
+          score: itemScore,
           reason,
           cost: costPerPost,
           narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
@@ -837,7 +847,8 @@ async function callApi(
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: isImageCall ? 300 : 4000, // 40 truncated the JSON mid-reason; sub-ratings need more
+      // A 40-video YouTube batch takes ~3,300 tokens with sub-ratings
+      max_tokens: isImageCall ? 300 : 8000, // 40 truncated the JSON mid-reason; sub-ratings need more
       stream: false,
     };
 
@@ -967,13 +978,14 @@ async function callApi(
     // Try to parse JSON from response
     try {
       const parsed = JSON.parse(content);
-      if (typeof parsed.score === 'number') {
+      const parsedScore = readScore(parsed);
+      if (parsedScore !== undefined) {
         // Convert narrative indices to theme IDs if themes provided
         const narrativeMatches = activeThemes
           ? convertNarrativeIndicesToThemeIds(parsed.narratives, activeThemes)
           : undefined;
         return {
-          score: Math.min(10, Math.max(1, parsed.score)),
+          score: parsedScore,
           reason: parsed.reason || '',
           cost,
           fullResponse: data,
@@ -981,12 +993,7 @@ async function callApi(
           dims: parseDims(parsed),
         };
       }
-      return {
-        score: 5,
-        reason: '',
-        cost,
-        fullResponse: data,
-      };
+      return noScoreResult(callType, model, content, cost, data);
     } catch {
       // Content isn't pure JSON, try to extract it
     }
@@ -1001,13 +1008,14 @@ async function callApi(
       if (!candidate) continue;
       try {
         const parsed = JSON.parse(candidate);
-        if (typeof parsed.score === 'number') {
+        const parsedScore = readScore(parsed);
+        if (parsedScore !== undefined) {
           // Convert narrative indices to theme IDs if themes provided
           const narrativeMatches = activeThemes
             ? convertNarrativeIndicesToThemeIds(parsed.narratives, activeThemes)
             : undefined;
           return {
-            score: Math.min(10, Math.max(1, parsed.score)),
+            score: parsedScore,
             reason: parsed.reason || '',
             cost,
             fullResponse: data,
@@ -1015,12 +1023,7 @@ async function callApi(
             dims: parseDims(parsed),
           };
         }
-        return {
-          score: 5,
-          reason: '',
-          cost,
-          fullResponse: data,
-        };
+        return noScoreResult(callType, model, content, cost, data);
       } catch {
         // Try next candidate
       }
@@ -1044,6 +1047,15 @@ async function callApi(
     lastCallError = `Request failed: ${error instanceof Error ? error.message : String(error)}`;
     return null;
   }
+}
+
+// Valid JSON but no usable score. Batch callers read the per-post results from
+// fullResponse themselves, so they get it back; a single post fails (left unscored
+// and re-scored later) instead of getting a made-up 5.
+function noScoreResult(callType: ApiCallType, model: string, content: string, cost: number, data: unknown): ScoreResponse | null {
+  if (callType === 'text-batch') return { score: 5, reason: '', cost, fullResponse: data };
+  lastCallError = `Reply from ${model} had no score: "${content.slice(0, 160)}"`;
+  return null;
 }
 
 // Internal wrapper - calls callApi with loaded config

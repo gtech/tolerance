@@ -212,7 +212,8 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
     const cached = await db.get('scores', id);
     // Scores from an older scoring spec are re-scored rather than mixed with new ones
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
-        cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION) {
+        cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION &&
+        Number.isFinite(cached.apiScore)) {
       result.set(id, cached);
     }
   }
