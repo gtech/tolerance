@@ -675,7 +675,7 @@ export async function scoreImagePost(
 
   const prompt = buildSinglePrompt(post, activeThemes);
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes);
+  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim());
 }
 
 // Score a video/gif post using thumbnail
@@ -722,7 +722,7 @@ export async function scoreVideoPost(
     likes: score, comments: numComments, media: 'video',
   }, activeThemes);
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes);
+  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim());
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -765,7 +765,8 @@ async function callApi(
   imageUrl?: string,
   callType: ApiCallType = 'text-single',
   postCount: number = 1,
-  activeThemes?: NarrativeTheme[]
+  activeThemes?: NarrativeTheme[],
+  imageRequired = false
 ): Promise<ScoreResponse | null> {
   const callStart = performance.now();
   log.debug(` callApi START at t=${callStart.toFixed(0)}, model=${model}, endpoint=${config.endpoint}`);
@@ -774,6 +775,11 @@ async function callApi(
   const effectiveImageUrl = (imageUrl && config.supportsVision) ? imageUrl : undefined;
   if (imageUrl && !config.supportsVision) {
     log.debug(' Vision not supported, falling back to text-only scoring');
+  }
+  // A post with no text is just its image: scoring it text-only would rate it empty (1)
+  if (imageRequired && !effectiveImageUrl) {
+    lastCallError = imageUrl ? `${model} can't see images and the post has no text` : 'Post has no text and no image URL';
+    return null;
   }
 
   try {
@@ -809,6 +815,12 @@ async function callApi(
           transformedImageUrl = base64;
           log.debug(` Image resized and converted to base64 (${base64.length} chars)`);
         } else {
+          if (imageRequired) {
+            // Left as a failed score (shown as 50) so it's retried next time it's seen
+            lastCallError = 'Could not fetch the image, and the post has no text';
+            log.debug(` Image fetch failed for a post with no text, not scoring`);
+            return null;
+          }
           // Can't fetch image - fall back to text-only scoring
           log.debug(` Image fetch failed, falling back to text-only scoring`);
           messages.push({
@@ -1073,19 +1085,20 @@ async function callOpenRouter(
   imageUrl?: string,
   callType: ApiCallType = 'text-single',
   postCount: number = 1,
-  activeThemes?: NarrativeTheme[]
+  activeThemes?: NarrativeTheme[],
+  imageRequired = false
 ): Promise<ScoreResponse | null> {
   const config = await getProviderConfig();
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
   lastCallError = null;
-  const result = await callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
+  const result = await callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes, imageRequired);
   if (result || !getLastCallError()?.startsWith(UPSTREAM_RATE_LIMITED)) return result;
 
   // Provider rate limit: one retry after a short, jittered pause
   await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1500));
   lastCallError = null;
-  return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes);
+  return callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes, imageRequired);
 }
 
 // Detailed API call tracking for benchmarking
