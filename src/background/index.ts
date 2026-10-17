@@ -207,38 +207,66 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-// Track active tab for image fetching
+// Tab of the last content script that asked for scoring; those scripts can fetch images.
+// Other tabs (claude.ai, tracker.js sites) message us too but have no image handler.
 let activeContentScriptTabId: number | null = null;
 
-// Fetch image as base64 via content script (needed for Reddit images that block API servers)
+// Fetch image as base64 via content script (needed for Reddit images that block API servers),
+// falling back to fetching it here
 export async function fetchImageViaContentScript(url: string): Promise<string | null> {
-  if (!activeContentScriptTabId) {
+  if (activeContentScriptTabId) {
+    try {
+      const response = await chrome.tabs.sendMessage(activeContentScriptTabId, {
+        type: 'FETCH_IMAGE_BASE64',
+        url,
+      });
+
+      if (response?.success && response.base64) {
+        return response.base64;
+      }
+      log.debug(` Image fetch failed: ${response?.error || 'unknown error'}`);
+    } catch (err) {
+      log.debug(` Image fetch error: ${err}`);
+    }
+  } else {
     log.debug(' No active content script tab for image fetch');
-    return null;
   }
 
   try {
-    const response = await chrome.tabs.sendMessage(activeContentScriptTabId, {
-      type: 'FETCH_IMAGE_BASE64',
-      url,
-    });
-
-    if (response?.success && response.base64) {
-      return response.base64;
-    }
-    log.debug(` Image fetch failed: ${response?.error || 'unknown error'}`);
-    return null;
+    return await fetchImageInBackground(url);
   } catch (err) {
-    log.debug(` Image fetch error: ${err}`);
+    log.debug(` Background image fetch failed: ${err}`);
     return null;
   }
+}
+
+// Same resize as the content scripts: max 512px JPEG, as a data URL
+async function fetchImageInBackground(url: string): Promise<string> {
+  const MAX_SIZE = 512;
+  const response = await fetch(url, { credentials: 'omit' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const img = await createImageBitmap(await response.blob());
+  const scale = Math.min(1, MAX_SIZE / Math.max(img.width, img.height));
+  const width = Math.round(img.width * scale);
+  const height = Math.round(img.height * scale);
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+  ctx.drawImage(img, 0, 0, width, height);
+  const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 })).arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  log.debug(` Image fetched in background ${img.width}x${img.height} -> ${width}x${height}`);
+  return `data:image/jpeg;base64,${btoa(binary)}`;
 }
 
 // Message handler for content script communication
 // Also handles heartbeats from tracker.js on other social media sites
 chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, sender, sendResponse) => {
   // Track sender tab for potential image fetch requests
-  if (sender.tab?.id) {
+  if (sender.tab?.id && message.type.startsWith('SCORE_')) {
     activeContentScriptTabId = sender.tab.id;
   }
   // Handle SOCIAL_MEDIA_HEARTBEAT separately (comes from tracker.js, not typed in MessageType)
