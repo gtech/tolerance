@@ -149,11 +149,11 @@ export interface ClaudeFilterStatus {
 }
 
 /**
- * Whether the next response will be rewritten, so the page knows whether to hide it while it streams
+ * Whether the next response will be rewritten, and whether to hide responses while they stream (independent of rewriting)
  */
 export async function getClaudeFilterStatus(): Promise<ClaudeFilterStatus> {
   const settings = await getSettings();
-  const hideWhileStreaming = settings.claudeFilterHideWhileStreaming ?? true;
+  const hideWhileStreaming = settings.claudeFilterHideWhileStreaming ?? false;
   if (!settings.claudeFilterEnabled) {
     return { willRewrite: false, hideWhileStreaming, reason: 'disabled' };
   }

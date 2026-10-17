@@ -178,13 +178,13 @@ function getFilterStatus(container: Element): Promise<FilterStatus> {
 }
 
 /**
- * A response started streaming: hide it only if it will be rewritten and the user wants it hidden
+ * A response started streaming: hide it if the user wants streaming hidden, whether or not it will be rewritten
  */
 function onStreamStart(container: Element): void {
   if (!initialLoadComplete) return;
   getFilterStatus(container).then(status => {
-    if (status.willRewrite && status.hideWhileStreaming && container.getAttribute('data-is-streaming') === 'true') {
-      suppressStreamingContainer(container);
+    if (status.hideWhileStreaming && container.getAttribute('data-is-streaming') === 'true') {
+      suppressStreamingContainer(container, status.willRewrite ? 'Filtering response...' : 'Claude is responding...');
     }
   });
 }
@@ -204,7 +204,7 @@ function onStreamEnd(container: Element): void {
   });
 }
 
-function suppressStreamingContainer(container: Element): void {
+function suppressStreamingContainer(container: Element, label: string): void {
   if (suppressedContainers.has(container) || processedMessages.has(container)) {
     return;
   }
@@ -226,7 +226,7 @@ function suppressStreamingContainer(container: Element): void {
         line-height: 1.4;
       }
     </style>
-    <span>Filtering response...</span>
+    <span>${label}</span>
   `;
 
   suppressedContainers.set(container, {

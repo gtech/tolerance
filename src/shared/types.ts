@@ -498,7 +498,7 @@ export interface Settings {
   };
   // Claude de-validation filter - strip sycophancy from Claude responses
   claudeFilterEnabled?: boolean;
-  // Hide Claude's response while it streams, until the rewrite is ready (default: true)
+  // Hide Claude's responses while they stream, with or without rewriting (default: false)
   claudeFilterHideWhileStreaming?: boolean;
   // Claude filter time thresholds (minutes)
   claudeFilterThresholds?: {

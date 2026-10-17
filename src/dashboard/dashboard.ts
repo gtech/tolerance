@@ -430,7 +430,7 @@ function populateSettings(settings: Settings): void {
 
   const claudeHideStreaming = document.getElementById('claude-hide-streaming') as HTMLInputElement;
   if (claudeHideStreaming) {
-    claudeHideStreaming.checked = settings.claudeFilterHideWhileStreaming ?? true;
+    claudeHideStreaming.checked = settings.claudeFilterHideWhileStreaming ?? false;
   }
 
   // Claude filter threshold sliders
@@ -1140,7 +1140,7 @@ async function saveSettings(): Promise<void> {
     },
     productivityCardEnabled: productivityCardEnabledInput?.checked ?? false,
     claudeFilterEnabled: claudeFilterEnabledInput?.checked ?? false,
-    claudeFilterHideWhileStreaming: claudeHideStreamingInput?.checked ?? true,
+    claudeFilterHideWhileStreaming: claudeHideStreamingInput?.checked ?? false,
     claudeFilterThresholds: {
       skipFilter: parseInt(claudeSkipInput?.value || '30', 10),
       gentleReminder: parseInt(claudeGentleInput?.value || '30', 10),
