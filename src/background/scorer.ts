@@ -429,6 +429,13 @@ export async function scoreTweets(
           content += `\n\n[Quote from @${tweet.quotedTweet.author}]: ${tweet.quotedTweet.text}`;
         }
 
+        // A photo tweet whose image URL wasn't found has nothing to score as text;
+        // the model would call it empty (score 1, shown as 10). Leave it unscored.
+        if (!content.trim() && (tweet.mediaType === 'image' || tweet.mediaType === 'gallery')) {
+          log.debug(` Skipping photo tweet ${tweet.id} with no image URL and no text`);
+          return;
+        }
+
         const apiResult = await scoreTextPost(
           content,
           `@${tweet.author}`,

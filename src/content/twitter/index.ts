@@ -14,6 +14,10 @@ import { buildDebugReport, showDebugReport } from './debug';
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
 
+// Photo tweets held back until their image URL appears (tweet id -> first seen)
+const photoWaitSince = new Map<string, number>();
+const PHOTO_WAIT_MS = 4000;
+
 // Cache scores for badge re-injection when Twitter recreates DOM elements
 const scoreCache = new Map<string, { score: EngagementScore; originalPosition: number; author: string }>();
 
@@ -1162,7 +1166,7 @@ async function processTweets(): Promise<void> {
     }
 
     // Separate into new tweets (need scoring) and processed tweets (may need badge re-injection)
-    const newTweets: Tweet[] = [];
+    let newTweets: Tweet[] = [];
     const tweetsNeedingBadge: Tweet[] = [];
     const tweetsNeedingAnchor: Tweet[] = [];
 
@@ -1243,6 +1247,26 @@ async function processTweets(): Promise<void> {
         applyPendingBlur(tweet, earlyTwitterSettings.blurIntensity ?? 8);
       }
     }
+
+    // Photo tweets whose image hasn't loaded yet would be scored as empty text.
+    // Hold them (still blurred) for a few seconds until the image URL shows up.
+    const now = Date.now();
+    const deferred = newTweets.filter(tweet => {
+      const waiting = (tweet.mediaType === 'image' || tweet.mediaType === 'gallery')
+        && !tweet.imageUrl && !tweet.thumbnailUrl;
+      if (!waiting) { photoWaitSince.delete(tweet.id); return false; }
+      const since = photoWaitSince.get(tweet.id) ?? now;
+      photoWaitSince.set(tweet.id, since);
+      return now - since < PHOTO_WAIT_MS;
+    });
+    if (deferred.length > 0) {
+      log.debug(` Waiting for images on ${deferred.length} photo tweets`);
+      const deferredIds = new Set(deferred.map(t => t.id));
+      newTweets = newTweets.filter(t => !deferredIds.has(t.id));
+      setTimeout(() => processTweets(), 500);
+      if (newTweets.length === 0) return;
+    }
+    for (const tweet of newTweets) photoWaitSince.delete(tweet.id);
 
     // Debug: log media info for each tweet
     for (const tweet of newTweets) {

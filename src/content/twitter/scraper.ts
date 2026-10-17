@@ -433,6 +433,20 @@ function extractMediaUrls(element: HTMLElement): {
     }
   }
 
+  // Before the <img> gets its src, the photo is often only a background-image
+  // on a sibling div; use that rather than scoring the tweet as empty text
+  if (!result.imageUrl) {
+    for (const photo of element.querySelectorAll<HTMLElement>('[data-testid="tweetPhoto"]')) {
+      if (quoteCard?.contains(photo)) continue;
+      const url = backgroundImageUrl(photo);
+      if (url) {
+        result.imageUrl = url;
+        result.thumbnailUrl = url;
+        break;
+      }
+    }
+  }
+
   // Video poster/thumbnail (excluding quoted content)
   const videos = element.querySelectorAll<HTMLVideoElement>('video');
   for (const video of videos) {
@@ -444,6 +458,14 @@ function extractMediaUrls(element: HTMLElement): {
   }
 
   return result;
+}
+
+function backgroundImageUrl(container: HTMLElement): string | undefined {
+  for (const el of [container, ...container.querySelectorAll<HTMLElement>('[style*="background-image"]')]) {
+    const m = el.style.backgroundImage.match(/url\(["']?(https:\/\/pbs\.twimg\.com\/[^"')]+)["']?\)/);
+    if (m) return m[1];
+  }
+  return undefined;
 }
 
 function extractHashtags(text: string): string[] {
