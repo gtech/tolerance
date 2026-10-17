@@ -6,7 +6,9 @@
 // joke, a cute dog) score low. v2 measures cheap payoff: how hard a post grabs
 // attention for how little reading or thinking it asks, and how little it leaves.
 
-export const SCORING_SPEC_VERSION = 2;
+// v3: same rubric, but small batches carry calibration posts and Twitter text is
+// batched; v2 Twitter text scores (one call each) drifted to 6-7.
+export const SCORING_SPEC_VERSION = 3;
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -143,6 +145,32 @@ ${list}
 ${RUBRIC}${mediaNotes(posts)}${themeSection(themes, true)}
 
 Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
+}
+
+// Scored alone, a post loses its sense of scale: Gemini 2.5 Flash Lite rated a dense
+// technical explainer 6-7 on its own but 2-3 alongside other posts. Small batches are
+// padded with these two fixed posts, one at each end of the scale, as a reference;
+// their results are discarded.
+export const MIN_BATCH_FOR_CONTEXT = 3;
+const CALIBRATION_PREFIX = 'calibration-';
+const CALIBRATION_TEXTS = [
+  { text: 'How TCP congestion control actually works, from slow start to BBR, with the equations and a worked example for each phase. Long thread, 1/14', source: 'netstack_notes' },
+  { text: "They want you to forget what happened yesterday. I won't let them. Share before this gets taken down 😡👇", source: 'truth_daily_now' },
+];
+
+export function isCalibrationId(id: string | undefined): boolean {
+  return !!id && id.startsWith(CALIBRATION_PREFIX);
+}
+
+export function withCalibration(posts: ScoringPost[]): ScoringPost[] {
+  if (posts.length === 0 || posts.length >= MIN_BATCH_FOR_CONTEXT) return posts;
+  const platform = posts[0].platform;
+  return [...posts, ...CALIBRATION_TEXTS.map((c, i) => ({
+    id: `${CALIBRATION_PREFIX}${i + 1}`,
+    platform,
+    text: c.text,
+    source: platform === 'twitter' || platform === 'instagram' ? `@${c.source}` : c.source,
+  }))];
 }
 
 const clampRating = (n: unknown): number | undefined =>

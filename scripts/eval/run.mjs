@@ -3,7 +3,7 @@
 // with --legacy, the v1 "manipulation" prompt) and reports which scores land
 // outside their expected range.
 //
-// Usage: node scripts/eval/run.mjs [--legacy] [--model <id>] [--runs N] [--cases <file>]
+// Usage: node scripts/eval/run.mjs [--legacy] [--single] [--model <id>] [--runs N] [--batch N] [--cases <file>]
 // Reads the OpenRouter key from OPENROUTER_API_KEY or test_key.env.
 
 import { build } from 'esbuild';
@@ -19,6 +19,7 @@ const legacy = args.includes('--legacy');
 const model = opt('--model', 'openai/gpt-oss-120b');
 const runs = Number(opt('--runs', '1'));
 const batchSize = Number(opt('--batch', '10'));
+const single = args.includes('--single'); // one call per text post (Twitter did this before batching)
 const cases = JSON.parse(readFileSync(opt('--cases', join(here, 'scoring-cases.json')), 'utf8'));
 
 const keyFile = join(root, 'test_key.env');
@@ -125,16 +126,33 @@ for (let r = 0; r < runs; r++) {
       console.error(`${c.id} failed: ${e.message}`);
     }
   }
+  if (single && !legacy) {
+    // Text posts one call each, single-post prompt, as scoreTextPost does
+    await Promise.all(textCases.map(async c => {
+      try {
+        const t0 = Date.now();
+        const { items, usage } = await call(spec.buildSinglePrompt(toPost(c)));
+        latencies.push(Date.now() - t0);
+        tokens += (usage?.prompt_tokens || 0) + (usage?.completion_tokens || 0);
+        if (items[0]) record(c.id, items[0]);
+      } catch (e) {
+        console.error(`${c.id} failed: ${e.message}`);
+      }
+    }));
+    continue;
+  }
   for (let i = 0; i < textCases.length; i += batchSize) {
     const batch = textCases.slice(i, i + batchSize);
     const posts = batch.map(toPost);
-    const prompt = legacy ? legacyPrompt(posts) : spec.buildBatchPrompt(posts);
+    // Small batches are padded with calibration posts, as in the extension
+    const prompt = legacy ? legacyPrompt(posts) : spec.buildBatchPrompt(spec.withCalibration(posts));
     try {
       const t0 = Date.now();
       const { items, usage } = await call(prompt);
       latencies.push(Date.now() - t0);
       tokens += (usage?.prompt_tokens || 0) + (usage?.completion_tokens || 0);
       items.forEach((it, j) => {
+        if (spec.isCalibrationId(String(it.id ?? '').trim())) return;
         const id = scores.has(it.id) ? it.id : batch[j]?.id;
         if (id) record(id, it);
       });

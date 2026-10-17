@@ -7,7 +7,7 @@ import { getSettings, getNarrativeThemes } from './storage';
 import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
-import { buildBatchPrompt, buildSinglePrompt, parseDims, readScore, ScoreDims, ScorePlatform, ScoringPost } from '../shared/scoring-spec';
+import { buildBatchPrompt, buildSinglePrompt, isCalibrationId, parseDims, readScore, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -224,7 +224,7 @@ export async function scoreTextPostsBatch(
   const activeThemes = allThemes.filter(t => t.active && t.description);
   log.debug(` Loaded ${activeThemes.length} active narrative themes`);
 
-  const prompt = buildBatchPrompt(posts.map(toScoringPost), activeThemes);
+  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes);
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -290,6 +290,7 @@ export async function scoreTextPostsBatch(
         // Try different ID field names the LLM might use
         const itemId = String(item.id || (item as unknown as { postId?: string }).postId ||
                       (item as unknown as { post_id?: string }).post_id || '').trim();
+        if (isCalibrationId(itemId)) continue;
         const itemScore = readScore(item);
         if (itemScore === undefined) {
           log.debug(` Batch item ${itemId || i} has no usable score, leaving it unscored:`, JSON.stringify(item).slice(0, 200));
@@ -360,11 +361,11 @@ export async function scoreTextPostsBatchWithGalleries(
   const allThemes = await getNarrativeThemes();
   const activeThemes = allThemes.filter(t => t.active && t.description);
 
-  const prompt = buildBatchPrompt(posts.map(p => ({
+  const prompt = buildBatchPrompt(withCalibration(posts.map(p => ({
     ...toScoringPost(p),
     media: p.galleryDescription ? 'gallery' as const : 'text' as const,
     imageDescriptions: p.galleryDescription,
-  })), activeThemes);
+  }))), activeThemes);
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -417,6 +418,7 @@ export async function scoreTextPostsBatchWithGalleries(
         const item = parsed[i];
         const itemId = String(item.id || (item as unknown as { postId?: string }).postId ||
                       (item as unknown as { post_id?: string }).post_id || '').trim();
+        if (isCalibrationId(itemId)) continue;
         const itemScore = readScore(item);
         if (itemScore === undefined) {
           log.debug(` Batch item ${itemId || i} has no usable score, leaving it unscored:`, JSON.stringify(item).slice(0, 200));
@@ -477,15 +479,13 @@ export async function scoreTextPost(
     return null;
   }
 
-  // Load active narrative themes for detection
-  const allThemes = await getNarrativeThemes();
-  const activeThemes = allThemes.filter(t => t.active && t.description);
-  const prompt = buildSinglePrompt(
-    toScoringPost({ id: '', title, subreddit, score, numComments, platform: platform ?? inferPlatform(subreddit) }),
-    activeThemes
-  );
-
-  return callOpenRouter(prompt, undefined, undefined, 'text-single', 1, activeThemes);
+  // Sent as a one-post batch so it gets the calibration posts: asked about a lone
+  // post, the model rates anything intriguing 6-7
+  const id = 'post-1';
+  const results = await scoreTextPostsBatch([
+    { id, title, subreddit, score, numComments, platform: platform ?? inferPlatform(subreddit) },
+  ]);
+  return results.get(id) ?? null;
 }
 
 // Fetch all images from a Reddit gallery

@@ -25,7 +25,6 @@ import { getSubscriptionList, isSubscribed } from './subscriptions';
 const TWITTER_VIDEO_SCORE_FLOOR = 40;
 const VIDEO_FLOOR_NOTE = ` (video: counted as at least ${TWITTER_VIDEO_SCORE_FLOOR})`;
 
-// Raise a video/gif tweet's score to the floor, noting why in the reason
 // Record which scoring spec produced an API score, with its sub-ratings
 function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   score.specVersion = SCORING_SPEC_VERSION;
@@ -33,6 +32,10 @@ function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   else delete score.dims;
 }
 
+// Text tweets per scoring call; chunks run in parallel
+const TWITTER_TEXT_BATCH = 10;
+
+// Raise a video/gif tweet's score to the floor, noting why in the reason
 function applyVideoFloor(score: EngagementScore): void {
   if (score.apiScore === undefined || score.scoreFailed || score.apiScore >= TWITTER_VIDEO_SCORE_FLOOR) return;
   score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
@@ -419,31 +422,42 @@ export async function scoreTweets(
 
   log.debug(` Scoring ${textTweets.length} text tweets, ${mediaTweets.length} media tweets via API`);
 
-  // Process text tweets (including quote tweet text)
+  // Process text tweets (including quote tweet text). Scored in batches, not one call
+  // each: alone, the model rates anything "intriguing" 6-7, even dense explainers.
   if (textTweets.length > 0) {
-    const textPromises = textTweets.map(async ({ tweet, score }) => {
+    const batchable: { tweet: Omit<Tweet, 'element'>; score: EngagementScore; post: PostForScoring }[] = [];
+    for (const { tweet, score } of textTweets) {
+      // Build content with quote tweet if present
+      let content = tweet.text;
+      if (tweet.isQuoteTweet && tweet.quotedTweet) {
+        content += `\n\n[Quote from @${tweet.quotedTweet.author}]: ${tweet.quotedTweet.text}`;
+      }
+
+      // A photo tweet whose image URL wasn't found has nothing to score as text;
+      // the model would call it empty (score 1, shown as 10). Leave it unscored.
+      if (!content.trim() && (tweet.mediaType === 'image' || tweet.mediaType === 'gallery')) {
+        log.debug(` Skipping photo tweet ${tweet.id} with no image URL and no text`);
+        continue;
+      }
+
+      batchable.push({ tweet, score, post: {
+        id: tweet.id,
+        title: content,
+        subreddit: `@${tweet.author}`,
+        score: tweet.likeCount,
+        numComments: tweet.numComments,
+        platform: 'twitter',
+      } });
+    }
+
+    const chunks: typeof batchable[] = [];
+    for (let i = 0; i < batchable.length; i += TWITTER_TEXT_BATCH) chunks.push(batchable.slice(i, i + TWITTER_TEXT_BATCH));
+    await Promise.all(chunks.map(async chunk => {
       try {
-        // Build content with quote tweet if present
-        let content = tweet.text;
-        if (tweet.isQuoteTweet && tweet.quotedTweet) {
-          content += `\n\n[Quote from @${tweet.quotedTweet.author}]: ${tweet.quotedTweet.text}`;
-        }
-
-        // A photo tweet whose image URL wasn't found has nothing to score as text;
-        // the model would call it empty (score 1, shown as 10). Leave it unscored.
-        if (!content.trim() && (tweet.mediaType === 'image' || tweet.mediaType === 'gallery')) {
-          log.debug(` Skipping photo tweet ${tweet.id} with no image URL and no text`);
-          return;
-        }
-
-        const apiResult = await scoreTextPost(
-          content,
-          `@${tweet.author}`,
-          tweet.likeCount,
-          tweet.numComments,
-          'twitter'
-        );
-        if (apiResult) {
+        const results = await scoreTextPostsBatch(chunk.map(c => c.post));
+        for (const { tweet, score } of chunk) {
+          const apiResult = results.get(tweet.id);
+          if (!apiResult) continue;
           const apiScore = apiResult.score * 10;
           stampSpec(score, apiResult);
           score.apiScore = apiScore;
@@ -454,10 +468,9 @@ export async function scoreTweets(
           if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') applyVideoFloor(score);
         }
       } catch (err) {
-        console.error('Tweet text API scoring failed:', err);
+        console.error('Tweet text batch scoring failed:', err);
       }
-    });
-    await Promise.all(textPromises);
+    }));
   }
 
   // Process media tweets (with image scoring)
