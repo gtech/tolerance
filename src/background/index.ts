@@ -37,7 +37,7 @@ import {
 import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
-import { rewriteResponse, recordClaudeHeartbeat } from './rewriter';
+import { rewriteResponse, recordClaudeHeartbeat, getClaudeFilterStatus } from './rewriter';
 import { getProductivityStats } from './rescuetime';
 import { checkGrounding, logGroundingEvent } from './grounding';
 import {
@@ -283,6 +283,14 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   if (message.type === 'CLAUDE_HEARTBEAT') {
     recordClaudeHeartbeat().then(() => {
       sendResponse({ type: 'HEARTBEAT_ACK' });
+    });
+    return true;
+  }
+
+  // Handle CLAUDE_FILTER_STATUS from claude.ai content script
+  if (message.type === 'CLAUDE_FILTER_STATUS') {
+    getClaudeFilterStatus().then(sendResponse).catch(() => {
+      sendResponse({ willRewrite: false, hideWhileStreaming: false });
     });
     return true;
   }

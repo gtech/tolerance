@@ -428,6 +428,11 @@ function populateSettings(settings: Settings): void {
     }
   }
 
+  const claudeHideStreaming = document.getElementById('claude-hide-streaming') as HTMLInputElement;
+  if (claudeHideStreaming) {
+    claudeHideStreaming.checked = settings.claudeFilterHideWhileStreaming ?? true;
+  }
+
   // Claude filter threshold sliders
   const claudeThresholds = settings.claudeFilterThresholds || {
     skipFilter: 30,
@@ -957,6 +962,8 @@ function setupEventListeners(): void {
     });
   }
 
+  document.getElementById('claude-hide-streaming')?.addEventListener('change', () => saveSettings());
+
   // Claude filter threshold sliders - live update display
   const claudeThresholdSliders = ['claude-skip', 'claude-gentle', 'claude-medium', 'claude-strong'];
   for (const id of claudeThresholdSliders) {
@@ -1071,6 +1078,7 @@ async function saveSettings(): Promise<void> {
   const platformInstagramInput = document.getElementById('platform-instagram') as HTMLInputElement;
   const productivityCardEnabledInput = document.getElementById('productivity-card-enabled') as HTMLInputElement;
   const claudeFilterEnabledInput = document.getElementById('claude-filter-enabled') as HTMLInputElement;
+  const claudeHideStreamingInput = document.getElementById('claude-hide-streaming') as HTMLInputElement;
   const claudeSkipInput = document.getElementById('claude-skip') as HTMLInputElement;
   const claudeGentleInput = document.getElementById('claude-gentle') as HTMLInputElement;
   const claudeMediumInput = document.getElementById('claude-medium') as HTMLInputElement;
@@ -1132,6 +1140,7 @@ async function saveSettings(): Promise<void> {
     },
     productivityCardEnabled: productivityCardEnabledInput?.checked ?? false,
     claudeFilterEnabled: claudeFilterEnabledInput?.checked ?? false,
+    claudeFilterHideWhileStreaming: claudeHideStreamingInput?.checked ?? true,
     claudeFilterThresholds: {
       skipFilter: parseInt(claudeSkipInput?.value || '30', 10),
       gentleReminder: parseInt(claudeGentleInput?.value || '30', 10),

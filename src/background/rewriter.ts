@@ -113,19 +113,20 @@ Rules:
 3. Remove unnecessary enthusiasm markers
 4. Keep ALL substantive content, code, explanations, and facts exactly as they are
 5. Keep the response helpful and clear, just more neutral in tone
-6. Do NOT add your own commentary or meta-text about the rewriting`;
+6. Do NOT add your own commentary or meta-text about the rewriting
+7. The input is Markdown. Keep its formatting (headings, lists, tables, code blocks) intact`;
 
   let timeRules = '';
 
   if (minutes > thresholds.gentleReminder && minutes <= thresholds.mediumReminder) {
     timeRules = `
-7. At the very end, add a brief, natural one-liner like: "This has been a good session. Remember to take a break when you need one."`;
+8. At the very end, add a brief, natural one-liner like: "This has been a good session. Remember to take a break when you need one."`;
   } else if (minutes > thresholds.mediumReminder && minutes <= thresholds.strongReminder) {
     timeRules = `
-7. At the very end, add a gentle suggestion like: "You've been at this for a while. Might be worth stepping away to let things settle before continuing."`;
+8. At the very end, add a gentle suggestion like: "You've been at this for a while. Might be worth stepping away to let things settle before continuing."`;
   } else if (minutes > thresholds.strongReminder) {
     timeRules = `
-7. At the very end, add a direct suggestion like: "You've been here over ${thresholds.strongReminder} minutes. Consider wrapping up this session and coming back fresh."`;
+8. At the very end, add a direct suggestion like: "You've been here over ${thresholds.strongReminder} minutes. Consider wrapping up this session and coming back fresh."`;
   }
 
   return baseRules + timeRules + `
@@ -138,6 +139,35 @@ function stripKnownSycophancy(text: string): string {
     .replace(/^\s*(Great|Excellent|Amazing|Wonderful|Fantastic|Really good)\s+(question|point|observation|thinking|idea)!?\s*/i, '')
     .replace(/^\s*(You're absolutely right|I completely agree|I love that idea)\.?\s*/i, '')
     .trim();
+}
+
+export interface ClaudeFilterStatus {
+  willRewrite: boolean;
+  hideWhileStreaming: boolean;
+  reason?: 'disabled' | 'below-threshold';
+  minutesUntilActive?: number;
+}
+
+/**
+ * Whether the next response will be rewritten, so the page knows whether to hide it while it streams
+ */
+export async function getClaudeFilterStatus(): Promise<ClaudeFilterStatus> {
+  const settings = await getSettings();
+  const hideWhileStreaming = settings.claudeFilterHideWhileStreaming ?? true;
+  if (!settings.claudeFilterEnabled) {
+    return { willRewrite: false, hideWhileStreaming, reason: 'disabled' };
+  }
+  const thresholds = settings.claudeFilterThresholds || DEFAULT_CLAUDE_FILTER_THRESHOLDS;
+  const session = await getClaudeSession();
+  if (session.totalMinutes < thresholds.skipFilter) {
+    return {
+      willRewrite: false,
+      hideWhileStreaming,
+      reason: 'below-threshold',
+      minutesUntilActive: Math.ceil(thresholds.skipFilter - session.totalMinutes),
+    };
+  }
+  return { willRewrite: true, hideWhileStreaming };
 }
 
 /**
@@ -200,7 +230,9 @@ export async function rewriteResponse(text: string): Promise<RewriteResult> {
           { role: 'user', content: text },
         ],
         temperature: 0.3, // Low temperature for consistent rewriting
-        max_tokens: Math.min(text.length * 2, 4000), // Allow for some expansion
+        // gpt-oss reasons before answering and those tokens count here, so leave room beyond the text itself
+        max_tokens: Math.min(Math.ceil(text.length / 2) + 2000, 12000),
+        reasoning: { effort: 'low' },
       }),
     });
 
@@ -212,6 +244,11 @@ export async function rewriteResponse(text: string): Promise<RewriteResult> {
 
     const data = await response.json();
     const rewritten = data.choices?.[0]?.message?.content;
+
+    if (data.choices?.[0]?.finish_reason === 'length') {
+      log.error('Rewrite truncated, keeping original');
+      return { rewritten: text, changed: false, skippedReason: 'truncated' };
+    }
 
     if (!rewritten) {
       log.error('No content in rewrite response');
