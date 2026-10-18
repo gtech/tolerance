@@ -55,6 +55,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'meta-llama/llama-4-scout': { input: 0.11, output: 0.34},
   'google/gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
   'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  'anthropic/claude-haiku-5.5': { input: 0.1, output: 0.5 },
 };
 
 // Default models for OpenRouter
@@ -65,10 +66,15 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
 // Flash Lite scored filler (throwaway one-liners, mundane updates) 2-3 whatever the
 // rubric said, and teaser openings of cut-off long posts 7-8; Flash gets 5-6 for
 // both. About 5x the cost, batches ~3.8s vs ~2s.
-const DEFAULT_TEXT_MODEL = 'google/gemini-2.5-flash';
+// Claude Haiku 5.5 with thinking off replaced Flash the same day: 52/53 in range,
+// 10-post batches ~3.6s, ~$0.06 per 1000 posts vs ~$0.24, no malformed replies.
+// With thinking on it takes ~8s a batch for no gain.
+const DEFAULT_TEXT_MODEL = 'anthropic/claude-haiku-5.5';
 // Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
-// the rest at 0-40% uptime); replaced by Gemini, now Flash like the text model
-const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash';
+// the rest at 0-40% uptime); replaced by Gemini, now the same model as text
+const DEFAULT_IMAGE_MODEL = 'anthropic/claude-haiku-5.5';
+// Models that think by default; scoring doesn't need it, so it's turned off
+const THINKING_OFF_MODELS = new Set(['anthropic/claude-haiku-5.5', 'openai/gpt-6-luna']);
 const DEFAULT_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
@@ -884,6 +890,9 @@ async function callApi(
           order: ['groq', 'cerebras'],
           allow_fallbacks: true,
         };
+      }
+      if (THINKING_OFF_MODELS.has(model)) {
+        requestBody.reasoning = { enabled: false };
       }
       // Only add JSON mode for OpenRouter non-vision requests
       if (!effectiveImageUrl) {

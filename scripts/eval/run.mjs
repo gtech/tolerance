@@ -3,7 +3,7 @@
 // with --legacy, the v1 "manipulation" prompt) and reports which scores land
 // outside their expected range.
 //
-// Usage: node scripts/eval/run.mjs [--legacy] [--single] [--single-media] [--model <id>] [--runs N] [--batch N] [--cases <file>]
+// Usage: node scripts/eval/run.mjs [--legacy] [--single] [--single-media] [--no-reasoning] [--model <id>] [--runs N] [--batch N] [--cases <file>]
 // Reads the OpenRouter key from OPENROUTER_API_KEY or test_key.env.
 
 import { build } from 'esbuild';
@@ -16,11 +16,12 @@ const root = join(here, '..', '..');
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
 const legacy = args.includes('--legacy');
-const model = opt('--model', 'google/gemini-2.5-flash'); // the extension's default
+const model = opt('--model', 'anthropic/claude-haiku-5.5'); // the extension's default (run with --no-reasoning)
 const runs = Number(opt('--runs', '1'));
 const batchSize = Number(opt('--batch', '10'));
 const single = args.includes('--single'); // one call per text post (Twitter did this before batching)
 const singleMedia = args.includes('--single-media'); // image posts scored alone, as before spec v6
+const noReasoning = args.includes('--no-reasoning'); // OpenRouter: turn off thinking (reasoning models)
 const cases = JSON.parse(readFileSync(opt('--cases', join(here, 'scoring-cases.json')), 'utf8'));
 
 const keyFile = join(root, 'test_key.env');
@@ -94,6 +95,7 @@ async function call(prompt, image) {
       max_tokens: image ? 800 : 4000,
       ...(image ? {} : { response_format: { type: 'json_object' } }),
       ...(model === 'openai/gpt-oss-120b' ? { provider: { order: ['groq', 'cerebras'], allow_fallbacks: true } } : {}),
+      ...(noReasoning ? { reasoning: { enabled: false } } : {}),
     }),
   });
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
@@ -102,7 +104,10 @@ async function call(prompt, image) {
   const block = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (block) content = block[1];
   let parsed;
-  try { parsed = JSON.parse(content); } catch { parsed = JSON.parse(content.match(/[[{][\s\S]*[\]}]/)[0]); }
+  try { parsed = JSON.parse(content); } catch {
+    try { parsed = JSON.parse(content.match(/[[{][\s\S]*[\]}]/)[0]); }
+    catch (e) { throw new Error(`${e.message}; reply (${data.choices?.[0]?.finish_reason}): ${JSON.stringify(content.slice(0, 300))}`); }
+  }
   const items = Array.isArray(parsed) ? parsed : parsed.results || parsed.data || [parsed];
   return { items, usage: data.usage };
 }
