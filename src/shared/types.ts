@@ -200,6 +200,8 @@ export interface EngagementScore {
   scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
   specVersion?: number;  // Scoring spec that produced apiScore (shared/scoring-spec.ts)
   dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
+  imageSeen?: boolean;   // Image/video posts: whether the image reached the model
+  preFloorScore?: number; // Video/gif tweets raised to the video floor: the score before it
   // Set when the post's anchor (quoted / replied-to post) scored higher than the post itself
   anchor?: {
     kind: 'quote' | 'reply';

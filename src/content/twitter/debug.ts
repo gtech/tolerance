@@ -6,7 +6,7 @@
 
 import { EngagementScore } from '../../shared/types';
 import { anchorCacheId } from '../../shared/anchor-utils';
-import { parseTweetElement } from './scraper';
+import { parseTweetElement, inQuotedTweet } from './scraper';
 
 export interface DebugState {
   processed: boolean;
@@ -28,8 +28,18 @@ function scoreSummary(s: EngagementScore | null | undefined): string {
   const parts = [`${s.apiScore} (${s.bucket})`, `"${short(s.apiReason, 80)}"`, `${age}m old`];
   if (s.scoreFailed) parts.push('FAILED');
   if (s.whitelisted) parts.push('trusted');
+  if (s.imageSeen !== undefined) parts.push(s.imageSeen ? 'image seen' : 'IMAGE NOT SEEN (text only)');
+  if (s.preFloorScore !== undefined) parts.push(`before video floor: ${s.preFloorScore}`);
   if (s.anchor) parts.push(`anchor=@${s.anchor.author} ${s.anchor.kind} ${s.anchor.score}, own=${s.anchor.ownScore}`);
   return parts.join(' | ');
+}
+
+// Each video/photo/link card in the tweet and whether it was counted as the main
+// tweet's or the quoted tweet's
+function describeMedia(article: HTMLElement): string {
+  const found = [...article.querySelectorAll('[data-testid="videoPlayer"], [data-testid="tweetPhoto"], [data-testid="card.wrapper"]')]
+    .map(el => `${el.getAttribute('data-testid')}:${inQuotedTweet(article, el) ? 'quoted' : 'main'}`);
+  return found.length ? found.join(' ') : 'none';
 }
 
 function describeCell(cell: Element | null): string {
@@ -101,6 +111,7 @@ export async function buildDebugReport(
     '',
     `tweet: ${tweet.id} @${tweet.author} "${short(tweet.text)}"`,
     `media: ${tweet.mediaType}  retweet: ${tweet.isRetweet}  quote: ${tweet.isQuoteTweet ? `@${tweet.quotedTweet?.author}` : 'no'}`,
+    `media found: ${describeMedia(article)}`,
     `"Replying to": ${tweet.isReply ? `yes (@${tweet.replyToAuthor ?? '?'})` : 'no'}`,
     `anchor now: ${tweet.anchor ? `${tweet.anchor.kind} @${tweet.anchor.author} id=${tweet.anchor.id ?? '-'} key=${anchorId}` : 'NONE'}`,
     `processed: ${st.processed}  anchor last sent: ${st.anchorSent ?? 'never'}`,

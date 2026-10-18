@@ -38,6 +38,7 @@ const TWITTER_TEXT_BATCH = 10;
 // Raise a video/gif tweet's score to the floor, noting why in the reason
 function applyVideoFloor(score: EngagementScore): void {
   if (score.apiScore === undefined || score.scoreFailed || score.apiScore >= TWITTER_VIDEO_SCORE_FLOOR) return;
+  score.preFloorScore = score.apiScore;
   score.apiScore = TWITTER_VIDEO_SCORE_FLOOR;
   score.bucket = scoreToBucket(TWITTER_VIDEO_SCORE_FLOOR, 'twitter');
   if (!score.apiReason?.endsWith(VIDEO_FLOOR_NOTE)) score.apiReason = `${score.apiReason ?? ''}${VIDEO_FLOOR_NOTE}`.trim();
@@ -530,6 +531,7 @@ export async function scoreTweets(
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
+          score.imageSeen = apiResult.imageSeen;
           score.bucket = scoreToBucket(apiScore, 'twitter');
           if (tweet.mediaType === 'video' || tweet.mediaType === 'gif') applyVideoFloor(score);
 

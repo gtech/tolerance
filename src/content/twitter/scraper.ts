@@ -52,7 +52,7 @@ export function parseTweetElement(element: HTMLElement): Tweet | null {
     const isVerified = userNameContainer?.querySelector('[data-testid="icon-verified"]') !== null;
 
     // Tweet text
-    const textElement = element.querySelector('[data-testid="tweetText"]');
+    const textElement = [...element.querySelectorAll('[data-testid="tweetText"]')].find(t => !inQuotedTweet(element, t));
     const text = textElement?.textContent?.trim() || '';
 
     // Timestamp
@@ -241,34 +241,7 @@ function parseCount(text: string): number {
 }
 
 function parseQuotedTweet(element: HTMLElement): { author: string; text: string; imageUrl?: string } | undefined {
-  // Method 1: Try data-testid="quoteTweet" (standard)
-  let quotedCard = element.querySelector('[data-testid="quoteTweet"]');
-
-  // Method 2: Look for "Quote" label followed by role="link" card
-  if (!quotedCard) {
-    // Find span with "Quote" text
-    const quoteLabels = element.querySelectorAll('span');
-    for (const span of quoteLabels) {
-      if (span.textContent?.trim() === 'Quote') {
-        // The quote card is usually the next sibling with role="link"
-        const parent = span.closest('div[class]');
-        if (parent) {
-          quotedCard = parent.parentElement?.querySelector('[role="link"]') || null;
-        }
-        break;
-      }
-    }
-  }
-
-  // Method 3: Look for nested tweetText (second occurrence is usually the quote)
-  if (!quotedCard) {
-    const tweetTexts = element.querySelectorAll('[data-testid="tweetText"]');
-    if (tweetTexts.length >= 2) {
-      // The second tweetText is in the quote - find its container
-      quotedCard = tweetTexts[1].closest('[role="link"]');
-    }
-  }
-
+  const quotedCard = findQuoteCard(element);
   if (!quotedCard) return undefined;
 
   // Try multiple methods to get author
@@ -298,30 +271,13 @@ function parseQuotedTweet(element: HTMLElement): { author: string; text: string;
   const quotedText = quotedCard.querySelector('[data-testid="tweetText"]')
     ?.textContent?.trim() || '';
 
-  // Check for image/video in quoted tweet - try multiple selectors
-  let quotedImageUrl: string | undefined;
-
-  // Try tweetPhoto first
-  const quotedImage = quotedCard.querySelector<HTMLImageElement>('[data-testid="tweetPhoto"] img');
-  if (quotedImage?.src) {
-    quotedImageUrl = quotedImage.src;
-  }
-
-  // Try video poster
-  if (!quotedImageUrl) {
-    const quotedVideo = quotedCard.querySelector<HTMLVideoElement>('video');
-    if (quotedVideo?.poster) {
-      quotedImageUrl = quotedVideo.poster;
-    }
-  }
-
-  // Try any img with twitter media URL
-  if (!quotedImageUrl) {
-    const anyImg = quotedCard.querySelector<HTMLImageElement>('img[src*="pbs.twimg.com/media"]');
-    if (anyImg?.src) {
-      quotedImageUrl = anyImg.src;
-    }
-  }
+  // Image/video in the quoted tweet: photo, then video poster, then any media img
+  const quoted = <T extends Element>(selector: string) =>
+    [...element.querySelectorAll<T>(selector)].filter(el => inQuotedTweet(element, el));
+  const quotedImageUrl = quoted<HTMLImageElement>('[data-testid="tweetPhoto"] img').find(img => img.src)?.src
+    || quoted<HTMLVideoElement>('video').find(v => v.poster)?.poster
+    || quoted<HTMLImageElement>('img[src*="pbs.twimg.com/media"]').find(img => img.src)?.src
+    || undefined;
 
   if (!quotedAuthor && !quotedText && !quotedImageUrl) return undefined;
 
@@ -330,13 +286,32 @@ function parseQuotedTweet(element: HTMLElement): { author: string; text: string;
   return { author: quotedAuthor, text: quotedText, imageUrl: quotedImageUrl };
 }
 
+// Whether a node belongs to the quoted tweet rather than the main one: the nearest
+// ancestor holding an author line holds only the quoted tweet's. Doesn't depend on
+// where Twitter puts the quote card's outer element.
+export function inQuotedTweet(element: HTMLElement, node: Element): boolean {
+  const mainName = element.querySelector('[data-testid="User-Name"]');
+  if (!mainName || mainName.contains(node)) return false;
+  for (let el = node.parentElement; el && el !== element; el = el.parentElement) {
+    if (el.querySelector('[data-testid="User-Name"]')) return !el.contains(mainName);
+  }
+  return false;
+}
+
 // Helper to find quote card using multiple methods
-function findQuoteCard(element: HTMLElement): Element | null {
-  // Method 1: data-testid="quoteTweet"
+export function findQuoteCard(element: HTMLElement): Element | null {
+  // Method 1: the link wrapping the second author line (the quoted tweet's)
+  const names = element.querySelectorAll('[data-testid="User-Name"]');
+  if (names.length >= 2) {
+    const card = names[1].closest('[role="link"]');
+    if (card && element.contains(card) && !card.contains(names[0])) return card;
+  }
+
+  // Method 2: data-testid="quoteTweet"
   let card = element.querySelector('[data-testid="quoteTweet"]');
   if (card) return card;
 
-  // Method 2: Look for "Quote" label
+  // Method 3: Look for "Quote" label
   const quoteLabels = element.querySelectorAll('span');
   for (const span of quoteLabels) {
     if (span.textContent?.trim() === 'Quote') {
@@ -348,7 +323,7 @@ function findQuoteCard(element: HTMLElement): Element | null {
     }
   }
 
-  // Method 3: Nested tweetText
+  // Method 4: Nested tweetText
   const tweetTexts = element.querySelectorAll('[data-testid="tweetText"]');
   if (tweetTexts.length >= 2) {
     return tweetTexts[1].closest('[role="link"]');
@@ -358,13 +333,10 @@ function findQuoteCard(element: HTMLElement): Element | null {
 }
 
 function detectMediaType(element: HTMLElement): Tweet['mediaType'] {
-  // Get the quote card to exclude its media from main tweet detection
-  const quoteCard = findQuoteCard(element);
-
   // Check for video (excluding quoted content)
   const videos = element.querySelectorAll('video, [data-testid="videoPlayer"]');
   for (const video of videos) {
-    if (!quoteCard?.contains(video)) {
+    if (!inQuotedTweet(element, video)) {
       return 'video';
     }
   }
@@ -372,7 +344,7 @@ function detectMediaType(element: HTMLElement): Tweet['mediaType'] {
   // Check for GIF (excluding quoted content)
   const gifs = element.querySelectorAll('[data-testid="tweetPhoto"] img[src*="tweet_video_thumb"]');
   for (const gif of gifs) {
-    if (!quoteCard?.contains(gif)) {
+    if (!inQuotedTweet(element, gif)) {
       return 'gif';
     }
   }
@@ -382,7 +354,7 @@ function detectMediaType(element: HTMLElement): Tweet['mediaType'] {
   let mainTweetImages = 0;
   let hasVideoThumbnail = false;
   for (const img of images) {
-    if (!quoteCard?.contains(img)) {
+    if (!inQuotedTweet(element, img)) {
       mainTweetImages++;
       // Check if this "photo" is actually a video thumbnail that hasn't loaded
       // the <video> element yet — Twitter uses *_video_thumb URLs for these
@@ -405,7 +377,7 @@ function detectMediaType(element: HTMLElement): Tweet['mediaType'] {
   // Check for link card (excluding quoted content)
   const cards = element.querySelectorAll('[data-testid="card.wrapper"]');
   for (const card of cards) {
-    if (!quoteCard?.contains(card)) {
+    if (!inQuotedTweet(element, card)) {
       return 'link';
     }
   }
@@ -420,13 +392,10 @@ function extractMediaUrls(element: HTMLElement): {
 } {
   const result: { thumbnailUrl?: string; imageUrl?: string; videoUrl?: string } = {};
 
-  // Get the quote card to exclude its media
-  const quoteCard = findQuoteCard(element);
-
   // Image URL from tweet photo (excluding quoted content)
   const photoImgs = element.querySelectorAll<HTMLImageElement>('[data-testid="tweetPhoto"] img');
   for (const photoImg of photoImgs) {
-    if (!quoteCard?.contains(photoImg) && photoImg.src) {
+    if (!inQuotedTweet(element, photoImg) && photoImg.src) {
       result.imageUrl = photoImg.src;
       result.thumbnailUrl = photoImg.src;
       break; // Take first main tweet image
@@ -437,7 +406,7 @@ function extractMediaUrls(element: HTMLElement): {
   // on a sibling div; use that rather than scoring the tweet as empty text
   if (!result.imageUrl) {
     for (const photo of element.querySelectorAll<HTMLElement>('[data-testid="tweetPhoto"]')) {
-      if (quoteCard?.contains(photo)) continue;
+      if (inQuotedTweet(element, photo)) continue;
       const url = backgroundImageUrl(photo);
       if (url) {
         result.imageUrl = url;
@@ -450,7 +419,7 @@ function extractMediaUrls(element: HTMLElement): {
   // Video poster/thumbnail (excluding quoted content)
   const videos = element.querySelectorAll<HTMLVideoElement>('video');
   for (const video of videos) {
-    if (!quoteCard?.contains(video)) {
+    if (!inQuotedTweet(element, video)) {
       result.videoUrl = video.src || video.querySelector('source')?.src;
       result.thumbnailUrl = video.poster || result.thumbnailUrl;
       break;

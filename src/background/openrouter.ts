@@ -16,6 +16,7 @@ export interface ScoreResponse {
   fullResponse?: unknown; // Full API response for debugging
   narrativeMatches?: string[]; // Theme IDs that matched (from LLM detection)
   dims?: ScoreDims; // Sub-ratings (hook, effort, pull, value) from the scoring spec
+  imageSeen?: boolean; // Image calls: whether the image reached the model (false = scored on text alone)
 }
 
 export interface ApiUsage {
@@ -782,6 +783,7 @@ async function callApi(
     return null;
   }
 
+  let imageSent = false;
   try {
     const messages: Array<{
       role: string;
@@ -837,6 +839,7 @@ async function callApi(
 
         // Multimodal message with image URL
         // Use detail: 'low' to reduce token cost from ~1500-2500 to ~85 tokens
+        imageSent = true;
         messages.push({
           role: 'user',
           content: [
@@ -1003,6 +1006,7 @@ async function callApi(
           fullResponse: data,
           narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
           dims: parseDims(parsed),
+          ...(imageUrl ? { imageSeen: imageSent } : {}),
         };
       }
       return noScoreResult(callType, model, content, cost, data);
@@ -1033,6 +1037,7 @@ async function callApi(
             fullResponse: data,
             narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
             dims: parseDims(parsed),
+            ...(imageUrl ? { imageSeen: imageSent } : {}),
           };
         }
         return noScoreResult(callType, model, content, cost, data);
@@ -1048,7 +1053,7 @@ async function callApi(
     const extracted = extractScoreFromText(content);
     if (extracted) {
       log.debug('API: Extracted score from fallback pattern:', extracted.score);
-      return { ...extracted, cost, fullResponse: data };
+      return { ...extracted, cost, fullResponse: data, ...(imageUrl ? { imageSeen: imageSent } : {}) };
     }
 
     console.error('API: Could not extract score from:', content);
