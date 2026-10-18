@@ -8,7 +8,10 @@
 
 // v3: same rubric, but small batches carry calibration posts and Twitter text is
 // batched; v2 Twitter text scores (one call each) drifted to 6-7.
-export const SCORING_SPEC_VERSION = 3;
+// v4: filler is scroll fuel. "No hook at all" no longer lands in 1-3: a throwaway
+// reply, in-joke or mundane update costs a glance, leaves nothing and keeps you
+// scrolling. Only posts that ask for real attention and repay it score low.
+export const SCORING_SPEC_VERSION = 4;
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -21,7 +24,7 @@ export interface ScoreDims {
   value: number;   // What's left after the hit
 }
 
-export const RUBRIC = `Measure CHEAP PAYOFF: how hard the post grabs attention for how little reading or thinking it asks, and how little it leaves behind. Feeds are built from quick hits: a laugh, a jolt of outrage, a cute animal, a hot take, a "so true". That is what you are measuring, whether or not the post is honest, kind or clever.
+export const RUBRIC = `Measure CHEAP PAYOFF: how hard the post grabs attention for how little reading or thinking it asks, and how little it leaves behind. Feeds are built from quick hits: a laugh, a jolt of outrage, a cute animal, a hot take, a "so true". That is what you are measuring, whether or not the post is honest, kind or clever. The point is to catch what keeps people scrolling.
 
 Rate each from 1 to 10:
 - hook: strength of the immediate jolt (humour, outrage, cuteness, lust, envy, fear, awe, novelty, drama about people, "my side is right")
@@ -30,18 +33,21 @@ Rate each from 1 to 10:
 - value: what remains after the hit. Would a thoughtful person be glad tomorrow that they read it? (useful information, real insight, craft worth slowing down for)
 
 score (1-10), overall cheap payoff. A strong hook for little effort is the core signal; pull raises it; only lasting value lowers it.
-- 1-3: asks for real attention and repays it (dense explainers, careful arguments, plain useful information), or has no hook at all
+- 1-3: asks for real attention and repays it (dense explainers, careful arguments, plain useful information)
 - 4-6: a mild hook with real substance, or a weak quick hit
 - 7-8: a quick hit: a good joke, a cute animal, a relatable meme, a hot take, a striking image, celebrity or creator drama
 - 9-10: built to grab: outrage bait, curiosity gaps ("you won't believe"), engagement farming, tribal pile-ons, shock
 
 Cleverness, humour and wholesomeness do NOT lower the score: a brilliant one-line joke is still a quick hit.
+Filler is scroll fuel: a throwaway reply, an in-joke you don't get, "lol", a vague one-liner, a mundane personal update. It costs a glance and leaves nothing, so it keeps the scroll going: 6-7 even with a weak hook. A weak hook never lowers the score; only lasting value does.
 Judge as a regular reader of this feed who follows its topics: in-jokes, jargon and memes from their world land instantly (low effort). Double meanings and innuendo are jokes.
 
 Reference points:
 - A thread explaining step by step how database indexes work, with diagrams → 2
 - A 2,000-word personal essay on grief → 3
 - A news headline stating a policy change plainly → 4
+- A reply to a friend: "lmao same, see you there" → 6
+- "Repainted the spare room this weekend, going with sage green" → 6
 - A photo of a puppy asleep in a teacup → 7
 - A relatable "me at 3am" meme → 7
 - "BREAKING: what this senator just said should END his career 🧵👇" → 9`;

@@ -82,10 +82,10 @@
   "source": "@friend",
   "text": "Finished the first draft of the paper on soil microbiomes. Going to let it sit for a week before editing.",
   "expect": [
-   1,
-   4
+   5,
+   7
   ],
-  "note": "low-hook personal update"
+  "note": "mundane personal update: scroll fuel"
  },
  {
   "id": "tw-pun",
@@ -163,6 +163,39 @@
    9
   ],
   "note": "reaction bait, no content"
+ },
+ {
+  "id": "tw-injoke",
+  "platform": "twitter",
+  "source": "@exgenesis",
+  "text": "@briuhn4 hey brian green Sahara tonite?",
+  "expect": [
+   5,
+   8
+  ],
+  "note": "opaque in-joke reply: scroll fuel"
+ },
+ {
+  "id": "tw-lol",
+  "platform": "twitter",
+  "source": "@quietdev",
+  "text": "lmaooo",
+  "expect": [
+   5,
+   8
+  ],
+  "note": "throwaway reply: scroll fuel"
+ },
+ {
+  "id": "tw-vague",
+  "platform": "twitter",
+  "source": "@mira_k",
+  "text": "its giving tuesday energy",
+  "expect": [
+   5,
+   8
+  ],
+  "note": "vague one-liner: scroll fuel"
  },
  {
   "id": "rd-cute",
