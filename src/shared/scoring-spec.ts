@@ -11,7 +11,9 @@
 // v4: filler is scroll fuel. "No hook at all" no longer lands in 1-3: a throwaway
 // reply, in-joke or mundane update costs a glance, leaves nothing and keeps you
 // scrolling. Only posts that ask for real attention and repay it score low.
-export const SCORING_SPEC_VERSION = 4;
+// v5: YouTube titles come with the video's length and are batched 10 at a time;
+// whole-page batches flattened lectures and clips alike to 4-6.
+export const SCORING_SPEC_VERSION = 5;
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -40,6 +42,7 @@ score (1-10), overall cheap payoff. A strong hook for little effort is the core 
 
 Cleverness, humour and wholesomeness do NOT lower the score: a brilliant one-line joke is still a quick hit.
 Filler is scroll fuel: a throwaway reply, an in-joke you don't get, "lol", a vague one-liner, a mundane personal update. It costs a glance and leaves nothing, so it keeps the scroll going: 6-7 even with a weak hook. A weak hook never lowers the score; only lasting value does.
+When a video's length is given, it is part of the effort: an hour-long lecture, talk or course session asks sustained attention (1-3 even on a hot topic); a two-minute clip asks almost none.
 Judge as a regular reader of this feed who follows its topics: in-jokes, jargon and memes from their world land instantly (low effort). Double meanings and innuendo are jokes.
 
 Reference points:
@@ -70,6 +73,7 @@ export interface ScoringPost {
   bodyText?: string;        // Reddit self-text / extra post text
   media?: ScoreMedia;
   imageDescriptions?: string;
+  length?: string;          // Video length ("1:12:05"), "Short" or "live stream"
 }
 
 export interface ScoringTheme {
@@ -105,6 +109,7 @@ function describePost(post: ScoringPost): string {
   lines.push(text ? `${l.content}: "${text}"` : `(No ${l.content.toLowerCase()})`);
   if (post.bodyText?.trim()) lines.push(`Post text: "${post.bodyText.trim()}"`);
   lines.push(l.source(post.source));
+  if (post.length) lines.push(`Length: ${post.length}`);
   if (l.likes && post.likes !== undefined) {
     const likes = post.likes === null ? '(not yet visible)' : String(post.likes);
     lines.push(`${l.likes}: ${likes}${post.comments !== undefined ? `, Comments: ${post.comments}` : ''}`);

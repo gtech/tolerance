@@ -150,6 +150,7 @@ export interface PostForScoring {
   score: number | null;
   numComments: number;
   platform?: ScorePlatform;
+  length?: string; // Video length, for YouTube
 }
 
 // Batch score result
@@ -206,6 +207,7 @@ function toScoringPost(p: PostForScoring): ScoringPost {
     source: sourceFor(platform, p.subreddit),
     likes: platform === 'youtube' ? undefined : p.score,
     comments: platform === 'youtube' ? undefined : p.numComments,
+    length: p.length,
   };
 }
 

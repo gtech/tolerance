@@ -60,6 +60,7 @@ function toPost(c) {
   return {
     id: c.id, platform: c.platform, text: c.text, source: c.source, media: c.image ? 'image' : 'text',
     likes: c.platform === 'youtube' ? undefined : null, comments: c.platform === 'youtube' ? undefined : 0,
+    length: c.length,
   };
 }
 

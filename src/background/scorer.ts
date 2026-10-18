@@ -32,8 +32,9 @@ function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   else delete score.dims;
 }
 
-// Text tweets per scoring call; chunks run in parallel
-const TWITTER_TEXT_BATCH = 10;
+// Posts per text scoring call (Twitter text, YouTube titles); chunks run in
+// parallel. A whole page in one call (20-30 YouTube cards) flattens scores to 4-6.
+const TEXT_BATCH_SIZE = 10;
 
 // Raise a video/gif tweet's score to the floor, noting why in the reason
 function applyVideoFloor(score: EngagementScore): void {
@@ -452,7 +453,7 @@ export async function scoreTweets(
     }
 
     const chunks: typeof batchable[] = [];
-    for (let i = 0; i < batchable.length; i += TWITTER_TEXT_BATCH) chunks.push(batchable.slice(i, i + TWITTER_TEXT_BATCH));
+    for (let i = 0; i < batchable.length; i += TEXT_BATCH_SIZE) chunks.push(batchable.slice(i, i + TEXT_BATCH_SIZE));
     await Promise.all(chunks.map(async chunk => {
       try {
         const results = await scoreTextPostsBatch(chunk.map(c => c.post));
@@ -881,6 +882,14 @@ async function getActiveThemes(): Promise<NarrativeTheme[]> {
 }
 
 // Score YouTube videos - similar to tweets but adapted for video titles
+// A YouTube card's length, the strongest effort signal it has. The duration badge
+// selector can also catch other badges, so only clock-style text counts.
+function videoLength(video: Omit<YouTubeVideo, 'element'>): string | undefined {
+  if (video.isShort) return 'Short';
+  if (video.isLive) return 'live stream';
+  return video.duration && /^\d+(:\d{2})+$/.test(video.duration) ? video.duration : undefined;
+}
+
 export async function scoreVideos(
   videos: Omit<YouTubeVideo, 'element'>[]
 ): Promise<EngagementScore[]> {
@@ -930,27 +939,28 @@ export async function scoreVideos(
     }
   }
 
-  // Process API scoring for videos (BATCHED - single API call for all videos)
+  // Process API scoring for videos, in batches of TEXT_BATCH_SIZE
   if (videosForApi.length > 0) {
     log.debug(` Scoring ${videosForApi.length} videos via batched API`);
 
-    // Build batch request
-    const postsForBatch: PostForScoring[] = videosForApi.map(({ video }) => ({
-      id: video.id,
-      title: video.title,
-      subreddit: video.channel || '@unknown', // Channel name in subreddit field
-      score: null, // No score/likes visible before clicking
-      numComments: 0, // No comments visible
-      platform: 'youtube' as const,
-    }));
+    const chunks: typeof videosForApi[] = [];
+    for (let i = 0; i < videosForApi.length; i += TEXT_BATCH_SIZE) chunks.push(videosForApi.slice(i, i + TEXT_BATCH_SIZE));
+    await Promise.all(chunks.map(async chunk => {
+      const postsForBatch: PostForScoring[] = chunk.map(({ video }) => ({
+        id: video.id,
+        title: video.title,
+        subreddit: video.channel || '@unknown', // Channel name in subreddit field
+        score: null, // No score/likes visible before clicking
+        numComments: 0, // No comments visible
+        platform: 'youtube' as const,
+        length: videoLength(video),
+      }));
 
-    try {
-      const batchResults = await scoreTextPostsBatch(postsForBatch);
-
-      // Apply results to scores
-      for (const { video, score } of videosForApi) {
-        const result = batchResults.get(video.id);
-        if (result) {
+      try {
+        const batchResults = await scoreTextPostsBatch(postsForBatch);
+        for (const { video, score } of chunk) {
+          const result = batchResults.get(video.id);
+          if (!result) continue;
           const apiScore = result.score * 10;
           stampSpec(score, result);
           score.apiScore = apiScore;
@@ -959,10 +969,10 @@ export async function scoreVideos(
           score.bucket = scoreToBucket(apiScore, 'youtube');
           recordNarrativeMatch(score, result.narrativeMatches);
         }
+      } catch (err) {
+        console.error('Video batch API scoring failed:', err);
       }
-    } catch (err) {
-      console.error('Video batch API scoring failed:', err);
-    }
+    }));
   }
   const t3 = performance.now();
 
