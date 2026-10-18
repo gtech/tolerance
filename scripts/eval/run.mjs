@@ -16,7 +16,7 @@ const root = join(here, '..', '..');
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
 const legacy = args.includes('--legacy');
-const model = opt('--model', 'openai/gpt-oss-120b');
+const model = opt('--model', 'google/gemini-2.5-flash'); // the extension's default
 const runs = Number(opt('--runs', '1'));
 const batchSize = Number(opt('--batch', '10'));
 const single = args.includes('--single'); // one call per text post (Twitter did this before batching)

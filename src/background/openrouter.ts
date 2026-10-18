@@ -54,16 +54,21 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'z-ai/glm-4.6v': { input: 0.3, output: 0.9 },
   'meta-llama/llama-4-scout': { input: 0.11, output: 0.34},
   'google/gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
+  'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
 };
 
 // Default models for OpenRouter
 // Gemini 2.5 Flash Lite replaced gpt-oss-120b (Oct 2026): on the scoring eval
 // (scripts/eval) it scored 40/40 in range vs 32-36, got jokes gpt-oss missed, and
-// answered a 10-post batch in ~2s vs ~4s at about the same cost
-const DEFAULT_TEXT_MODEL = 'google/gemini-2.5-flash-lite';
+// answered a 10-post batch in ~2s vs ~4s at about the same cost.
+// Gemini 2.5 Flash replaced Flash Lite (Oct 2026, spec v6): 50/52 in range vs 47/52.
+// Flash Lite scored filler (throwaway one-liners, mundane updates) 2-3 whatever the
+// rubric said, and teaser openings of cut-off long posts 7-8; Flash gets 5-6 for
+// both. About 5x the cost, batches ~3.8s vs ~2s.
+const DEFAULT_TEXT_MODEL = 'google/gemini-2.5-flash';
 // Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
-// the rest at 0-40% uptime); Gemini 2.5 Flash Lite is similar in price and reliable
-const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash-lite';
+// the rest at 0-40% uptime); replaced by Gemini, now Flash like the text model
+const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash';
 const DEFAULT_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
