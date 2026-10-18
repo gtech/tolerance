@@ -7,7 +7,7 @@ import { getSettings, getNarrativeThemes } from './storage';
 import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
-import { buildBatchPrompt, buildSinglePrompt, isCalibrationId, parseDims, readScore, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
+import { buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -667,7 +667,7 @@ export async function scoreImagePost(
     log.debug(` Image descriptions: ${imageDescriptions.slice(0, 200)}...`);
 
     // Now score with text model using descriptions
-    const prompt = buildSinglePrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes);
+    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false);
 
     return callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes);
   }
@@ -676,7 +676,7 @@ export async function scoreImagePost(
   const config = await getProviderConfig();
   log.debug(` scoreImagePost single image - config.type=${config.type}, config.imageModel=${config.imageModel}, imageUrl=${imageUrl}`);
 
-  const prompt = buildSinglePrompt(post, activeThemes);
+  const prompt = buildMediaPrompt(post, activeThemes);
 
   return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim());
 }
@@ -720,10 +720,10 @@ export async function scoreVideoPost(
 
   log.debug(` scoreVideoPost - platform=${platformName}, text="${title.slice(0, 50)}...", thumbnail=${imageUrl}`);
 
-  const prompt = buildSinglePrompt({
+  const prompt = buildMediaPrompt({
     platform: plat, text: title, source: sourceFor(plat, source),
     likes: score, comments: numComments, media: 'video',
-  }, activeThemes);
+  }, activeThemes, !!imageUrl);
 
   return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim());
 }
@@ -865,7 +865,8 @@ async function callApi(
       model,
       messages,
       // A 40-video YouTube batch takes ~3,300 tokens with sub-ratings
-      max_tokens: isImageCall ? 300 : 8000, // 40 truncated the JSON mid-reason; sub-ratings need more
+      // Image calls carry the calibration posts, so the reply has ~3 items
+      max_tokens: isImageCall ? 800 : 8000, // 40 truncated the JSON mid-reason; sub-ratings need more
       stream: false,
     };
 
@@ -994,7 +995,7 @@ async function callApi(
 
     // Try to parse JSON from response
     try {
-      const parsed = JSON.parse(content);
+      const parsed = pickPostResult(JSON.parse(content)) as Record<string, unknown>;
       const parsedScore = readScore(parsed);
       if (parsedScore !== undefined) {
         // Convert narrative indices to theme IDs if themes provided
@@ -1025,7 +1026,7 @@ async function callApi(
     for (const candidate of candidates) {
       if (!candidate) continue;
       try {
-        const parsed = JSON.parse(candidate);
+        const parsed = pickPostResult(JSON.parse(candidate)) as Record<string, unknown>;
         const parsedScore = readScore(parsed);
         if (parsedScore !== undefined) {
           // Convert narrative indices to theme IDs if themes provided

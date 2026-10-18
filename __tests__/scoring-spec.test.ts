@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBatchPrompt, buildSinglePrompt, parseDims, readScore, scoreFromDims } from '../src/shared/scoring-spec';
+import { buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, MEDIA_POST_ID, parseDims, pickPostResult, readScore, scoreFromDims } from '../src/shared/scoring-spec';
 
 describe('scoring spec prompts', () => {
   it('labels each platform correctly', () => {
@@ -70,5 +70,31 @@ describe('readScore', () => {
     expect(readScore({ score: 'seven' })).toBeUndefined();
     expect(readScore({ score: '' })).toBeUndefined();
     expect(readScore(null)).toBeUndefined();
+  });
+});
+
+describe('media posts', () => {
+  const post = { platform: 'twitter' as const, text: 'look at this chart', source: '@a', media: 'image' as const };
+
+  it('scores a media post alongside the calibration posts, with the image marked as its own', () => {
+    const prompt = buildMediaPrompt(post);
+    expect(prompt).toContain(`ID: ${MEDIA_POST_ID}`);
+    expect(prompt).toContain('ID: calibration-');
+    expect(prompt).toContain(`attached image belongs only to post ID ${MEDIA_POST_ID}`);
+    expect(buildMediaPrompt(post, [], false)).not.toContain('attached image');
+  });
+
+  it("picks the scored post's item, skipping calibration items", () => {
+    const reply = { results: [
+      { id: 'calibration-1', score: 2 },
+      { id: MEDIA_POST_ID, score: 4, reason: 'chart' },
+      { id: 'calibration-2', score: 9 },
+    ] };
+    expect(pickPostResult(reply)).toEqual({ id: MEDIA_POST_ID, score: 4, reason: 'chart' });
+    expect(pickPostResult([{ id: 'calibration-1', score: 2 }, { score: 5 }])).toEqual({ score: 5 });
+  });
+
+  it('passes single-object replies through', () => {
+    expect(pickPostResult({ score: 6, reason: 'x' })).toEqual({ score: 6, reason: 'x' });
   });
 });

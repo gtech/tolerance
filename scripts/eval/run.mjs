@@ -3,7 +3,7 @@
 // with --legacy, the v1 "manipulation" prompt) and reports which scores land
 // outside their expected range.
 //
-// Usage: node scripts/eval/run.mjs [--legacy] [--single] [--model <id>] [--runs N] [--batch N] [--cases <file>]
+// Usage: node scripts/eval/run.mjs [--legacy] [--single] [--single-media] [--model <id>] [--runs N] [--batch N] [--cases <file>]
 // Reads the OpenRouter key from OPENROUTER_API_KEY or test_key.env.
 
 import { build } from 'esbuild';
@@ -20,6 +20,7 @@ const model = opt('--model', 'openai/gpt-oss-120b');
 const runs = Number(opt('--runs', '1'));
 const batchSize = Number(opt('--batch', '10'));
 const single = args.includes('--single'); // one call per text post (Twitter did this before batching)
+const singleMedia = args.includes('--single-media'); // image posts scored alone, as before spec v6
 const cases = JSON.parse(readFileSync(opt('--cases', join(here, 'scoring-cases.json')), 'utf8'));
 
 const keyFile = join(root, 'test_key.env');
@@ -64,12 +65,20 @@ function toPost(c) {
   };
 }
 
-// Images go as base64, as in the extension (content script fetches and resizes)
+// Images go as base64, as in the extension (content script fetches and resizes).
+// Fetched once per run of the script, retrying Wikimedia's 429s with backoff.
+const images = new Map();
 async function dataUrl(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'ToleranceEval/1.0' } });
-  if (!res.ok) throw new Error(`image ${res.status}: ${url}`);
-  const type = res.headers.get('content-type') || 'image/jpeg';
-  return `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
+  if (images.has(url)) return images.get(url);
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers: { 'User-Agent': 'ToleranceEval/1.0' } });
+    if (res.status === 429 && attempt < 4) { await new Promise(r => setTimeout(r, 2000 * 2 ** attempt)); continue; }
+    if (!res.ok) throw new Error(`image ${res.status}: ${url}`);
+    const type = res.headers.get('content-type') || 'image/jpeg';
+    const data = `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
+    images.set(url, data);
+    return data;
+  }
 }
 
 async function call(prompt, image) {
@@ -82,7 +91,7 @@ async function call(prompt, image) {
       messages: [{ role: 'user', content: image
         ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: image, detail: 'low' } }]
         : prompt }],
-      max_tokens: image ? 300 : 4000,
+      max_tokens: image ? 800 : 4000,
       ...(image ? {} : { response_format: { type: 'json_object' } }),
       ...(model === 'openai/gpt-oss-120b' ? { provider: { order: ['groq', 'cerebras'], allow_fallbacks: true } } : {}),
     }),
@@ -115,14 +124,16 @@ function record(id, it) {
   if (d) { dims.set(id, d); computed.get(id).push(spec.scoreFromDims(d)); }
 }
 for (let r = 0; r < runs; r++) {
-  // Image posts: one call each, single-post prompt, as scoreImagePost does
+  // Image posts: one call each with the calibration posts, as scoreImagePost does
   for (const c of imageCases) {
     try {
       const t0 = Date.now();
-      const { items, usage } = await call(spec.buildSinglePrompt(toPost(c)), await dataUrl(c.image));
+      const prompt = singleMedia ? spec.buildSinglePrompt(toPost(c)) : spec.buildMediaPrompt(toPost(c));
+      const { items, usage } = await call(prompt, await dataUrl(c.image));
       imageLatencies.push(Date.now() - t0);
       tokens += (usage?.prompt_tokens || 0) + (usage?.completion_tokens || 0);
-      if (items[0]) record(c.id, items[0]);
+      const item = singleMedia ? items[0] : spec.pickPostResult(items);
+      if (item) record(c.id, item);
     } catch (e) {
       console.error(`${c.id} failed: ${e.message}`);
     }

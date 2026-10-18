@@ -13,7 +13,8 @@
 // scrolling. Only posts that ask for real attention and repay it score low.
 // v5: YouTube titles come with the video's length and are batched 10 at a time;
 // whole-page batches flattened lectures and clips alike to 4-6.
-export const SCORING_SPEC_VERSION = 5;
+// v6: image and video posts are scored with the calibration posts too, not alone.
+export const SCORING_SPEC_VERSION = 6;
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -57,7 +58,7 @@ Reference points:
 
 const MEDIA_NOTES: Record<ScoreMedia, string> = {
   text: '',
-  image: 'The image is part of the payoff: a striking, cute, funny, sexy or provocative image is a quick hit even with no text.',
+  image: 'The image is part of the payoff: a striking, cute, funny, sexy or provocative image is a quick hit even with no text. A chart, diagram, map or screenshot of text is content to read, not a hook: judge the effort and value it carries.',
   gallery: 'The image descriptions are part of the payoff: striking, cute, funny or provocative images are quick hits.',
   video: 'You see only a thumbnail or title. Judge what the video promises: a thumbnail or title built to stop the scroll (shocked faces, arrows, cuteness, drama) is a strong hook. A long tutorial or lecture asks for effort.',
   reel: 'Short-form video: quick cuts, "wait for it", trending audio, loops and reactions are hooks. A reel that patiently teaches something asks for more effort.',
@@ -147,11 +148,12 @@ ${RUBRIC}${mediaNotes([post])}${themeSection(themes, false)}
 Respond with ONLY valid JSON: {${fields(themes)}}`;
 }
 
-export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = []): string {
+export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
+  const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image.` : '';
   return `Rate each of these social media posts.
 
-${list}
+${list}${imageNote}
 
 ${RUBRIC}${mediaNotes(posts)}${themeSection(themes, true)}
 
@@ -171,6 +173,21 @@ const CALIBRATION_TEXTS = [
 
 export function isCalibrationId(id: string | undefined): boolean {
   return !!id && id.startsWith(CALIBRATION_PREFIX);
+}
+
+// One image/video post, scored alongside the calibration posts: alone, the model
+// rates anything intriguing 6-7. With attached=true the image is marked as its own.
+export const MEDIA_POST_ID = 'post-1';
+export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true): string {
+  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined);
+}
+
+// The scored post's item from a batch-shaped reply, skipping calibration items.
+// Anything else (a single-object reply) passes through unchanged.
+export function pickPostResult(parsed: unknown): unknown {
+  const items = Array.isArray(parsed) ? parsed : (parsed as { results?: unknown } | null)?.results;
+  if (!Array.isArray(items)) return parsed;
+  return items.find(it => it && typeof it === 'object' && !isCalibrationId(String((it as { id?: unknown }).id ?? '').trim())) ?? parsed;
 }
 
 export function withCalibration(posts: ScoringPost[]): ScoringPost[] {

@@ -198,6 +198,28 @@
   "note": "vague one-liner: scroll fuel"
  },
  {
+  "id": "tw-p256",
+  "platform": "twitter",
+  "source": "@lxjhk",
+  "text": "so to explain a little bit more for everyone: bitcoin and ethereum avoided the traditional P-256 curve developed by NIST, because it was suspected that the NSA handpicked some kind of secret value when generating it, so they could build a hidden weakness into the curve and therefore, they could decrypt any communication that used this curve for ECDSA. \n\nso bitcoin went and chose a different curve instead — the K1 curve (secp256k1), whose parameters looked transparently chosen, no mysterious NSA numbers attached.\n\nbut anthropic just found and proved that the old curve's seeds were actually generated at random. turns out it was just a 1990s random number generator seeded with the computer's clock — P-256's seed is literally the 1,842nd batch of random bytes after 1997-08-16 01:52:34. that proves the curve was secure all along, and there was never a backdoor.\n\nand this actually matters, because while bitcoin and ethereum use the K1 curve, most other applications are still on P-256: passkeys, a huge share of HTTPS connections, SSH keys, sign in with apple and etc.\n\nbillions of signatures every day, on a curve that's now proven clean!",
+  "expect": [
+   2,
+   5
+  ],
+  "note": "explainer thread with real substance"
+ },
+ {
+  "id": "tw-bb",
+  "platform": "twitter",
+  "source": "@chiefofautism",
+  "text": "i am using opus 5.5 with astra in bb (https://getbb.app)",
+  "expect": [
+   5,
+   8
+  ],
+  "note": "bite-sized one-liner (joke or plug): scroll fuel"
+ },
+ {
   "id": "rd-cute",
   "platform": "reddit",
   "source": "aww",
@@ -555,5 +577,17 @@
    4
   ],
   "note": "technical diagram"
+ },
+ {
+  "id": "img-co2",
+  "platform": "twitter",
+  "source": "@climate_notes",
+  "text": "Atmospheric CO2 has risen every year since Keeling started measuring at Mauna Loa in 1958. The yearly wiggle is the northern hemisphere's plants breathing in each summer and out each winter.",
+  "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Mauna_Loa_CO2_monthly_mean_concentration.svg/500px-Mauna_Loa_CO2_monthly_mean_concentration.svg.png",
+  "expect": [
+   1,
+   4
+  ],
+  "note": "explanatory chart tweet"
  }
 ]
