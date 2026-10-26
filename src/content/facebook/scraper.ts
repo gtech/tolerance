@@ -12,6 +12,16 @@ import { log } from '../../shared/constants';
 // post, not just ads). role="article" is now only used for loading placeholders, but
 // is kept as a fallback for older layouts (groups, some regions).
 export const POST_ROOT_SELECTOR = '[aria-posinset]';
+
+// The feed lives in [role="main"]. Chat windows, the Messenger popover and the
+// contacts sidebar sit outside it (or in dialogs over it) and can hold articles,
+// list items and profile names too, so anything outside is never a post: private
+// messages must not be scored, i.e. sent to the scoring model.
+const OUTSIDE_FEED = '[role="dialog"], [role="complementary"], [role="banner"], [role="navigation"]';
+export function isInFeed(el: Element): boolean {
+  return !!el.closest('[role="main"]') && !el.closest(OUTSIDE_FEED);
+}
+
 const AUTHOR_ROLE = '[data-ad-rendering-role="profile_name"]';
 const ACTION_ROLE = '[data-ad-rendering-role$="_button"]';
 
@@ -43,8 +53,9 @@ export function findPostElements(root: ParentNode = document): HTMLElement[] {
     found.add(el);
   }
 
-  // Drop any element nested inside another found one
-  return [...found].filter(el => ![...found].some(other => other !== el && other.contains(el)));
+  // Drop anything outside the feed, and any element nested inside another found one
+  const inFeed = [...found].filter(isInFeed);
+  return inFeed.filter(el => !inFeed.some(other => other !== el && other.contains(el)));
 }
 
 export function scrapeVisiblePosts(): FacebookPost[] {

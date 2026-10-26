@@ -1,6 +1,6 @@
 import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel } from '../../shared/constants';
-import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR } from './scraper';
+import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
@@ -420,7 +420,7 @@ async function processPosts(): Promise<void> {
     // virtualized offscreen) stay gated until they have content.
     const scraped = new Set(posts.map(p => p.element));
     for (const item of document.querySelectorAll<HTMLElement>(POST_ROOT_SELECTOR)) {
-      if (scraped.has(item) || item.hasAttribute(FB_POST_ID_ATTR) || item.hasAttribute(FB_DONE_ATTR)) continue;
+      if (!isInFeed(item) || scraped.has(item) || item.hasAttribute(FB_POST_ID_ATTR) || item.hasAttribute(FB_DONE_ATTR)) continue;
       if ((item.textContent?.trim().length ?? 0) > 0) item.setAttribute(FB_DONE_ATTR, '');
     }
 

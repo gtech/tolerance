@@ -3,8 +3,9 @@ export const FB_POST_ID_ATTR = 'data-tolerance-pid';  // post root handled for t
 export const FB_DONE_ATTR = 'data-tolerance-done';    // post root isn't scorable (suggestions, reels tray...)
 
 // Blur every feed item not yet handled. `scope` is the html class that switches it on.
+// Only items in the feed ([role="main"]): list items in chat windows are never scored.
 export function fbGateCss(scope: string): string {
-  return `html.${scope} [aria-posinset]:not([${FB_POST_ID_ATTR}]):not([${FB_DONE_ATTR}]):not(.tolerance-pending):not(.tolerance-blurred) > * {
+  return `html.${scope} [role="main"] [aria-posinset]:not([${FB_POST_ID_ATTR}]):not([${FB_DONE_ATTR}]):not(.tolerance-pending):not(.tolerance-blurred) > * {
     filter: blur(20px) !important;
     pointer-events: none !important;
   }`;
