@@ -199,6 +199,7 @@ export interface EngagementScore {
   whitelisted?: boolean; // Pre-filter: source is in user's trusted whitelist
   scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
   specVersion?: number;  // Scoring spec that produced apiScore (shared/scoring-spec.ts)
+  rubricHash?: string;   // Set when an edited rubric produced apiScore (unset = default rubric)
   dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
   imageSeen?: boolean;   // Image/video posts: whether the image reached the model
   preFloorScore?: number; // Video/gif tweets raised to the video floor: the score before it
@@ -440,6 +441,8 @@ export interface Settings {
   openRouterApiKey?: string;
   apiProvider?: ApiProviderConfig;  // Custom API endpoint configuration
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
+  // User-edited scoring rubric, replacing RUBRIC in shared/scoring-spec.ts (unset = default)
+  scoringRubric?: string;
   // Quality Mode - blur everything above 20 (show only genuine content)
   qualityMode?: boolean;
   // Subscriptions Only - blur everything except subscribed sources
@@ -580,6 +583,7 @@ export type MessageType =
   | { type: 'GET_API_USAGE' }
   | { type: 'RESET_API_USAGE' }
   | { type: 'CLEAR_SCORE_CACHE' }
+  | { type: 'TEST_RUBRIC'; rubric: string }
   | { type: 'GET_DASHBOARD_DATA' }
   | { type: 'GET_PRODUCTIVITY' }
   | { type: 'GET_CARD_DATA' } // Combined data for reminder card

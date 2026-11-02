@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, MEDIA_POST_ID, parseDims, pickPostResult, readScore, scoreFromDims } from '../src/shared/scoring-spec';
+import { activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, MEDIA_POST_ID, parseDims, pickPostResult, readScore, RUBRIC, rubricHash, scoreFromDims } from '../src/shared/scoring-spec';
 
 describe('scoring spec prompts', () => {
   it('labels each platform correctly', () => {
@@ -96,5 +96,37 @@ describe('media posts', () => {
 
   it('passes single-object replies through', () => {
     expect(pickPostResult({ score: 6, reason: 'x' })).toEqual({ score: 6, reason: 'x' });
+  });
+});
+
+describe('editable rubric', () => {
+  const custom = 'Rate how much the post is about cats. 1 = no cats, 10 = all cats.';
+
+  it('falls back to the default for an unset or blank rubric', () => {
+    expect(activeRubric(undefined)).toBe(RUBRIC);
+    expect(activeRubric('  \n ')).toBe(RUBRIC);
+    expect(activeRubric(`  ${custom}\n`)).toBe(custom);
+  });
+
+  it('hashes only edited rubrics, so existing scores stay valid', () => {
+    expect(rubricHash(RUBRIC)).toBeUndefined();
+    expect(rubricHash(`${RUBRIC}\n`)).toBeUndefined();
+    expect(rubricHash(custom)).toMatch(/^[0-9a-f]{8}$/);
+    expect(rubricHash(custom)).toBe(rubricHash(custom));
+    expect(rubricHash(custom)).not.toBe(rubricHash(`${custom} Dogs count half.`));
+  });
+
+  it('puts the given rubric in every prompt, keeping the output format', () => {
+    const post = { id: 'a', platform: 'twitter' as const, text: 'hi', source: '@x' };
+    for (const prompt of [
+      buildSinglePrompt(post, [], custom),
+      buildBatchPrompt([post], [], undefined, custom),
+      buildMediaPrompt({ ...post, media: 'image' }, [], true, custom),
+    ]) {
+      expect(prompt).toContain(custom);
+      expect(prompt).not.toContain('Measure CHEAP PAYOFF');
+      expect(prompt).toContain('"hook": <1-10>');
+    }
+    expect(buildBatchPrompt([post])).toContain('Measure CHEAP PAYOFF');
   });
 });

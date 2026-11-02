@@ -7,7 +7,8 @@ import { getSettings, getNarrativeThemes } from './storage';
 import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
-import { buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
+import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
+import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -17,6 +18,19 @@ export interface ScoreResponse {
   narrativeMatches?: string[]; // Theme IDs that matched (from LLM detection)
   dims?: ScoreDims; // Sub-ratings (hook, effort, pull, value) from the scoring spec
   imageSeen?: boolean; // Image calls: whether the image reached the model (false = scored on text alone)
+  rubricHash?: string; // Set when an edited rubric produced the score
+}
+
+// The rubric to score with: the user's edited one, else the default
+async function getRubric(): Promise<string> {
+  return activeRubric((await getSettings()).scoringRubric);
+}
+
+// Record which rubric produced a score
+function tagRubric(result: ScoreResponse | null, rubric: string): ScoreResponse | null {
+  const hash = rubricHash(rubric);
+  if (result && hash) result.rubricHash = hash;
+  return result;
 }
 
 export interface ApiUsage {
@@ -223,8 +237,10 @@ function toScoringPost(p: PostForScoring): ScoringPost {
 }
 
 // Score multiple text posts in a single API call
+// rubricOverride scores with that rubric instead of the one in settings
 export async function scoreTextPostsBatch(
-  posts: PostForScoring[]
+  posts: PostForScoring[],
+  rubricOverride?: string
 ): Promise<Map<string, ScoreResponse>> {
   const batchStart = performance.now();
   log.debug(` scoreTextPostsBatch START for ${posts.length} posts at t=${batchStart.toFixed(0)}`);
@@ -238,7 +254,9 @@ export async function scoreTextPostsBatch(
   const activeThemes = allThemes.filter(t => t.active && t.description);
   log.debug(` Loaded ${activeThemes.length} active narrative themes`);
 
-  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes);
+  const rubric = rubricOverride === undefined ? await getRubric() : activeRubric(rubricOverride);
+  const hash = rubricHash(rubric);
+  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes, undefined, rubric);
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -337,6 +355,7 @@ export async function scoreTextPostsBatch(
           cost: costPerPost,
           narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
           dims: parseDims(item),
+          rubricHash: hash,
         };
 
         if (itemId && posts.some(p => p.id === itemId)) {
@@ -375,11 +394,13 @@ export async function scoreTextPostsBatchWithGalleries(
   const allThemes = await getNarrativeThemes();
   const activeThemes = allThemes.filter(t => t.active && t.description);
 
+  const rubric = await getRubric();
+  const hash = rubricHash(rubric);
   const prompt = buildBatchPrompt(withCalibration(posts.map(p => ({
     ...toScoringPost(p),
     media: p.galleryDescription ? 'gallery' as const : 'text' as const,
     imageDescriptions: p.galleryDescription,
-  }))), activeThemes);
+  }))), activeThemes, undefined, rubric);
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -458,6 +479,7 @@ export async function scoreTextPostsBatchWithGalleries(
           cost: costPerPost,
           narrativeMatches: narrativeMatches.length > 0 ? narrativeMatches : undefined,
           dims: parseDims(item),
+          rubricHash: hash,
         };
 
         if (itemId && posts.some(p => p.id === itemId)) {
@@ -500,6 +522,34 @@ export async function scoreTextPost(
     { id, title, subreddit, score, numComments, platform: platform ?? inferPlatform(subreddit) },
   ]);
   return results.get(id) ?? null;
+}
+
+export interface RubricTestRow {
+  id: string;
+  text: string;
+  defaultScore?: number; // 1-10, undefined if the model left it out
+  testScore?: number;
+  testReason?: string;
+}
+
+// Score the fixed sample posts with the default rubric and an edited one, side by
+// side, for the dashboard's test button. Nothing is cached. Null if the API isn't set up.
+export async function testRubric(rubric: string): Promise<RubricTestRow[] | null> {
+  if (!(await isApiConfigured())) return null;
+  const posts: PostForScoring[] = RUBRIC_SAMPLES.map(p => ({
+    id: p.id, title: p.text, subreddit: p.source, score: null, numComments: 0, platform: p.platform, length: p.length,
+  }));
+  const [byDefault, byTest] = await Promise.all([
+    scoreTextPostsBatch(posts, RUBRIC),
+    scoreTextPostsBatch(posts, rubric),
+  ]);
+  return RUBRIC_SAMPLES.map(p => ({
+    id: p.id,
+    text: p.text,
+    defaultScore: byDefault.get(p.id)?.score,
+    testScore: byTest.get(p.id)?.score,
+    testReason: byTest.get(p.id)?.reason,
+  }));
 }
 
 // Fetch all images from a Reddit gallery
@@ -678,18 +728,20 @@ export async function scoreImagePost(
     log.debug(` Image descriptions: ${imageDescriptions.slice(0, 200)}...`);
 
     // Now score with text model using descriptions
-    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false);
+    const rubric = await getRubric();
+    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric);
 
-    return callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes);
+    return tagRubric(await callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes), rubric);
   }
 
   // Single image: use vision model from config
   const config = await getProviderConfig();
   log.debug(` scoreImagePost single image - config.type=${config.type}, config.imageModel=${config.imageModel}, imageUrl=${imageUrl}`);
 
-  const prompt = buildMediaPrompt(post, activeThemes);
+  const rubric = await getRubric();
+  const prompt = buildMediaPrompt(post, activeThemes, true, rubric);
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim());
+  return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim()), rubric);
 }
 
 // Score a video/gif post using thumbnail
@@ -731,12 +783,13 @@ export async function scoreVideoPost(
 
   log.debug(` scoreVideoPost - platform=${platformName}, text="${title.slice(0, 50)}...", thumbnail=${imageUrl}`);
 
+  const rubric = await getRubric();
   const prompt = buildMediaPrompt({
     platform: plat, text: title, source: sourceFor(plat, source),
     likes: score, comments: numComments, media: 'video',
-  }, activeThemes, !!imageUrl);
+  }, activeThemes, !!imageUrl, rubric);
 
-  return callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim());
+  return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim()), rubric);
 }
 
 // Score Instagram video/reel using Gemini video model
@@ -759,13 +812,14 @@ export async function scoreInstagramVideo(
   const activeThemes = allThemes.filter(t => t.active && t.description);
   log.debug(` scoreInstagramVideo - author=@${author}, caption="${caption.slice(0, 50)}...", videoUrl=${videoUrl}`);
 
+  const rubric = await getRubric();
   const prompt = buildSinglePrompt({
     platform: 'instagram', text: caption, source: sourceFor('instagram', author),
     likes: likeCount, comments: commentCount, media: 'reel',
-  }, activeThemes);
+  }, activeThemes, rubric);
 
   // Use the Gemini video model for full video analysis
-  return callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1, activeThemes);
+  return tagRubric(await callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1, activeThemes), rubric);
 }
 
 // Call type for tracking

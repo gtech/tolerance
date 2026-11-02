@@ -56,6 +56,26 @@ Reference points:
 - A relatable "me at 3am" meme → 7
 - "BREAKING: what this senator just said should END his career 🧵👇" → 9`;
 
+// Users can replace RUBRIC with their own text (settings.scoringRubric). Only the
+// rubric is editable: post formatting, calibration posts and the JSON fields stay
+// fixed, so an edited rubric can change what is measured but can't break parsing.
+export function activeRubric(custom?: string): string {
+  return custom?.trim() || RUBRIC;
+}
+
+// Short id of an edited rubric, stored with each score so cached scores from a
+// different rubric are re-scored. Undefined for the default rubric, so scores
+// made before rubrics were editable stay valid.
+export function rubricHash(rubric: string): string | undefined {
+  if (rubric.trim() === RUBRIC) return undefined;
+  let h = 0x811c9dc5; // FNV-1a
+  for (let i = 0; i < rubric.length; i++) {
+    h ^= rubric.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 const MEDIA_NOTES: Record<ScoreMedia, string> = {
   text: '',
   image: 'The image is part of the payoff: a striking, cute, funny, sexy or provocative image is a quick hit even with no text. A chart, diagram, map or screenshot of text is content to read, not a hook: judge the effort and value it carries.',
@@ -138,24 +158,24 @@ function fields(themes: ScoringTheme[]): string {
   return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<15 words max: what grabs attention and what, if anything, it gives back>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
 }
 
-export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = []): string {
+export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC): string {
   return `Rate this social media post.
 
 ${describePost(post)}
 
-${RUBRIC}${mediaNotes([post])}${themeSection(themes, false)}
+${rubric}${mediaNotes([post])}${themeSection(themes, false)}
 
 Respond with ONLY valid JSON: {${fields(themes)}}`;
 }
 
-export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string): string {
+export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
   const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image.` : '';
   return `Rate each of these social media posts.
 
 ${list}${imageNote}
 
-${RUBRIC}${mediaNotes(posts)}${themeSection(themes, true)}
+${rubric}${mediaNotes(posts)}${themeSection(themes, true)}
 
 Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
 }
@@ -178,8 +198,8 @@ export function isCalibrationId(id: string | undefined): boolean {
 // One image/video post, scored alongside the calibration posts: alone, the model
 // rates anything intriguing 6-7. With attached=true the image is marked as its own.
 export const MEDIA_POST_ID = 'post-1';
-export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true): string {
-  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined);
+export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC): string {
+  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric);
 }
 
 // The scored post's item from a batch-shaped reply, skipping calibration items.

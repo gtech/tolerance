@@ -36,7 +36,7 @@ import {
 } from './storage';
 import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
-import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary } from './openrouter';
+import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary, testRubric } from './openrouter';
 import { rewriteResponse, recordClaudeHeartbeat, getClaudeFilterStatus } from './rewriter';
 import { getProductivityStats } from './rescuetime';
 import { checkGrounding, logGroundingEvent } from './grounding';
@@ -460,6 +460,11 @@ async function handleMessage(
     case 'CLEAR_SCORE_CACHE': {
       const count = await clearScoreCache();
       return { type: 'SCORE_CACHE_CLEARED', count };
+    }
+
+    case 'TEST_RUBRIC': {
+      const rows = await testRubric(message.rubric);
+      return { type: 'RUBRIC_TEST_RESULT', rows };
     }
 
     case 'GET_DASHBOARD_DATA': {

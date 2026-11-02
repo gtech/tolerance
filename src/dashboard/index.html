@@ -1390,6 +1390,22 @@
       </div>
     </div>
 
+    <!-- Scoring Rubric -->
+    <div class="settings-section" id="rubric-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-top: 24px;">
+      <h2 style="margin-bottom: 8px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Scoring Rubric</h2>
+      <div class="setting-description" style="margin-bottom: 12px;">
+        What the AI measures in each post. Keep the scale's direction (1 = worth your attention, 10 = scroll fuel): blurring and the built-in reference posts assume it. Posts are re-scored with a saved rubric as you see them.
+      </div>
+      <textarea id="rubric-text" rows="18" spellcheck="false" style="width: 100%; background: #141414; border: 1px solid #333; border-radius: 8px; padding: 12px; color: #ccc; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; resize: vertical;"></textarea>
+      <div style="display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
+        <button id="rubric-test-btn" style="padding: 10px 20px; background: #3d2d4a; color: #b07dce; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Test on sample posts</button>
+        <button id="rubric-save-btn" style="padding: 10px 20px; background: #2d4a3d; color: #7dcea0; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Save</button>
+        <button id="rubric-reset-btn" style="padding: 10px 20px; background: #2a2a2a; color: #888; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Reset to default</button>
+        <span id="rubric-state" style="color: #888; font-size: 13px;"></span>
+      </div>
+      <div id="rubric-test-results" style="display: none; margin-top: 16px; font-size: 13px;"></div>
+    </div>
+
     <!-- Platform Toggles - With blur protection -->
     <div class="settings-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #222;">
       <h2 style="margin-bottom: 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Platforms</h2>

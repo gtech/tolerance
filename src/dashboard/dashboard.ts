@@ -3,6 +3,8 @@ import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, Blur
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
+import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
+import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
   totalCalls: number;
@@ -45,6 +47,7 @@ async function init(): Promise<void> {
   await setupTrustedBlurPhase();
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
+  await setupRubricEditor();
   setupStrictnessSlider();
 
   // Listen for storage changes to sync Quality Mode toggle
@@ -118,6 +121,104 @@ async function setupFacebookReelsSetting(): Promise<void> {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, hideFacebookReels: toggle.checked } });
   });
+}
+
+// Scoring rubric card: edit the text posts are scored against, try it on the
+// sample posts next to the default, then save or reset
+async function setupRubricEditor(): Promise<void> {
+  const textarea = document.getElementById('rubric-text') as HTMLTextAreaElement | null;
+  const testBtn = document.getElementById('rubric-test-btn') as HTMLButtonElement | null;
+  const saveBtn = document.getElementById('rubric-save-btn') as HTMLButtonElement | null;
+  const resetBtn = document.getElementById('rubric-reset-btn') as HTMLButtonElement | null;
+  const stateEl = document.getElementById('rubric-state');
+  const resultsEl = document.getElementById('rubric-test-results');
+  if (!textarea || !testBtn || !saveBtn || !resetBtn || !stateEl || !resultsEl) return;
+
+  let saved = activeRubric((await getSettings()).scoringRubric);
+  textarea.value = saved;
+
+  const showState = (note?: string) => {
+    const current = activeRubric(textarea.value);
+    stateEl.textContent = note
+      ?? (current !== saved ? 'Unsaved changes' : rubricHash(saved) ? 'Custom rubric' : 'Default rubric');
+    stateEl.style.color = current !== saved ? '#e0b060' : '#888';
+  };
+  showState();
+  textarea.addEventListener('input', () => showState());
+
+  const save = async (rubric: string) => {
+    const current = await getSettings();
+    // The default is stored as unset, so it follows future changes to the built-in rubric
+    await chrome.storage.local.set({ settings: { ...current, scoringRubric: rubricHash(rubric) ? rubric : undefined } });
+    saved = rubric;
+  };
+
+  saveBtn.addEventListener('click', async () => {
+    const rubric = activeRubric(textarea.value);
+    textarea.value = rubric;
+    await save(rubric);
+    showState('Saved. Posts will be re-scored as you see them.');
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    textarea.value = RUBRIC;
+    await save(RUBRIC);
+    resultsEl.style.display = 'none';
+    showState('Reset to the default rubric.');
+  });
+
+  testBtn.addEventListener('click', async () => {
+    testBtn.disabled = true;
+    testBtn.textContent = 'Scoring…';
+    resultsEl.style.display = 'block';
+    resultsEl.textContent = 'Scoring 10 sample posts with the default rubric and yours…';
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'TEST_RUBRIC', rubric: textarea.value }) as { rows?: RubricTestRow[] | null } | null;
+      if (!result?.rows) {
+        resultsEl.textContent = 'Could not score: check the API configuration above.';
+      } else {
+        renderRubricTest(resultsEl, result.rows);
+      }
+    } catch (e) {
+      resultsEl.textContent = `Test failed: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      testBtn.disabled = false;
+      testBtn.textContent = 'Test on sample posts';
+    }
+  });
+}
+
+function renderRubricTest(container: HTMLElement, rows: RubricTestRow[]): void {
+  container.textContent = '';
+  const table = document.createElement('table');
+  table.style.cssText = 'width: 100%; border-collapse: collapse;';
+  const head = table.insertRow();
+  for (const label of ['Post', 'Default', 'Yours', 'Why (yours)']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    th.style.cssText = 'text-align: left; color: #888; font-weight: normal; padding: 6px 8px; border-bottom: 1px solid #333;';
+    head.appendChild(th);
+  }
+  for (const row of rows) {
+    const tr = table.insertRow();
+    const moved = row.defaultScore !== undefined && row.testScore !== undefined && Math.abs(row.testScore - row.defaultScore) >= 2;
+    const cells = [
+      row.text.length > 90 ? `${row.text.slice(0, 90)}…` : row.text,
+      row.defaultScore?.toString() ?? '–',
+      row.testScore?.toString() ?? '–',
+      row.testReason ?? '',
+    ];
+    cells.forEach((text, i) => {
+      const td = tr.insertCell();
+      td.textContent = text;
+      td.style.cssText = `padding: 6px 8px; border-bottom: 1px solid #222; color: ${i === 2 && moved ? '#e0b060' : '#ccc'};${i === 1 || i === 2 ? ' text-align: center;' : ''}`;
+    });
+  }
+  container.appendChild(table);
+  const note = document.createElement('div');
+  note.textContent = 'Scores are 1-10. Yours is highlighted where it moved by 2 or more. Each test costs about the same as scoring 20 posts.';
+  note.style.cssText = 'color: #666; font-size: 12px; margin-top: 8px;';
+  container.appendChild(note);
 }
 
 // Grounding breaks card: on/off, interval, and a preview of the overlay

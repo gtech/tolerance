@@ -25,11 +25,13 @@ import { getSubscriptionList, isSubscribed } from './subscriptions';
 const TWITTER_VIDEO_SCORE_FLOOR = 40;
 const VIDEO_FLOOR_NOTE = ` (video: counted as at least ${TWITTER_VIDEO_SCORE_FLOOR})`;
 
-// Record which scoring spec produced an API score, with its sub-ratings
+// Record which scoring spec (and edited rubric, if any) produced an API score, with its sub-ratings
 function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   score.specVersion = SCORING_SPEC_VERSION;
   if (result.dims) score.dims = result.dims;
   else delete score.dims;
+  if (result.rubricHash) score.rubricHash = result.rubricHash;
+  else delete score.rubricHash;
 }
 
 // Posts per text scoring call (Twitter text, YouTube titles); chunks run in
