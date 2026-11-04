@@ -10,6 +10,7 @@ import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { anchorCacheId } from '../../shared/anchor-utils';
 import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
+import { setOpaque } from '../opaqueBlur';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -636,7 +637,7 @@ function applyPendingBlurToCell(cell: HTMLElement, blurIntensity: number = 40): 
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
     if (opaqueBlurEnabled) {
-      overlay.style.background = 'rgb(140, 140, 140)';
+      setOpaque(overlay, true);
     }
 
     // Block clicks on blurred content
@@ -774,7 +775,7 @@ function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: n
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
   if (opaqueBlurEnabled) {
-    overlay.style.background = 'rgb(140, 140, 140)';
+    setOpaque(overlay, true);
   }
 
   // Block clicks on blurred content
@@ -1041,7 +1042,7 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   // Initialize opaque blur from settings
-  opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? false;
+  opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
 
   // Settings are known: switch from early.ts's CSS blur to the real pending blur
   takeOverEarlyBlur();
@@ -1567,7 +1568,7 @@ function refreshBlurState(): void {
       const overlay = document.createElement('div');
       overlay.className = 'tolerance-blur-overlay';
       if (opaqueBlurEnabled) {
-        overlay.style.background = 'rgb(140, 140, 140)';
+        setOpaque(overlay, true);
       }
       overlay.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1771,12 +1772,12 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 
     // Update opaque blur setting and apply to existing overlays
-    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
     if (newOpaqueBlur !== opaqueBlurEnabled) {
       opaqueBlurEnabled = newOpaqueBlur;
       const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
       for (const overlay of overlays) {
-        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+        setOpaque(overlay, opaqueBlurEnabled);
       }
     }
   }

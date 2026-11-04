@@ -499,7 +499,7 @@ export interface Settings {
     blurHighEngagement: boolean;   // Blur high-engagement content (default: true)
     blurIntensity: number;         // Blur amount in pixels (default: 40)
     hoverRevealDelay: number;      // Seconds to hover before revealing (default: 3)
-    opaqueBlur?: boolean;          // Solid gray overlay instead of semi-transparent blur (default: false)
+    opaqueBlur?: boolean;          // Solid gray overlay instead of semi-transparent blur (default: true)
   };
   // Claude de-validation filter - strip sycophancy from Claude responses
   claudeFilterEnabled?: boolean;
@@ -666,6 +666,7 @@ export const DEFAULT_SETTINGS: Settings = {
     blurHighEngagement: true,   // Blur high-engagement content instead
     blurIntensity: 40,          // 40px blur - heavy enough to hide faces/shapes
     hoverRevealDelay: 3,        // 3 seconds to hover before revealing
+    opaqueBlur: true,           // Solid gray overlay; the translucent blur still shows motion and shapes
   },
 };
 

@@ -6,6 +6,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage } from './gate';
+import { setOpaque } from '../opaqueBlur';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -567,7 +568,7 @@ function applyPendingBlur(video: YouTubeVideo, blurIntensity: number = 40): void
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
     if (opaqueBlurEnabled) {
-      overlay.style.background = 'rgb(140, 140, 140)';
+      setOpaque(overlay, true);
     }
 
     // Block clicks on blurred content
@@ -658,7 +659,7 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
   if (opaqueBlurEnabled) {
-    overlay.style.background = 'rgb(140, 140, 140)';
+    setOpaque(overlay, true);
   }
 
   // Block clicks on blurred content
@@ -771,7 +772,7 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   // Initialize opaque blur from settings
-  opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? false;
+  opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
 
   // Ensure we have a session
   const sessionResult = await sendMessage({ type: 'ENSURE_SESSION' });
@@ -1250,12 +1251,12 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 
     // Update opaque blur setting and apply to existing overlays
-    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
     if (newOpaqueBlur !== opaqueBlurEnabled) {
       opaqueBlurEnabled = newOpaqueBlur;
       const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
       for (const overlay of overlays) {
-        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+        setOpaque(overlay, opaqueBlurEnabled);
       }
     }
   }

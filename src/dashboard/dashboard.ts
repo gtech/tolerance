@@ -71,7 +71,7 @@ async function init(): Promise<void> {
 
       // Sync Opaque Blur toggle
       const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
-      const isOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+      const isOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
       if (opaqueBlurToggle && opaqueBlurToggle.checked !== isOpaqueBlur) {
         opaqueBlurToggle.checked = isOpaqueBlur;
       }
@@ -491,7 +491,7 @@ function populateSettings(settings: Settings): void {
   // Opaque Blur toggle
   const opaqueBlurToggle = document.getElementById('opaque-blur-toggle') as HTMLInputElement;
   if (opaqueBlurToggle) {
-    opaqueBlurToggle.checked = settings.twitter?.opaqueBlur ?? false;
+    opaqueBlurToggle.checked = settings.twitter?.opaqueBlur ?? true;
   }
 
   // Platform toggles
@@ -1255,7 +1255,7 @@ async function saveSettings(): Promise<void> {
       ...existing.twitter, // Preserve existing twitter settings
       hoverRevealDelay: parseInt(hoverDelayInput?.value || '3', 10),
       blurIntensity: parseInt(blurIntensityInput?.value || '8', 10),
-      opaqueBlur: opaqueBlurInput?.checked ?? false,
+      opaqueBlur: opaqueBlurInput?.checked ?? true,
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,

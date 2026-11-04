@@ -5,6 +5,7 @@ import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disco
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { setOpaque } from '../opaqueBlur';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -370,7 +371,7 @@ function applyPendingBlur(post: InstagramPost): void {
     const overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
     if (opaqueBlurEnabled) {
-      overlay.style.background = 'rgb(140, 140, 140)';
+      setOpaque(overlay, true);
     }
 
     // Block clicks on blurred content
@@ -641,7 +642,7 @@ function applyBlur(element: HTMLElement): void {
   const overlay = document.createElement('div');
   overlay.className = 'tolerance-blur-overlay';
   if (opaqueBlurEnabled) {
-    overlay.style.background = 'rgb(140, 140, 140)';
+    setOpaque(overlay, true);
   }
 
   // Add hover reveal functionality
@@ -742,7 +743,7 @@ async function init(): Promise<void> {
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
 
       // Opaque blur
-      opaqueBlurEnabled = settings.twitter?.opaqueBlur ?? false;
+      opaqueBlurEnabled = settings.twitter?.opaqueBlur ?? true;
     }
   } catch (error) {
     log.error('Instagram: Failed to get settings:', error);
@@ -785,12 +786,12 @@ chrome.storage.onChanged.addListener((changes) => {
     currentSettings = newSettings;
 
     // Update opaque blur setting and apply to existing overlays
-    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
     if (newOpaqueBlur !== opaqueBlurEnabled) {
       opaqueBlurEnabled = newOpaqueBlur;
       const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
       for (const overlay of overlays) {
-        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+        setOpaque(overlay, opaqueBlurEnabled);
       }
     }
   }

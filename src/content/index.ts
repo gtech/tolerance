@@ -9,6 +9,7 @@ import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
+import { setOpaque } from './opaqueBlur';
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -448,7 +449,7 @@ function applyPendingBlur(post: RedditPost): void {
       const overlay = document.createElement('div');
       overlay.className = 'tolerance-blur-overlay';
       if (opaqueBlurEnabled) {
-        overlay.style.background = 'rgb(140, 140, 140)';
+        setOpaque(overlay, true);
       }
 
       // Block clicks on blurred content
@@ -499,7 +500,7 @@ function applyBlur(post: RedditPost): void {
     overlay = document.createElement('div');
     overlay.className = 'tolerance-blur-overlay';
     if (opaqueBlurEnabled) {
-      overlay.style.background = 'rgb(140, 140, 140)';
+      setOpaque(overlay, true);
     }
     element.appendChild(overlay);
   }
@@ -685,7 +686,7 @@ async function initCore(): Promise<void> {
     }
 
     // Opaque blur setting
-    opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? false;
+    opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
 
     log.debug(' Mode =', currentState.mode);
 
@@ -1202,12 +1203,12 @@ chrome.storage.onChanged.addListener((changes) => {
     currentSettings = newSettings;
 
     // Update opaque blur setting and apply to existing overlays
-    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? false;
+    const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
     if (newOpaqueBlur !== opaqueBlurEnabled) {
       opaqueBlurEnabled = newOpaqueBlur;
       const overlays = document.querySelectorAll('.tolerance-blur-overlay') as NodeListOf<HTMLElement>;
       for (const overlay of overlays) {
-        overlay.style.background = opaqueBlurEnabled ? 'rgb(140, 140, 140)' : '';
+        setOpaque(overlay, opaqueBlurEnabled);
       }
     }
   }
