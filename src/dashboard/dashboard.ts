@@ -4,6 +4,8 @@ import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
+import { loadUsageChart } from '../shared/usage-chart';
+import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
 import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
@@ -41,6 +43,8 @@ async function init(): Promise<void> {
 
   // Load and display global session (progressive boredom)
   await loadGlobalSession();
+
+  await loadUsageChart('usage-chart', USAGE_HISTORY_DAYS, 120);
 
   // Set up event listeners
   setupEventListeners();
