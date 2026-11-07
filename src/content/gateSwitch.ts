@@ -1,4 +1,5 @@
 import type { Settings } from '../shared/types';
+import { syncGateOpacity } from './gateOpacity';
 
 // Reddit and Instagram blur unhandled posts with a stylesheet from the manifest
 // (reddit-gate.css, instagram/gate.css), so it applies from first paint without
@@ -13,6 +14,7 @@ export function watchGate(platform: 'reddit' | 'instagram', pageAllowed: () => b
   const update = () => {
     const on = settings?.platforms?.[platform] !== false && settings?.blurUntilScored !== false && pageAllowed();
     document.documentElement.classList.toggle('tolerance-gate-off', !on);
+    syncGateOpacity(settings);
   };
 
   update();

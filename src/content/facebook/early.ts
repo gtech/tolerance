@@ -4,6 +4,7 @@
 
 import type { Settings } from '../../shared/types';
 import { fbGateCss, hideReelsCss, isFacebookFeedPath } from './gate';
+import { syncGateOpacity } from '../gateOpacity';
 
 const FALLBACK_MS = 15000; // never leave the feed blurred if the main script fails
 
@@ -41,6 +42,7 @@ if (isFacebookFeedPath(location.pathname)) {
     chrome.storage.local.get('settings', (result) => {
       if (chrome.runtime.lastError) { remove(); return; }
       const settings = result.settings as Partial<Settings> | undefined;
+      syncGateOpacity(settings);
       if (settings?.platforms?.facebook === false || settings?.blurUntilScored === false) remove();
     });
   } catch {

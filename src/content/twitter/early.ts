@@ -6,6 +6,7 @@
 
 import type { Settings } from '../../shared/types';
 import { isUnfilteredTwitterPath } from './paths';
+import { opaqueGateCss, syncGateOpacity } from '../gateOpacity';
 
 // Keep in sync with removeEarlyBlur() in ./index.ts
 const EARLY_BLUR_STYLE_ID = 'tolerance-early-blur';
@@ -20,6 +21,7 @@ if (!isUnfilteredTwitterPath(location.pathname)) {
       filter: blur(8px) !important;
       pointer-events: none !important;
     }
+    ${opaqueGateCss('', ['[data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not(.tolerance-pending):not(.tolerance-blurred)'], { relative: false })}
   `;
   document.documentElement.append(style);
 
@@ -31,6 +33,7 @@ if (!isUnfilteredTwitterPath(location.pathname)) {
       if (chrome.runtime.lastError) { remove(); return; }
       const settings = result.settings as Partial<Settings> | undefined;
       const twitter = settings?.twitter;
+      syncGateOpacity(settings);
       if (settings?.platforms?.twitter === false ||
           twitter?.blurHighEngagement === false ||
           twitter?.reorderEnabled ||

@@ -12,6 +12,7 @@ import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
+import { opaqueGateCss } from '../gateOpacity';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -367,6 +368,7 @@ function injectStyles(): void {
       filter: blur(var(--tolerance-gate-blur, 8px)) !important;
       pointer-events: none !important;
     }
+    ${opaqueGateCss('tolerance-gate', ['[data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred)'], { relative: false })}
 
     /* Revealed state (set by JS after hover delay) */
     .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),

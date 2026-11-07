@@ -1,13 +1,37 @@
-/* Injected by the manifest before Reddit renders. Every feed post is blurred until
-   the content script picks it up (see gateSwitch.ts). The blur is on the post itself
-   because most of a shreddit-post is in its shadow DOM. If the script never picks a
-   post up, the animation releases it after 15 seconds. */
+/* Injected by the manifest before Reddit renders. Every feed post is covered until
+   the content script picks it up (see gateSwitch.ts): solid gray, or a blur when
+   Opaque Blur is off (see gateOpacity.ts). The blur is on the post itself because
+   most of a shreddit-post is in its shadow DOM. If the script never picks a post up,
+   the animations release it after 15 seconds. */
 @keyframes tolerance-gate-hold {
   from { filter: blur(20px); pointer-events: none; }
   to { filter: none; pointer-events: auto; }
 }
 
-html:not(.tolerance-gate-off) shreddit-feed shreddit-post:not([promoted]):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred),
-html:not(.tolerance-gate-off) #siteTable > .thing.link:not(.promoted):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred) {
+@keyframes tolerance-gate-cover {
+  from { visibility: visible; }
+  to { visibility: hidden; }
+}
+
+html.tolerance-gate-translucent:not(.tolerance-gate-off) shreddit-feed shreddit-post:not([promoted]):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred),
+html.tolerance-gate-translucent:not(.tolerance-gate-off) #siteTable > .thing.link:not(.promoted):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred) {
   animation: tolerance-gate-hold 15s step-end forwards;
+}
+
+html:not(.tolerance-gate-off):not(.tolerance-gate-translucent) shreddit-feed shreddit-post:not([promoted]):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred),
+html:not(.tolerance-gate-off):not(.tolerance-gate-translucent) #siteTable > .thing.link:not(.promoted):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred) {
+  position: relative;
+}
+
+html:not(.tolerance-gate-off):not(.tolerance-gate-translucent) shreddit-feed shreddit-post:not([promoted]):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred)::after,
+html:not(.tolerance-gate-off):not(.tolerance-gate-translucent) #siteTable > .thing.link:not(.promoted):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(140, 140, 140);
+  z-index: 50;
+  animation: tolerance-gate-cover 15s step-end forwards;
 }

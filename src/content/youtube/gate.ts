@@ -1,6 +1,8 @@
 // Shared by youtube-early.ts (document_start) and the main YouTube content script.
 // Video cards the extension scores; nested lockups (inside a rich item or another
 // lockup) are part of their parent card.
+import { opaqueGateCss } from '../gateOpacity';
+
 export const VIDEO_CARD_SELECTORS = [
   'ytd-rich-item-renderer',
   'ytd-compact-video-renderer',
@@ -17,7 +19,9 @@ export function gateCss(scope: string, blurPx = 8): string {
   const targets = VIDEO_CARD_SELECTORS
     .map(sel => `html.${scope} ${sel}${unhandled} > :not(.tolerance-blur-overlay):not(.tolerance-score-badge)`)
     .join(',\n');
-  return `${targets} { filter: blur(${blurPx}px) !important; pointer-events: none !important; }`;
+  const cards = VIDEO_CARD_SELECTORS.map(sel => `${sel}${unhandled}`);
+  return `${targets} { filter: blur(${blurPx}px) !important; pointer-events: none !important; }
+  ${opaqueGateCss(scope, cards)}`;
 }
 
 // Pages where YouTube videos aren't scored (search is user-directed; Shorts has no feed)

@@ -1,4 +1,5 @@
 import type { Settings } from '../shared/types';
+import { syncGateOpacity } from './gateOpacity';
 
 let hoverReveal = true;
 let hoverSeconds = 3;
@@ -34,6 +35,7 @@ export function applyBlurPrefs(settings: Settings | null | undefined): void {
     (document.head || document.documentElement).appendChild(style);
   }
 
+  syncGateOpacity(settings);
   hoverReveal = settings?.twitter?.hoverReveal ?? true;
   hoverSeconds = settings?.twitter?.hoverRevealDelay ?? 3;
   const root = document.documentElement;
