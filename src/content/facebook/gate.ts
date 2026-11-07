@@ -26,3 +26,13 @@ export function hideReelsCss(scope: string): string {
   html.${scope} [style*="card-corner-radius"]:has([role="grid"] ${REEL_LINK}),
   html.${scope} .${REELS_HIDDEN_CLASS} { display: none !important; }`;
 }
+
+// Ads: the "Sponsored" label is drawn as an SVG, so its text isn't in the DOM, but
+// it links to /ads/about. Ads outside feed items get ADS_HIDDEN_CLASS from the
+// content script.
+export const ADS_HIDDEN_CLASS = 'tolerance-ads-hidden';
+export const AD_LINK = 'a[href*="/ads/about"]';
+export function hideAdsCss(scope: string): string {
+  return `html.${scope} [aria-posinset]:has(${AD_LINK}),
+  html.${scope} .${ADS_HIDDEN_CLASS} { display: none !important; }`;
+}

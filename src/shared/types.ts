@@ -459,6 +459,8 @@ export interface Settings {
   logLevel?: LogLevel;
   // Hide Facebook Reels (the Reels tray and reel posts in the feed). Default: true
   hideFacebookReels?: boolean;
+  // Hide sponsored posts in the Facebook feed. Default: true
+  hideFacebookAds?: boolean;
   // Platform toggles - enable/disable Tolerance on each platform
   platforms: {
     reddit: boolean;

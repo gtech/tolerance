@@ -3,25 +3,28 @@
 // and removes this style), so posts never flash unblurred on first load.
 
 import type { Settings } from '../../shared/types';
-import { fbGateCss, hideReelsCss, isFacebookFeedPath } from './gate';
+import { fbGateCss, hideAdsCss, hideReelsCss, isFacebookFeedPath } from './gate';
 
 const FALLBACK_MS = 15000; // never leave the feed blurred if the main script fails
 
-// Reels are hidden by default; drop the class if the setting is off
+// Reels and ads are hidden by default; drop the class if the setting is off
 const reelsStyle = document.createElement('style');
 reelsStyle.id = 'tolerance-fb-reels';
-reelsStyle.textContent = hideReelsCss('tolerance-fb-hide-reels');
+reelsStyle.textContent = `${hideReelsCss('tolerance-fb-hide-reels')}\n${hideAdsCss('tolerance-fb-hide-ads')}`;
 document.documentElement.append(reelsStyle);
-document.documentElement.classList.add('tolerance-fb-hide-reels');
+document.documentElement.classList.add('tolerance-fb-hide-reels', 'tolerance-fb-hide-ads');
 try {
   chrome.storage.local.get('settings', (result) => {
     const settings = result?.settings as Partial<Settings> | undefined;
     if (settings?.hideFacebookReels === false || settings?.platforms?.facebook === false) {
       document.documentElement.classList.remove('tolerance-fb-hide-reels');
     }
+    if (settings?.hideFacebookAds === false || settings?.platforms?.facebook === false) {
+      document.documentElement.classList.remove('tolerance-fb-hide-ads');
+    }
   });
 } catch {
-  // Extension context lost: leave reels hidden (the main script re-checks)
+  // Extension context lost: leave them hidden (the main script re-checks)
 }
 
 if (isFacebookFeedPath(location.pathname)) {

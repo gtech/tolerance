@@ -2,7 +2,7 @@ import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pen
 import { log, setLogLevel } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
-import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
+import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideAdsCss, hideReelsCss, ADS_HIDDEN_CLASS, AD_LINK, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { setOpaque } from '../opaqueBlur';
@@ -151,6 +151,9 @@ function injectStyles(): void {
     /* Hide Reels (setting) */
     ${hideReelsCss('tolerance-fb-hide-reels')}
 
+    /* Hide ads (setting) */
+    ${hideAdsCss('tolerance-fb-hide-ads')}
+
     /* Gate: feed items stay blurred until handled (pending, badged, or unscorable) */
     ${fbGateCss('tolerance-fb-gate')}
 
@@ -276,6 +279,14 @@ function injectStyles(): void {
 
 function reelsHidden(): boolean {
   return currentSettings?.hideFacebookReels !== false && currentSettings?.platforms?.facebook !== false;
+}
+
+function adsHidden(): boolean {
+  return currentSettings?.hideFacebookAds !== false && currentSettings?.platforms?.facebook !== false;
+}
+
+function updateAdHiding(): void {
+  document.documentElement.classList.toggle('tolerance-fb-hide-ads', adsHidden());
 }
 
 // Reels trays outside feed items (the [aria-posinset] case is pure CSS): hide the
@@ -414,7 +425,14 @@ async function processPosts(): Promise<void> {
 
   try {
     hideReelTrays();
-    const posts = scrapeVisiblePosts().filter(p => !(reelsHidden() && p.element.querySelector(REEL_LINK)));
+    const posts = scrapeVisiblePosts().filter(p => {
+      if (reelsHidden() && p.element.querySelector(REEL_LINK)) return false;
+      if (adsHidden() && p.element.querySelector(AD_LINK)) {
+        p.element.classList.add(ADS_HIDDEN_CLASS);
+        return false;
+      }
+      return true;
+    });
     log.debug(`Facebook: Found ${posts.length} posts`);
 
     // Feed items that aren't posts (suggestions, reels trays...) will never be
@@ -717,6 +735,7 @@ async function init(): Promise<void> {
   updateGate();
   removeEarlyBlur();
   hideReelTrays();
+  updateAdHiding();
 
   // Fetch initial blur threshold
   await updateBlurThreshold();
@@ -749,6 +768,7 @@ chrome.storage.onChanged.addListener((changes) => {
     currentSettings = newSettings;
     updateGate();
     hideReelTrays();
+    updateAdHiding();
     qualityModeEnabled = newSettings.qualityMode ?? false;
     subscriptionsOnlyMode = newSettings.subscriptionsOnly ?? false;
     refreshBlurState();
