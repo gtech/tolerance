@@ -24,6 +24,7 @@ import {
 } from '../shared/types';
 import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS } from '../shared/constants';
 import { mergeDwellIntoImpressions, mergeScrollBuckets } from '../shared/attention-utils';
+import { archiveUsageDay, recentUsageDays, UsageDay, UsageHistory } from '../shared/usage-history';
 
 interface ToleranceDB extends DBSchema {
   sessions: {
@@ -591,7 +592,11 @@ export async function getGlobalSession(): Promise<GlobalSession> {
         minutes: stored.totalMinutes,
         maxPhase: stored.maxPhaseReached || 'normal',
       };
-      await chrome.storage.local.set({ yesterdaySession: yesterday });
+      const { usageHistory } = await chrome.storage.local.get('usageHistory');
+      await chrome.storage.local.set({
+        yesterdaySession: yesterday,
+        usageHistory: archiveUsageDay((usageHistory as UsageHistory | undefined) ?? {}, stored.resetDate, stored.totalMinutes, today),
+      });
       log.debug(' Archived yesterday session:', yesterday);
     }
 
@@ -613,6 +618,19 @@ export async function getGlobalSession(): Promise<GlobalSession> {
   }
 
   return stored;
+}
+
+// Minutes per day for the usage chart, ending today. Days from before the history
+// existed are unknown, apart from the last one, which yesterdaySession already holds.
+export async function getUsageDays(count: number): Promise<UsageDay[]> {
+  const session = await getGlobalSession();
+  const { usageHistory, yesterdaySession } = await chrome.storage.local.get(['usageHistory', 'yesterdaySession']);
+  const yesterday = yesterdaySession as { date: string; minutes: number } | undefined;
+  const history: UsageHistory = {
+    ...(yesterday ? { [yesterday.date]: yesterday.minutes } : {}),
+    ...(usageHistory as UsageHistory | undefined),
+  };
+  return recentUsageDays(history, session.resetDate, session.totalMinutes, count);
 }
 
 // Record a heartbeat from any social media site

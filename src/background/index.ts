@@ -24,6 +24,7 @@ import {
   recordHeartbeat,
   getGlobalSession,
   getSessionMinutes,
+  getUsageDays,
   getCurrentPhase,
   clearScoreCache,
   getAdaptiveSettings,
@@ -524,6 +525,10 @@ async function handleMessage(
           phaseRatios: settings.scheduler.phaseRatios,
         },
       };
+    }
+
+    case 'GET_USAGE_DAYS': {
+      return { type: 'USAGE_DAYS_RESULT', days: await getUsageDays(message.count) };
     }
 
     case 'GET_PRODUCTIVITY': {

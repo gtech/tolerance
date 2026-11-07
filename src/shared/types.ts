@@ -607,6 +607,7 @@ export type MessageType =
   | { type: 'GET_CALIBRATION_STATS'; period?: '24h' | '7d' | 'all' }
   // Global session (cross-platform tracking)
   | { type: 'GET_GLOBAL_SESSION' }
+  | { type: 'GET_USAGE_DAYS'; count: number }
   // Adaptive calibration
   | { type: 'GET_ADAPTIVE_SETTINGS' }
   | { type: 'RESET_THRESHOLD_ADJUSTMENT' }

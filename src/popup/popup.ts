@@ -1,12 +1,9 @@
-import { AppState, Settings, SessionLog, DEFAULT_SETTINGS, AdaptiveSettings } from '../shared/types';
+import { AppState, Settings, DEFAULT_SETTINGS, AdaptiveSettings } from '../shared/types';
+import { averageMinutes, UsageDay } from '../shared/usage-history';
 
 interface StateResult {
   state: AppState;
   settings: Settings;
-}
-
-interface DashboardResult {
-  sessions: SessionLog[];
 }
 
 interface GlobalSessionResult {
@@ -57,11 +54,11 @@ async function init(): Promise<void> {
   // Check if we should show feedback prompt
   await checkFeedbackPrompt();
 
-  // Get session stats
-  await updateStats();
-
   // Get global session for boredom phase
   await updateBoredomPhase();
+
+  // Usage over the last few weeks
+  await updateUsageChart();
 
   // Setup link may be dynamically added by updateApiStatus, so check again
   const setupLink = document.getElementById('setup-link');
@@ -131,42 +128,77 @@ async function updateApiStatus(settings: Settings): Promise<void> {
   }
 }
 
-async function updateStats(): Promise<void> {
+function formatMinutes(minutes: number): string {
+  const total = Math.round(minutes);
+  if (total < 60) return `${total}m`;
+  const mins = total % 60;
+  return mins ? `${Math.floor(total / 60)}h ${mins}m` : `${Math.floor(total / 60)}h`;
+}
+
+function formatDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function describeDay(day: UsageDay, isToday: boolean): string {
+  const name = isToday ? 'Today' : formatDay(day.date);
+  if (day.minutes === null) return `${name}: not tracked yet`;
+  return `${name}: ${day.minutes < 0.5 ? 'no use' : formatMinutes(day.minutes)}`;
+}
+
+// This week against the one before, once both have been fully tracked
+function usageSummary(days: UsageDay[]): string {
+  const thisWeek = averageMinutes(days.slice(-7));
+  const lastWeek = averageMinutes(days.slice(-14, -7));
+  if (thisWeek === null) return '';
+  const average = `${formatMinutes(thisWeek)} a day this week`;
+  if (lastWeek === null || lastWeek < 1) return average;
+  const change = Math.round((thisWeek - lastWeek) / lastWeek * 100);
+  if (change === 0) return `${average}, same as last week`;
+  return `${average}, ${change < 0 ? 'down' : 'up'} ${Math.abs(change)}% from last week`;
+}
+
+const USAGE_CHART_DAYS = 28;
+
+async function updateUsageChart(): Promise<void> {
   try {
-    const result = await chrome.runtime.sendMessage({ type: 'GET_DASHBOARD_DATA' }) as DashboardResult | null;
+    const result = await chrome.runtime.sendMessage({ type: 'GET_USAGE_DAYS', count: USAGE_CHART_DAYS }) as { days: UsageDay[] } | null;
+    const plot = document.getElementById('usage-plot');
+    const readout = document.getElementById('usage-readout');
+    const summary = document.getElementById('usage-summary');
+    const scale = document.getElementById('usage-scale');
+    const start = document.getElementById('usage-start');
+    if (!result?.days?.length || !plot || !readout || !summary || !scale || !start) return;
 
-    if (!result?.sessions) return;
+    const days = result.days;
+    const today = days[days.length - 1];
+    const peak = Math.max(...days.map(d => d.minutes ?? 0));
+    const top = Math.max(60, Math.ceil(peak / 30) * 30); // at least an hour tall, in half hours
 
-    // Get today's sessions
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todaySessions = result.sessions.filter(s => s.startTime >= todayStart.getTime());
+    scale.textContent = formatMinutes(top);
+    start.textContent = formatDay(days[0].date);
+    summary.textContent = usageSummary(days);
+    readout.textContent = describeDay(today, true);
 
-    // Calculate totals
-    let totalPosts = 0;
-    let totalHigh = 0;
-    let totalMedium = 0;
-    let totalLow = 0;
-
-    for (const session of todaySessions) {
-      totalPosts += session.posts?.length ?? 0;
-      totalHigh += session.engagementDistribution?.high ?? 0;
-      totalMedium += session.engagementDistribution?.medium ?? 0;
-      totalLow += session.engagementDistribution?.low ?? 0;
-    }
-
-    // Update UI
-    const postsToday = document.getElementById('posts-today');
-    const highCount = document.getElementById('high-count');
-    const mediumCount = document.getElementById('medium-count');
-    const lowCount = document.getElementById('low-count');
-
-    if (postsToday) postsToday.textContent = String(totalPosts);
-    if (highCount) highCount.textContent = String(totalHigh);
-    if (mediumCount) mediumCount.textContent = String(totalMedium);
-    if (lowCount) lowCount.textContent = String(totalLow);
+    plot.replaceChildren();
+    days.forEach((day) => {
+      const isToday = day === today;
+      const column = document.createElement('div');
+      column.className = 'usage-column';
+      column.title = describeDay(day, isToday);
+      if (day.minutes !== null && day.minutes >= 0.5) {
+        const bar = document.createElement('div');
+        bar.className = isToday ? 'usage-bar today' : 'usage-bar';
+        bar.style.height = `${day.minutes / top * 100}%`;
+        column.appendChild(bar);
+      }
+      column.addEventListener('mouseenter', () => { readout.textContent = describeDay(day, isToday); });
+      plot.appendChild(column);
+    });
+    plot.addEventListener('mouseleave', () => { readout.textContent = describeDay(today, true); });
+    plot.setAttribute('aria-label', [`Minutes per day for the last ${days.length} days.`, describeDay(today, true), summary.textContent].filter(Boolean).join(' '));
   } catch (error) {
-    console.error('Failed to get stats:', error);
+    console.error('Failed to get usage history:', error);
   }
 }
 
@@ -181,15 +213,7 @@ async function updateBoredomPhase(): Promise<void> {
 
     // Update time display
     const sessionTimeEl = document.getElementById('session-time');
-    if (sessionTimeEl) {
-      if (minutes >= 60) {
-        const hours = Math.floor(minutes / 60);
-        const mins = Math.round(minutes % 60);
-        sessionTimeEl.textContent = `${hours}h ${mins}m`;
-      } else {
-        sessionTimeEl.textContent = `${Math.round(minutes)}m`;
-      }
-    }
+    if (sessionTimeEl) sessionTimeEl.textContent = formatMinutes(minutes);
 
     // Update phase badge
     const phaseBadge = document.getElementById('phase-badge');

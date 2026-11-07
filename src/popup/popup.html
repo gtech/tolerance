@@ -63,30 +63,72 @@
       margin-bottom: 10px;
     }
 
-    .stat-row {
+    .usage-readout {
+      font-size: 13px;
+      font-weight: 500;
+      min-height: 16px;
+    }
+
+    .usage-summary {
+      font-size: 12px;
+      color: #888;
+      margin-top: 2px;
+      min-height: 15px;
+    }
+
+    .usage-chart {
+      position: relative;
+      margin-top: 18px;
+    }
+
+    .usage-scale {
+      position: absolute;
+      top: -14px;
+      right: 0;
+      font-size: 10px;
+      color: #888;
+    }
+
+    .usage-plot {
+      display: flex;
+      align-items: flex-end;
+      height: 72px;
+      border-top: 1px solid #333;
+      border-bottom: 1px solid #555;
+    }
+
+    .usage-column {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .usage-column:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Gray only, like the rest of Tolerance: nothing here should pull the eye */
+    .usage-bar {
+      width: calc(100% - 2px);
+      min-height: 2px;
+      background: #777;
+      border-radius: 2px 2px 0 0;
+    }
+
+    .usage-column:hover .usage-bar,
+    .usage-bar.today {
+      background: #c8c8c8;
+    }
+
+    .usage-axis {
       display: flex;
       justify-content: space-between;
-      padding: 6px 0;
-      border-bottom: 1px solid #333;
-    }
-
-    .stat-row:last-child {
-      border-bottom: none;
-    }
-
-    .stat-label {
+      font-size: 10px;
       color: #888;
-      font-size: 13px;
+      margin-top: 4px;
     }
-
-    .stat-value {
-      font-weight: 500;
-      font-size: 13px;
-    }
-
-    .bucket-high { color: #e74c3c; }
-    .bucket-medium { color: #f39c12; }
-    .bucket-low { color: #27ae60; }
 
     .boredom-section {
       background: #252525;
@@ -409,22 +451,16 @@
   </div>
 
   <div class="stats">
-    <h2>Posts Seen Today</h2>
-    <div class="stat-row">
-      <span class="stat-label">Total</span>
-      <span class="stat-value" id="posts-today">0</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">High engagement</span>
-      <span class="stat-value bucket-high" id="high-count">0</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Medium engagement</span>
-      <span class="stat-value bucket-medium" id="medium-count">0</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Low engagement</span>
-      <span class="stat-value bucket-low" id="low-count">0</span>
+    <h2>Time on Social Media</h2>
+    <div id="usage-readout" class="usage-readout"></div>
+    <div id="usage-summary" class="usage-summary"></div>
+    <div class="usage-chart">
+      <span id="usage-scale" class="usage-scale"></span>
+      <div id="usage-plot" class="usage-plot" role="img"></div>
+      <div class="usage-axis">
+        <span id="usage-start"></span>
+        <span>Today</span>
+      </div>
     </div>
   </div>
 
