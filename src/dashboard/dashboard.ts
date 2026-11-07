@@ -618,6 +618,8 @@ function populateSettings(settings: Settings): void {
   if (platformTwitter) platformTwitter.checked = settings.platforms?.twitter ?? true;
   if (platformYoutube) platformYoutube.checked = settings.platforms?.youtube ?? true;
   if (platformInstagram) platformInstagram.checked = settings.platforms?.instagram ?? true;
+  const platformFacebook = document.getElementById('platform-facebook') as HTMLInputElement | null;
+  if (platformFacebook) platformFacebook.checked = settings.platforms?.facebook ?? true;
 
   // Productivity card toggle
   const productivityCardEnabled = document.getElementById('productivity-card-enabled') as HTMLInputElement;
@@ -1109,6 +1111,7 @@ function setupEventListeners(): void {
     ['platform-twitter', 'Twitter/X'],
     ['platform-youtube', 'YouTube'],
     ['platform-instagram', 'Instagram'],
+    ['platform-facebook', 'Facebook'],
   ]) {
     const input = document.getElementById(id) as HTMLInputElement | null;
     input?.addEventListener('change', async () => {
@@ -2564,9 +2567,20 @@ async function resetThresholdsToCalibrated(): Promise<void> {
 // Whitelist Management Functions
 // ==========================================
 
+const WHITELIST_OPEN_MAX = 5;
+
 function renderWhitelist(whitelist: WhitelistEntry[]): void {
   const container = document.getElementById('whitelist-list');
   if (!container) return;
+
+  // Start closed when the list is long; after that, leave it as the user set it
+  const details = document.getElementById('whitelist-details') as HTMLDetailsElement | null;
+  const summary = document.getElementById('whitelist-summary');
+  if (summary) summary.textContent = `${whitelist.length} trusted ${whitelist.length === 1 ? 'source' : 'sources'}`;
+  if (details && !details.dataset.initialized) {
+    details.dataset.initialized = 'true';
+    details.open = whitelist.length <= WHITELIST_OPEN_MAX;
+  }
 
   if (whitelist.length === 0) {
     container.innerHTML = '<div class="empty-state" style="padding: 24px; color: #555;">No trusted sources added yet.</div>';
