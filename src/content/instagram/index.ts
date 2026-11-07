@@ -180,16 +180,10 @@ function injectStyles(): void {
       pointer-events: none;
     }
 
-    .tolerance-score-badge.low {
-      background: rgba(76, 175, 80, 0.85);
-    }
-
-    .tolerance-score-badge.medium {
-      background: rgba(255, 152, 0, 0.85);
-    }
-
+    .tolerance-score-badge.low,
+    .tolerance-score-badge.medium,
     .tolerance-score-badge.high {
-      background: rgba(244, 67, 54, 0.85);
+      background: rgba(60, 60, 60, 0.85);
     }
 
     .tolerance-score-badge.failed {

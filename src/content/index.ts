@@ -227,9 +227,9 @@ function injectLoadingStyles(): void {
       max-width: none !important;
       line-height: 1.2 !important;
     }
-    .tolerance-score-badge.high { background: #e74c3c !important; }
-    .tolerance-score-badge.medium { background: #f39c12 !important; }
-    .tolerance-score-badge.low { background: #27ae60 !important; }
+    .tolerance-score-badge.high,
+    .tolerance-score-badge.medium,
+    .tolerance-score-badge.low { background: rgb(60, 60, 60) !important; }
     .tolerance-score-badge.failed { background: #7f8c8d !important; color: #fff !important; }
 
     /* Old Reddit badges - below post rank on left */

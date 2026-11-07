@@ -216,9 +216,9 @@ function injectStyles(): void {
       box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
       display: block !important;
     }
-    .tolerance-score-badge.high { background: #e74c3c !important; }
-    .tolerance-score-badge.medium { background: #f39c12 !important; }
-    .tolerance-score-badge.low { background: #27ae60 !important; }
+    .tolerance-score-badge.high,
+    .tolerance-score-badge.medium,
+    .tolerance-score-badge.low { background: rgb(60, 60, 60) !important; }
     .tolerance-score-badge.pending { background: #95a5a6 !important; }
     .tolerance-score-badge.failed { background: #7f8c8d !important; color: #fff !important; }
 
@@ -322,7 +322,7 @@ function injectStyles(): void {
       pointer-events: none;
     }
     .tolerance-blur-label {
-      background: rgba(231, 76, 60, 0.9);
+      background: rgba(60, 60, 60, 0.9);
       color: white;
       padding: 6px 12px;
       border-radius: 16px;
@@ -330,12 +330,6 @@ function injectStyles(): void {
       font-weight: 600;
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-    .tolerance-blur-label.medium {
-      background: rgba(243, 156, 18, 0.9);
-    }
-    .tolerance-blur-label.low {
-      background: rgba(39, 174, 96, 0.9);
     }
     .tolerance-pending .tolerance-blur-label {
       background: rgba(149, 165, 166, 0.9);
