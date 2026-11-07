@@ -7,6 +7,7 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
+import { releaseIfStillUnscraped } from '../gateSwitch';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -423,7 +424,7 @@ async function processPosts(): Promise<void> {
     const scraped = new Set(posts.map(p => p.element));
     for (const item of document.querySelectorAll<HTMLElement>(POST_ROOT_SELECTOR)) {
       if (!isInFeed(item) || scraped.has(item) || item.hasAttribute(FB_POST_ID_ATTR) || item.hasAttribute(FB_DONE_ATTR)) continue;
-      if ((item.textContent?.trim().length ?? 0) > 0) item.setAttribute(FB_DONE_ATTR, '');
+      if ((item.textContent?.trim().length ?? 0) > 0) releaseIfStillUnscraped(item, processPosts);
     }
 
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));

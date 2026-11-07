@@ -1,0 +1,13 @@
+/* Injected by the manifest before Reddit renders. Every feed post is blurred until
+   the content script picks it up (see gateSwitch.ts). The blur is on the post itself
+   because most of a shreddit-post is in its shadow DOM. If the script never picks a
+   post up, the animation releases it after 15 seconds. */
+@keyframes tolerance-gate-hold {
+  from { filter: blur(20px); pointer-events: none; }
+  to { filter: none; pointer-events: auto; }
+}
+
+html:not(.tolerance-gate-off) shreddit-feed shreddit-post:not([promoted]):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred),
+html:not(.tolerance-gate-off) #siteTable > .thing.link:not(.promoted):not([data-tolerance-pid]):not(.tolerance-pending):not(.tolerance-blurred) {
+  animation: tolerance-gate-hold 15s step-end forwards;
+}

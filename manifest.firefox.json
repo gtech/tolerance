@@ -69,6 +69,17 @@
     },
     {
       "matches": [
+        "*://old.reddit.com/*",
+        "*://www.reddit.com/*",
+        "*://reddit.com/*"
+      ],
+      "css": [
+        "reddit-gate.css"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
         "*://twitter.com/*",
         "*://x.com/*"
       ],
@@ -105,6 +116,24 @@
         "instagram.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://www.instagram.com/*"
+      ],
+      "exclude_matches": [
+        "*://www.instagram.com/explore*",
+        "*://www.instagram.com/reels*",
+        "*://www.instagram.com/reel/*",
+        "*://www.instagram.com/stories*",
+        "*://www.instagram.com/direct*",
+        "*://www.instagram.com/accounts*",
+        "*://www.instagram.com/p/*"
+      ],
+      "css": [
+        "instagram-gate.css"
+      ],
+      "run_at": "document_start"
     },
     {
       "matches": [

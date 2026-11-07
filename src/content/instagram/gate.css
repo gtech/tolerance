@@ -1,0 +1,12 @@
+/* Injected by the manifest before Instagram renders. Every feed post is blurred until
+   the content script picks it up (see ../gateSwitch.ts). A stylesheet, because the
+   script has to wait for React to hydrate before it can touch the DOM. If the script
+   never picks a post up, the animation releases it after 15 seconds. */
+@keyframes tolerance-gate-hold {
+  from { filter: blur(20px); pointer-events: none; }
+  to { filter: none; pointer-events: auto; }
+}
+
+html:not(.tolerance-gate-off) main article:not([data-tolerance-pid]):not([data-tolerance-done]) > * {
+  animation: tolerance-gate-hold 15s step-end forwards;
+}

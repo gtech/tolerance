@@ -123,6 +123,16 @@ export function setupNavigationObserver(callback: () => void): void {
       handleNavigation(callback);
     }
   };
+
+  // The page's own history calls don't reach these wrappers (content scripts run in
+  // an isolated world), so watch the path too
+  setInterval(() => {
+    if (window.location.pathname !== lastPathname) {
+      lastPathname = window.location.pathname;
+      log.debug('Instagram: Navigation detected via poll');
+      handleNavigation(callback);
+    }
+  }, 250);
 }
 
 function handleNavigation(callback: () => void): void {

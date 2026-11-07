@@ -7,6 +7,10 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
+import { GATE_POST_ATTR, GATE_DONE_ATTR, releaseIfStillUnscraped, watchGate } from '../gateSwitch';
+
+// The manifest's CSS gate can't see client-side navigation, so check the page as it changes
+setInterval(watchGate('instagram', isValidFeedPage), 250);
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -462,6 +466,14 @@ async function processPosts(): Promise<void> {
     // Scrape visible posts
     const posts = scrapeVisiblePosts();
     log.debug(` Instagram: Found ${posts.length} posts`);
+
+    // Take these posts from the CSS gate; new ones get their pending blur below, before any await
+    for (const post of posts) post.element.setAttribute(GATE_POST_ATTR, post.id);
+
+    const scraped = new Set<Element>(posts.map(p => p.element));
+    for (const article of document.querySelectorAll('main article')) {
+      if (!scraped.has(article) && !article.hasAttribute(GATE_DONE_ATTR)) releaseIfStillUnscraped(article, processPosts);
+    }
 
     // Filter to unprocessed posts
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));

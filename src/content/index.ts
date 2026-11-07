@@ -11,6 +11,9 @@ import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 import { setOpaque } from './opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
+import { GATE_POST_ATTR, watchGate } from './gateSwitch';
+
+watchGate('reddit');
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -844,6 +847,9 @@ async function processPosts(): Promise<void> {
     ? scrapeNewRedditPosts()
     : scrapeVisiblePosts();
   const t1 = performance.now();
+
+  // Take these posts from the CSS gate; new ones get their pending blur below, before any await
+  for (const post of allPosts) post.element?.setAttribute(GATE_POST_ATTR, post.id);
 
   // Filter to only new posts we haven't processed
   const newPosts = allPosts.filter(p => !processedPostIds.has(p.id));
