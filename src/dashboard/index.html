@@ -841,7 +841,7 @@
       background-color: #fff;
     }
 
-    /* Topics to Hide */
+    /* Topics */
     .topic-row {
       display: flex;
       justify-content: space-between;
@@ -1034,13 +1034,14 @@
     </div>
     </div>
 
-    <!-- Topics to Hide: one box, and it works everywhere -->
+    <!-- Topics: one box, and it works everywhere -->
     <div class="card" id="topics-section" style="margin-bottom: 24px;">
-      <h2>Topics to Hide</h2>
-      <p style="color: #888; font-size: 13px; margin-bottom: 12px;">Tired of seeing something? Describe it in your own words and Tolerance will blur it on every site.</p>
+      <h2>Topics</h2>
+      <p style="color: #888; font-size: 13px; margin-bottom: 12px;">Describe something in your own words, then choose whether to hide it or always show it on every site.</p>
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-        <input type="text" id="topic-input" placeholder="e.g. a game you're sick of, vague attention-seeking posts, celebrity gossip" style="flex: 1; min-width: 240px;" />
+        <input type="text" id="topic-input" placeholder="e.g. a game you're sick of, vague attention-seeking posts, woodworking" style="flex: 1; min-width: 240px;" />
         <button id="topic-add-btn" class="btn-primary" type="button" style="padding: 8px 20px;">Hide it</button>
+        <button id="topic-show-btn" class="btn-secondary" type="button" style="padding: 8px 20px;">Show it</button>
       </div>
       <div id="topic-note" role="status" style="color: #aaa; font-size: 12px; margin-top: 8px; min-height: 16px;"></div>
       <div id="topics-list" style="margin-top: 8px;"></div>
@@ -1308,7 +1309,7 @@
       </div>
     </div>
 
-    <!-- Topic details: everything past the Topics to Hide card -->
+    <!-- Topic details: everything past the Topics card -->
     <details style="margin-top: 32px;">
       <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px; margin-bottom: 16px;">Topic Details</summary>
 
@@ -1341,7 +1342,7 @@
     <div class="card" style="margin-top: 24px;">
       <h2>Blur Adjustments</h2>
       <p style="color: #888; font-size: 13px; margin-bottom: 16px;">
-        How much each topic changes a post's score. Topics you hide use +100, which blurs them everywhere. Use a smaller number to blur a topic only some of the time.
+        How much each topic changes a post's score. Topics you hide use +100, which always blurs them, and topics you show use -100, which never does. Use a smaller number for something in between.
       </p>
       <div id="strategies-list" class="strategies-list">
         <div class="empty-state" style="padding: 24px;">No adjustments yet.</div>

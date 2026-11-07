@@ -4,10 +4,12 @@ import { CounterStrategy, NarrativeTheme } from './types';
 
 // Enough to take a post to the top score, so it's blurred in every phase
 export const HIDE_MODIFIER = 100;
+// And to the bottom one, so it never is
+export const SHOW_MODIFIER = -100;
 
 const NAME_MAX = 60;
 
-export function buildTopic(text: string, now = Date.now()): { theme: NarrativeTheme; strategy: CounterStrategy } {
+export function buildTopic(text: string, modifier = HIDE_MODIFIER, now = Date.now()): { theme: NarrativeTheme; strategy: CounterStrategy } {
   const description = text.trim();
   const id = `user_${now}_${Math.random().toString(36).slice(2, 11)}`;
   const theme: NarrativeTheme = {
@@ -19,15 +21,15 @@ export function buildTopic(text: string, now = Date.now()): { theme: NarrativeTh
     active: true,
     discoveredAt: now,
   };
-  return { theme, strategy: hideStrategy(theme, now) };
+  return { theme, strategy: topicStrategy(theme, modifier, now) };
 }
 
-export function hideStrategy(theme: NarrativeTheme, now = Date.now()): CounterStrategy {
+export function topicStrategy(theme: NarrativeTheme, modifier = HIDE_MODIFIER, now = Date.now()): CounterStrategy {
   return {
     id: `strategy_${now}_${Math.random().toString(36).slice(2, 7)}`,
     themeId: theme.id,
     thesis: theme.description,
-    scoreModifier: HIDE_MODIFIER,
+    scoreModifier: modifier,
     enabled: true,
     createdAt: now,
   };

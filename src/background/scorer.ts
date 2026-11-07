@@ -14,7 +14,7 @@ import {
   scoreToBucket,
 } from '../shared/constants';
 import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies, recordTopicHits } from './storage';
-import { HIDE_MODIFIER } from '../shared/topics';
+import { HIDE_MODIFIER, SHOW_MODIFIER } from '../shared/topics';
 import { SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { getLastCallError, scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
@@ -83,7 +83,9 @@ async function applyCounterStrategies(
     const sign = strategy.scoreModifier > 0 ? '+' : '';
     const note = strategy.scoreModifier >= HIDE_MODIFIER
       ? `[Hidden topic: ${themeName}]`
-      : `[${sign}${strategy.scoreModifier} topic adjustment: ${themeName}]`;
+      : strategy.scoreModifier <= SHOW_MODIFIER
+        ? `[Shown topic: ${themeName}]`
+        : `[${sign}${strategy.scoreModifier} topic adjustment: ${themeName}]`;
     score.apiReason = score.apiReason ? `${score.apiReason} ${note}` : note;
 
     log.debug(` Counter-strategy applied to ${score.postId}: ${original} → ${score.apiScore} (${sign}${strategy.scoreModifier}, theme: ${themeName})`);

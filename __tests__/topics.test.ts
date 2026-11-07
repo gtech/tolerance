@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addTopicHit, buildTopic, customThemesFirst, HIDE_MODIFIER, TOPIC_RECENT_MAX } from '../src/shared/topics';
+import { addTopicHit, buildTopic, customThemesFirst, HIDE_MODIFIER, SHOW_MODIFIER, TOPIC_RECENT_MAX } from '../src/shared/topics';
 import { NarrativeTheme } from '../src/shared/types';
 
 describe('topics', () => {
@@ -12,6 +12,12 @@ describe('topics', () => {
     expect(strategy.themeId).toBe(theme.id);
     expect(strategy.scoreModifier).toBe(HIDE_MODIFIER);
     expect(strategy.enabled).toBe(true);
+  });
+
+  it('can build a topic to always show', () => {
+    const { theme, strategy } = buildTopic('woodworking', SHOW_MODIFIER);
+    expect(strategy.themeId).toBe(theme.id);
+    expect(strategy.scoreModifier).toBe(SHOW_MODIFIER);
   });
 
   it('shortens long names but keeps the whole text for detection', () => {

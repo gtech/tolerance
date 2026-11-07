@@ -121,11 +121,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     });
   }
 
-  // Open dashboard on first install to prompt API key setup
-  if (details.reason === 'install') {
-    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html') });
-  }
-
   // Pre-provision free tier API key (async, fire-and-forget)
   // This ensures the key is ready when the user first visits a social media site
   // Only logs on actual new provisioning (not when returning cached key)

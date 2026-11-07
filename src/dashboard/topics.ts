@@ -1,6 +1,6 @@
-// "Topics to Hide" card: type what you're tired of seeing, and it's blurred everywhere.
+// Topics card: describe something, then hide it or always show it, everywhere.
 import { CounterStrategy, NarrativeTheme } from '../shared/types';
-import { buildTopic, hideStrategy, TopicHits } from '../shared/topics';
+import { buildTopic, HIDE_MODIFIER, SHOW_MODIFIER, topicStrategy, TopicHits } from '../shared/topics';
 import { getTodayDateString } from '../background/storage';
 
 interface TopicHandlers {
@@ -20,11 +20,12 @@ function button(label: string, onClick: () => void | Promise<void>): HTMLButtonE
   return btn;
 }
 
-function statusLine(theme: NarrativeTheme, hiding: CounterStrategy | undefined, count: number): string {
+function statusLine(theme: NarrativeTheme, strategy: CounterStrategy | undefined, count: number): string {
   if (!theme.active) return 'Paused';
-  if (!hiding) return 'Spotted but not hidden';
-  if (hiding.scoreModifier <= 0) return 'Shown more often';
-  return count === 0 ? 'Nothing caught yet today' : `Caught ${count} ${count === 1 ? 'post' : 'posts'} today`;
+  if (!strategy) return 'Spotted, but not hidden or shown';
+  const posts = `${count} ${count === 1 ? 'post' : 'posts'}`;
+  if (strategy.scoreModifier < 0) return count === 0 ? 'Always shown. Nothing matched yet today' : `Always shown. Kept ${posts} visible today`;
+  return count === 0 ? 'Hidden. Nothing caught yet today' : `Hidden. Caught ${posts} today`;
 }
 
 function renderRow(theme: NarrativeTheme, strategy: CounterStrategy | undefined, hits: TopicHits, today: string): HTMLElement {
@@ -48,7 +49,7 @@ function renderRow(theme: NarrativeTheme, strategy: CounterStrategy | undefined,
     const details = document.createElement('details');
     details.className = 'topic-recent';
     const summary = document.createElement('summary');
-    summary.textContent = 'What it caught';
+    summary.textContent = 'What it matched';
     const list = document.createElement('ul');
     for (const reason of hit.recent) {
       const item = document.createElement('li');
@@ -62,10 +63,12 @@ function renderRow(theme: NarrativeTheme, strategy: CounterStrategy | undefined,
   const actions = document.createElement('div');
   actions.className = 'topic-actions';
   if (theme.active && !strategy) {
-    actions.appendChild(button('Hide it', async () => {
-      await chrome.runtime.sendMessage({ type: 'SAVE_COUNTER_STRATEGY', strategy: hideStrategy(theme) });
-      await handlers?.onChange();
-    }));
+    for (const [label, modifier] of [['Hide it', HIDE_MODIFIER], ['Show it', SHOW_MODIFIER]] as const) {
+      actions.appendChild(button(label, async () => {
+        await chrome.runtime.sendMessage({ type: 'SAVE_COUNTER_STRATEGY', strategy: topicStrategy(theme, modifier) });
+        await handlers?.onChange();
+      }));
+    }
   }
   actions.appendChild(button('Edit', () => handlers?.onEdit(theme.id)));
   actions.appendChild(button(theme.active ? 'Pause' : 'Resume', async () => {
@@ -73,7 +76,7 @@ function renderRow(theme: NarrativeTheme, strategy: CounterStrategy | undefined,
     await handlers?.onChange();
   }));
   actions.appendChild(button('Delete', async () => {
-    if (!confirm(`Stop hiding "${theme.name}"?`)) return;
+    if (!confirm(`Remove "${theme.name}"?`)) return;
     await chrome.runtime.sendMessage({ type: 'DELETE_NARRATIVE_THEME', themeId: theme.id });
     await handlers?.onChange();
   }));
@@ -99,14 +102,15 @@ export async function renderTopics(themes: NarrativeTheme[], strategies: Counter
 export function setupTopics(topicHandlers: TopicHandlers): void {
   handlers = topicHandlers;
   const input = document.getElementById('topic-input') as HTMLInputElement | null;
-  const add = document.getElementById('topic-add-btn');
+  const hide = document.getElementById('topic-add-btn');
+  const show = document.getElementById('topic-show-btn');
   const note = document.getElementById('topic-note');
-  if (!input || !add) return;
+  if (!input || !hide || !show) return;
 
-  const addTopic = async () => {
+  const addTopic = async (modifier: number) => {
     const text = input.value.trim();
     if (!text) return;
-    const { theme, strategy } = buildTopic(text);
+    const { theme, strategy } = buildTopic(text, modifier);
     await chrome.runtime.sendMessage({ type: 'UPDATE_NARRATIVE_THEME', theme });
     await chrome.runtime.sendMessage({ type: 'SAVE_COUNTER_STRATEGY', strategy });
     input.value = '';
@@ -114,8 +118,9 @@ export function setupTopics(topicHandlers: TopicHandlers): void {
     await handlers?.onChange();
   };
 
-  add.addEventListener('click', () => void addTopic());
+  hide.addEventListener('click', () => void addTopic(HIDE_MODIFIER));
+  show.addEventListener('click', () => void addTopic(SHOW_MODIFIER));
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') void addTopic();
+    if (e.key === 'Enter') void addTopic(HIDE_MODIFIER);
   });
 }
