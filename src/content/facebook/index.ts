@@ -225,7 +225,7 @@ function injectStyles(): void {
     .tolerance-blur-label.low { background: rgba(39, 174, 96, 0.9); }
     .tolerance-blur-label.failed { background: rgba(127, 140, 141, 0.9); }
     .tolerance-blur-overlay::after {
-      content: 'Hover 3s to reveal';
+      content: var(--tolerance-hover-text, 'Hover to reveal');
       color: rgba(255, 255, 255, 0.9);
       font-size: 14px;
       font-weight: 500;
@@ -753,6 +753,7 @@ chrome.storage.onChanged.addListener((changes) => {
     subscriptionsOnlyMode = newSettings.subscriptionsOnly ?? false;
     refreshBlurState();
 
+    hoverRevealDelay = (newSettings.twitter?.hoverRevealDelay ?? 3) * 1000;
     applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays

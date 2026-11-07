@@ -297,7 +297,7 @@ function injectLoadingStyles(): void {
     }
 
     .tolerance-blur-overlay::after {
-      content: 'Hover to reveal';
+      content: var(--tolerance-hover-text, 'Hover to reveal');
       color: rgba(255, 255, 255, 0.9);
       font-size: 14px;
       font-weight: 500;
