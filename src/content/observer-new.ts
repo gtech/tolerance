@@ -1,4 +1,5 @@
 import { log } from '../shared/constants';
+import { NEW_REDDIT_POST_SELECTOR } from './scraper-new';
 
 // Observer for new Reddit's dynamic content loading
 // New Reddit is an SPA that loads posts dynamically into <shreddit-feed>
@@ -57,7 +58,7 @@ function observeFeed(feed: Element, callback: () => void): void {
   // Helper: Get all current post IDs from the document (not just the feed element)
   // This ensures we detect posts even if the feed element reference is stale
   const getCurrentPostIds = (): Set<string> => {
-    const posts = document.querySelectorAll('shreddit-post:not([promoted])');
+    const posts = document.querySelectorAll(NEW_REDDIT_POST_SELECTOR);
     const ids = new Set<string>();
     for (const post of posts) {
       const id = post.getAttribute('id');
@@ -147,7 +148,7 @@ function observeFeed(feed: Element, callback: () => void): void {
   // Also observe document body in case posts are added outside the feed
   const bodyMutationObserver = new MutationObserver(() => {
     // Lightweight check - only run if there might be new posts
-    const currentCount = document.querySelectorAll('shreddit-post:not([promoted])').length;
+    const currentCount = document.querySelectorAll(NEW_REDDIT_POST_SELECTOR).length;
     if (currentCount > knownPostIds.size) {
       checkForNewPosts('BodyObserver');
     }

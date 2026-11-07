@@ -1,4 +1,5 @@
 import { RedditPost } from '../shared/types';
+import { SPONSORED_PREFIX } from '../shared/scoring-spec';
 
 // Scrape post data from old.reddit.com DOM
 // Old Reddit uses consistent div.thing structure
@@ -31,8 +32,9 @@ function parsePostElement(element: HTMLElement): RedditPost | null {
 
     // Title
     const titleElement = element.querySelector<HTMLAnchorElement>('a.title');
-    const title = titleElement?.textContent?.trim() || '';
-    if (!title) return null;
+    const postTitle = titleElement?.textContent?.trim() || '';
+    if (!postTitle) return null;
+    const title = element.classList.contains('promoted') ? `${SPONSORED_PREFIX}${postTitle}` : postTitle;
 
     // Subreddit
     const subredditElement = element.querySelector<HTMLAnchorElement>('a.subreddit');

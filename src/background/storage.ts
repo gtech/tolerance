@@ -211,18 +211,16 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   const now = Date.now();
   const settings = await getSettings();
   const hash = rubricHash(activeRubric(settings.scoringRubric));
-  const adNote = settings.penalizeFacebookAds !== false;
   const { topicsChangedAt } = await chrome.storage.local.get('topicsChangedAt');
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
-    // Scores from an older scoring spec, another rubric or the other ad setting are re-scored rather than mixed with new ones.
-    // So are scores from before the topics last changed, or a new topic wouldn't apply for up to a day.
+    // Scores from an older scoring spec or another rubric are re-scored rather than mixed with new ones.
+    // So are scores from before the topics or ad setting last changed, or the change wouldn't apply for up to a day.
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
         cached.timestamp >= ((topicsChangedAt as number | undefined) ?? 0) &&
         cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION &&
         cached.rubricHash === hash &&
-        (cached.adNote === undefined || cached.adNote === adNote) &&
         Number.isFinite(cached.apiScore)) {
       result.set(id, cached);
     }

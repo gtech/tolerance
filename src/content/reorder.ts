@@ -45,15 +45,17 @@ export function reorderPosts(
   // Create document fragment for efficient reordering
   const fragment = document.createDocumentFragment();
 
-  // Collect non-post elements (ads, promoted, etc) to preserve
+  // Collect non-post elements to preserve. Promoted posts are scored like any other,
+  // so they only count as non-posts if the scraper couldn't read them.
   const nonPostElements: HTMLElement[] = [];
   const allChildren = Array.from(container.children) as HTMLElement[];
 
   for (const child of allChildren) {
+    const fullname = child.getAttribute('data-fullname')?.replace('t3_', '') ?? '';
     if (
       !child.classList.contains('thing') ||
       !child.classList.contains('link') ||
-      child.classList.contains('promoted')
+      (child.classList.contains('promoted') && !postMap.has(fullname))
     ) {
       nonPostElements.push(child);
     }

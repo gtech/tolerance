@@ -683,6 +683,8 @@ function isWatchPage(): boolean {
   return window.location.pathname.startsWith('/watch');
 }
 
+const YOUTUBE_AD_SELECTOR = 'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer';
+
 // Check if we're on a Shorts page
 function isShortsPage(): boolean {
   return window.location.pathname.startsWith('/shorts');
@@ -859,6 +861,12 @@ async function processVideos(): Promise<void> {
     for (const card of document.querySelectorAll<HTMLElement>(VIDEO_CARD_SELECTOR)) {
       if (card.hasAttribute(VIDEO_ID_ATTR) || card.hasAttribute(DONE_ATTR) || scrapedElements.has(card)) continue;
       card.setAttribute(DONE_ATTR, findVideoIdFromElement(card) ?? '');
+      // Ad slots have nothing to score, but YouTube says what they are
+      if (currentSettings?.penalizeFacebookAds !== false && card.querySelector(YOUTUBE_AD_SELECTOR)) {
+        applyBlurToVideo({ id: 'ad', element: card } as YouTubeVideo, {
+          postId: 'ad', apiScore: 100, bucket: 'high', apiReason: 'Ad', factors: {}, timestamp: Date.now(),
+        });
+      }
     }
 
     // Separate into new videos and videos needing badge re-injection

@@ -1299,7 +1299,6 @@ export async function scoreFacebookPosts(
         } else {
           const apiScore = apiResult.score * 10;
           stampSpec(score, apiResult);
-          score.adNote = settings.penalizeFacebookAds !== false;
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
@@ -1358,7 +1357,6 @@ export async function scoreFacebookPosts(
         } else {
           const apiScore = apiResult.score * 10;
           stampSpec(score, apiResult);
-          score.adNote = settings.penalizeFacebookAds !== false;
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;

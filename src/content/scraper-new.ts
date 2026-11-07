@@ -1,15 +1,16 @@
 import { RedditPost } from '../shared/types';
+import { SPONSORED_PREFIX } from '../shared/scoring-spec';
 
 // Scrape post data from new Reddit (www.reddit.com) DOM
 // New Reddit uses <shreddit-post> custom elements with data as attributes
 
+// Includes promoted posts, which get labeled for scoring
+export const NEW_REDDIT_POST_SELECTOR = 'shreddit-post, shreddit-ad-post';
+
 export function scrapeNewRedditPosts(): RedditPost[] {
   const posts: RedditPost[] = [];
 
-  // Select all non-ad, non-promoted posts
-  const postElements = document.querySelectorAll<HTMLElement>(
-    'shreddit-post:not([promoted])'
-  );
+  const postElements = document.querySelectorAll<HTMLElement>(NEW_REDDIT_POST_SELECTOR);
 
   for (const element of Array.from(postElements)) {
     const post = parseNewRedditPost(element);
@@ -30,8 +31,10 @@ function parseNewRedditPost(element: HTMLElement): RedditPost | null {
     const id = fullId.replace('t3_', '');
 
     // Title
-    const title = element.getAttribute('post-title') || '';
-    if (!title) return null;
+    const postTitle = element.getAttribute('post-title') || '';
+    if (!postTitle) return null;
+    const promoted = element.hasAttribute('promoted') || element.localName === 'shreddit-ad-post';
+    const title = promoted ? `${SPONSORED_PREFIX}${postTitle}` : postTitle;
 
     // Author
     const author = element.getAttribute('author') || '[deleted]';

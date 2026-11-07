@@ -132,14 +132,17 @@ async function setupFacebookReelsSetting(): Promise<void> {
   });
 }
 
-// Penalize Facebook Ads card (on unless explicitly turned off)
+// Penalize Ads card (on unless explicitly turned off)
 async function setupFacebookAdsSetting(): Promise<void> {
   const toggle = document.getElementById('fb-ads-toggle') as HTMLInputElement | null;
   if (!toggle) return;
   toggle.checked = (await getSettings()).penalizeFacebookAds !== false;
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
-    await chrome.storage.local.set({ settings: { ...current, penalizeFacebookAds: toggle.checked } });
+    await chrome.storage.local.set({
+      settings: { ...current, penalizeFacebookAds: toggle.checked },
+      topicsChangedAt: Date.now(), // re-score posts under the new setting
+    });
   });
 }
 

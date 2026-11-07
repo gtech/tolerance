@@ -1,5 +1,6 @@
 import { Tweet, TweetAnchor } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 
 // Scrape tweet data from Twitter/X DOM
 // Twitter uses React with data-testid attributes for stable selectors
@@ -20,6 +21,14 @@ export function scrapeVisibleTweets(): Tweet[] {
   }
 
   return tweets;
+}
+
+// Promoted tweets carry a bare "Ad" label in their header, outside the tweet text
+function isPromotedTweet(element: HTMLElement): boolean {
+  return [...element.querySelectorAll('span')].some(span => {
+    const label = span.textContent?.trim();
+    return (label === 'Ad' || label === 'Promoted') && !span.closest('[data-testid="tweetText"]');
+  });
 }
 
 export function parseTweetElement(element: HTMLElement): Tweet | null {
@@ -53,7 +62,8 @@ export function parseTweetElement(element: HTMLElement): Tweet | null {
 
     // Tweet text
     const textElement = [...element.querySelectorAll('[data-testid="tweetText"]')].find(t => !inQuotedTweet(element, t));
-    const text = textElement?.textContent?.trim() || '';
+    const tweetText = textElement?.textContent?.trim() || '';
+    const text = isPromotedTweet(element) ? `${SPONSORED_PREFIX}${tweetText}` : tweetText;
 
     // Timestamp
     const timeElement = element.querySelector('time');

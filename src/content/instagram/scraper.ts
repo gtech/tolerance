@@ -1,5 +1,6 @@
 import { InstagramPost } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 
 // Scrape Instagram post data from DOM
 // Based on actual Instagram DOM structure as of Dec 2025
@@ -59,7 +60,8 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
       : `https://www.instagram.com/p/${id}/`;
 
     // Check if sponsored
-    const isSponsored = detectSponsored(element);
+    const isSponsored = detectSponsored(element, caption);
+    const scoredCaption = isSponsored ? `${SPONSORED_PREFIX}${caption}` : caption;
 
     // Timestamp
     const createdUtc = extractTimestamp(element) || Date.now() / 1000;
@@ -70,8 +72,8 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
       author,
       authorUsername,
       authorProfilePic,
-      text: caption,
-      caption,
+      text: scoredCaption,
+      caption: scoredCaption,
       score: likeCount,
       likeCount,
       numComments: commentCount,
@@ -383,8 +385,9 @@ function extractMediaInfo(element: HTMLElement): {
   return { mediaType, isReel, isCarousel, carouselCount, thumbnailUrl, imageUrl, videoUrl, hasAudio };
 }
 
-function detectSponsored(element: HTMLElement): boolean {
-  const text = element.textContent?.toLowerCase() || '';
+// Ignores the caption: someone writing "not sponsored" isn't running an ad
+function detectSponsored(element: HTMLElement, caption: string): boolean {
+  const text = (element.textContent || '').replace(caption, '').toLowerCase();
   return text.includes('sponsored') ||
          text.includes('paid partnership') ||
          element.querySelector('[aria-label*="sponsored" i]') !== null;
