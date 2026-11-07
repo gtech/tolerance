@@ -124,14 +124,14 @@ async function setupFacebookReelsSetting(): Promise<void> {
   });
 }
 
-// Hide Facebook Ads card (on unless explicitly turned off)
+// Penalize Facebook Ads card (on unless explicitly turned off)
 async function setupFacebookAdsSetting(): Promise<void> {
   const toggle = document.getElementById('fb-ads-toggle') as HTMLInputElement | null;
   if (!toggle) return;
-  toggle.checked = (await getSettings()).hideFacebookAds !== false;
+  toggle.checked = (await getSettings()).penalizeFacebookAds !== false;
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
-    await chrome.storage.local.set({ settings: { ...current, hideFacebookAds: toggle.checked } });
+    await chrome.storage.local.set({ settings: { ...current, penalizeFacebookAds: toggle.checked } });
   });
 }
 

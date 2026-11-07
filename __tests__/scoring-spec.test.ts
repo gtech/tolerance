@@ -12,6 +12,12 @@ describe('Facebook ad note', () => {
     expect(buildBatchPrompt([fb], [], undefined, 'My rubric')).toContain('Facebook advertisements');
   });
 
+  it('can be turned off', () => {
+    expect(buildBatchPrompt([fb], [], undefined, RUBRIC, false)).not.toContain('Facebook advertisements');
+    expect(buildSinglePrompt(fb, [], RUBRIC, false)).not.toContain('Facebook advertisements');
+    expect(buildMediaPrompt(fb, [], true, RUBRIC, false)).not.toContain('Facebook advertisements');
+  });
+
   it('is not in other platforms\' prompts', () => {
     expect(buildBatchPrompt([tw])).not.toContain('Facebook advertisements');
     expect(buildSinglePrompt(tw)).not.toContain('Facebook advertisements');

@@ -200,6 +200,7 @@ export interface EngagementScore {
   scoreFailed?: boolean; // If true, apiScore is default (50) and should be re-scored
   specVersion?: number;  // Scoring spec that produced apiScore (shared/scoring-spec.ts)
   rubricHash?: string;   // Set when an edited rubric produced apiScore (unset = default rubric)
+  adNote?: boolean;      // Facebook only: whether the ad note was in the prompt
   dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
   imageSeen?: boolean;   // Image/video posts: whether the image reached the model
   preFloorScore?: number; // Video/gif tweets raised to the video floor: the score before it
@@ -459,8 +460,8 @@ export interface Settings {
   logLevel?: LogLevel;
   // Hide Facebook Reels (the Reels tray and reel posts in the feed). Default: true
   hideFacebookReels?: boolean;
-  // Hide sponsored posts in the Facebook feed. Default: true
-  hideFacebookAds?: boolean;
+  // Tell the scoring model to give Facebook ads the top score. Default: true
+  penalizeFacebookAds?: boolean;
   // Platform toggles - enable/disable Tolerance on each platform
   platforms: {
     reddit: boolean;

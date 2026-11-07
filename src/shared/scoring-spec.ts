@@ -147,8 +147,8 @@ function mediaNotes(posts: ScoringPost[]): string {
 }
 
 // Sits outside the rubric, so it still applies when the user edits the rubric
-function platformNotes(posts: ScoringPost[]): string {
-  if (!posts.some(p => p.platform === 'facebook')) return '';
+function platformNotes(posts: ScoringPost[], adNote: boolean): string {
+  if (!adNote || !posts.some(p => p.platform === 'facebook')) return '';
   return '\n\nFacebook advertisements: a post that exists to sell a product or service or to send the reader to a shop or landing page, usually from a brand or business, is an ad. Give an ad score 10 and value 1, however useful or clever it seems. Say it is an ad in the reason. Ordinary posts that merely mention a product, event or business are not ads.';
 }
 
@@ -165,24 +165,24 @@ function fields(themes: ScoringTheme[]): string {
   return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<15 words max: what grabs attention and what, if anything, it gives back>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
 }
 
-export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC): string {
+export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true): string {
   return `Rate this social media post.
 
 ${describePost(post)}
 
-${rubric}${mediaNotes([post])}${platformNotes([post])}${themeSection(themes, false)}
+${rubric}${mediaNotes([post])}${platformNotes([post], adNote)}${themeSection(themes, false)}
 
 Respond with ONLY valid JSON: {${fields(themes)}}`;
 }
 
-export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC): string {
+export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
   const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image.` : '';
   return `Rate each of these social media posts.
 
 ${list}${imageNote}
 
-${rubric}${mediaNotes(posts)}${platformNotes(posts)}${themeSection(themes, true)}
+${rubric}${mediaNotes(posts)}${platformNotes(posts, adNote)}${themeSection(themes, true)}
 
 Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
 }
@@ -205,8 +205,8 @@ export function isCalibrationId(id: string | undefined): boolean {
 // One image/video post, scored alongside the calibration posts: alone, the model
 // rates anything intriguing 6-7. With attached=true the image is marked as its own.
 export const MEDIA_POST_ID = 'post-1';
-export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC): string {
-  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric);
+export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC, adNote = true): string {
+  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric, adNote);
 }
 
 // The scored post's item from a batch-shaped reply, skipping calibration items.

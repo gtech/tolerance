@@ -26,6 +26,11 @@ async function getRubric(): Promise<string> {
   return activeRubric((await getSettings()).scoringRubric);
 }
 
+// Whether Facebook prompts tell the model to give ads the top score
+async function getAdNote(): Promise<boolean> {
+  return (await getSettings()).penalizeFacebookAds !== false;
+}
+
 // Record which rubric produced a score
 function tagRubric(result: ScoreResponse | null, rubric: string): ScoreResponse | null {
   const hash = rubricHash(rubric);
@@ -256,7 +261,7 @@ export async function scoreTextPostsBatch(
 
   const rubric = rubricOverride === undefined ? await getRubric() : activeRubric(rubricOverride);
   const hash = rubricHash(rubric);
-  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes, undefined, rubric);
+  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes, undefined, rubric, await getAdNote());
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -400,7 +405,7 @@ export async function scoreTextPostsBatchWithGalleries(
     ...toScoringPost(p),
     media: p.galleryDescription ? 'gallery' as const : 'text' as const,
     imageDescriptions: p.galleryDescription,
-  }))), activeThemes, undefined, rubric);
+  }))), activeThemes, undefined, rubric, await getAdNote());
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -729,7 +734,7 @@ export async function scoreImagePost(
 
     // Now score with text model using descriptions
     const rubric = await getRubric();
-    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric);
+    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric, await getAdNote());
 
     return tagRubric(await callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes), rubric);
   }
@@ -739,7 +744,7 @@ export async function scoreImagePost(
   log.debug(` scoreImagePost single image - config.type=${config.type}, config.imageModel=${config.imageModel}, imageUrl=${imageUrl}`);
 
   const rubric = await getRubric();
-  const prompt = buildMediaPrompt(post, activeThemes, true, rubric);
+  const prompt = buildMediaPrompt(post, activeThemes, true, rubric, await getAdNote());
 
   return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim()), rubric);
 }
@@ -787,7 +792,7 @@ export async function scoreVideoPost(
   const prompt = buildMediaPrompt({
     platform: plat, text: title, source: sourceFor(plat, source),
     likes: score, comments: numComments, media: 'video',
-  }, activeThemes, !!imageUrl, rubric);
+  }, activeThemes, !!imageUrl, rubric, await getAdNote());
 
   return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim()), rubric);
 }

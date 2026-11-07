@@ -207,14 +207,17 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   const db = await getDB();
   const result = new Map<string, EngagementScore>();
   const now = Date.now();
-  const hash = rubricHash(activeRubric((await getSettings()).scoringRubric));
+  const settings = await getSettings();
+  const hash = rubricHash(activeRubric(settings.scoringRubric));
+  const adNote = settings.penalizeFacebookAds !== false;
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
-    // Scores from an older scoring spec or another rubric are re-scored rather than mixed with new ones
+    // Scores from an older scoring spec, another rubric or the other ad setting are re-scored rather than mixed with new ones
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
         cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION &&
         cached.rubricHash === hash &&
+        (cached.adNote === undefined || cached.adNote === adNote) &&
         Number.isFinite(cached.apiScore)) {
       result.set(id, cached);
     }
