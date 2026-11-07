@@ -841,6 +841,32 @@
       background-color: #fff;
     }
 
+    /* Topics to Hide */
+    .topic-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 12px 0;
+      border-top: 1px solid #222;
+    }
+
+    .topic-main { min-width: 0; }
+
+    .topic-name { color: #e0e0e0; font-size: 14px; overflow-wrap: anywhere; }
+
+    .topic-status { color: #888; font-size: 12px; margin-top: 2px; }
+
+    .topic-recent { color: #888; font-size: 12px; margin-top: 6px; }
+
+    .topic-recent summary { cursor: pointer; }
+
+    .topic-recent ul { margin: 6px 0 0 16px; }
+
+    .topic-recent li { margin-bottom: 4px; }
+
+    .topic-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
     /* Subscriptions Only Toggle Slider */
     #subs-only-slider:before {
       position: absolute;
@@ -1008,21 +1034,17 @@
     </div>
     </div>
 
-    <!-- Custom scoring rules: powerful but involved, so closed until someone asks for it -->
-    <details class="settings-section" id="rubric-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin: 0 0 24px;">
-      <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Custom Scoring Rules</summary>
-      <div class="setting-description" style="margin: 12px 0;">
-        Rewrite what the AI measures in each post. Keep the scale's direction (1 = worth your attention, 10 = scroll fuel): blurring and the built-in reference posts assume it. Posts are re-scored with saved rules as you see them.
+    <!-- Topics to Hide: one box, and it works everywhere -->
+    <div class="card" id="topics-section" style="margin-bottom: 24px;">
+      <h2>Topics to Hide</h2>
+      <p style="color: #888; font-size: 13px; margin-bottom: 12px;">Tired of seeing something? Describe it in your own words and Tolerance will blur it on every site.</p>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <input type="text" id="topic-input" placeholder="e.g. a game you're sick of, vague attention-seeking posts, celebrity gossip" style="flex: 1; min-width: 240px;" />
+        <button id="topic-add-btn" class="btn-primary" type="button" style="padding: 8px 20px;">Hide it</button>
       </div>
-      <textarea id="rubric-text" rows="18" spellcheck="false" style="width: 100%; background: #141414; border: 1px solid #333; border-radius: 8px; padding: 12px; color: #ccc; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; resize: vertical;"></textarea>
-      <div style="display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
-        <button id="rubric-test-btn" style="padding: 10px 20px; background: #3d2d4a; color: #b07dce; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Test on sample posts</button>
-        <button id="rubric-save-btn" style="padding: 10px 20px; background: #2d4a3d; color: #7dcea0; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Save</button>
-        <button id="rubric-reset-btn" style="padding: 10px 20px; background: #2a2a2a; color: #888; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Reset to default</button>
-        <span id="rubric-state" style="color: #888; font-size: 13px;"></span>
-      </div>
-      <div id="rubric-test-results" style="display: none; margin-top: 16px; font-size: 13px;"></div>
-    </details>
+      <div id="topic-note" role="status" style="color: #aaa; font-size: 12px; margin-top: 8px; min-height: 16px;"></div>
+      <div id="topics-list" style="margin-top: 8px;"></div>
+    </div>
 
     <div class="grid">
       <!-- Threshold Controls Card -->
@@ -1286,17 +1308,16 @@
       </div>
     </div>
 
-    <!-- Narrative Awareness Section -->
-    <div class="section-header" style="margin-top: 32px; margin-bottom: 16px;">
-      <h2 style="color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Narrative Awareness</h2>
-    </div>
+    <!-- Topic details: everything past the Topics to Hide card -->
+    <details style="margin-top: 32px;">
+      <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px; margin-bottom: 16px;">Topic Details</summary>
 
     <div class="grid">
       <div class="card">
-        <h2>Narrative Trends (Today)</h2>
+        <h2>Seen in Your Feed</h2>
         <div id="narrative-alert" class="narrative-alert" style="display: none;"></div>
         <div class="narrative-bars" id="narrative-bars">
-          <div class="empty-state" style="padding: 24px;">No narrative data yet. Browse Reddit to start tracking.</div>
+          <div class="empty-state" style="padding: 24px;">Nothing yet. Browse Reddit to start tracking.</div>
         </div>
         <div class="time-selector" style="margin-top: 16px;">
           <button class="time-btn active" data-days="1">Today</button>
@@ -1304,56 +1325,41 @@
           <button class="time-btn" data-days="30">30 Days</button>
         </div>
       </div>
-
-      <!-- Custom Narrative Creation -->
-      <div class="card">
-        <h2>Create Custom Narrative</h2>
-        <p style="color: #888; font-size: 13px; margin-bottom: 12px;">
-          Describe what kind of content you want to filter. The AI will intelligently detect matching posts.
-        </p>
-        <div class="form-group">
-          <label>Narrative Name</label>
-          <input type="text" id="custom-theme-name" placeholder="Politics / Kardashians / etc." />
-        </div>
-        <div class="form-group">
-          <label>Description (for AI detection)</label>
-          <textarea id="custom-theme-desc" rows="4" placeholder="Describe the type of content this narrative represents. Be specific about tone, topics, and patterns you want to detect. Example: 'Content promoting fear and uncertainty about job security, including discussions of mass layoffs, AI replacing workers, or economic doom without actionable solutions.'"></textarea>
-        </div>
-        <button id="save-custom-theme-btn" class="btn-primary" style="width: 100%;">Create Narrative</button>
-      </div>
-
-      <div class="card">
-        <h2>Emerging Narratives <span id="emerging-badge" class="badge" style="display: none;">0</span></h2>
-        <div id="emerging-list" class="emerging-list">
-          <div class="empty-state" style="padding: 24px;">No emerging patterns detected yet.</div>
-        </div>
-        <button class="btn-secondary" id="trigger-discovery-btn" style="margin-top: 12px; width: 100%;">
-          Run Discovery (<span id="unclassified-count">0</span> unclassified posts)
-        </button>
-      </div>
     </div>
 
-    <!-- Manage Narratives Section -->
+    <!-- All topics, including the built-in ones -->
     <div class="card" style="margin-top: 24px;">
-      <h2>Manage Narratives</h2>
+      <h2>All Topics</h2>
       <p style="color: #888; font-size: 13px; margin-bottom: 16px;">
-        View and manage all narratives. Toggle narratives on/off to control what the AI detects.
+        Includes the built-in topics. Turn one off to stop looking for it.
       </p>
       <div id="themes-list" class="themes-list">
-        <div class="empty-state" style="padding: 24px;">Loading narratives...</div>
+        <div class="empty-state" style="padding: 24px;">Loading topics...</div>
       </div>
     </div>
 
-    <!-- Edit Narrative Modal -->
+    <div class="card" style="margin-top: 24px;">
+      <h2>Blur Adjustments</h2>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">
+        How much each topic changes a post's score. Topics you hide use +100, which blurs them everywhere. Use a smaller number to blur a topic only some of the time.
+      </p>
+      <div id="strategies-list" class="strategies-list">
+        <div class="empty-state" style="padding: 24px;">No adjustments yet.</div>
+      </div>
+      <button class="btn-primary" id="add-strategy-btn" style="margin-top: 12px;">+ Add Adjustment</button>
+    </div>
+    </details>
+
+    <!-- Edit Topic Modal -->
     <div id="edit-theme-modal" class="modal" style="display: none;">
       <div class="modal-content">
-        <h3>Edit Narrative</h3>
+        <h3>Edit Topic</h3>
         <div class="form-group">
-          <label>Narrative Name</label>
+          <label>Name</label>
           <input type="text" id="edit-theme-name" />
         </div>
         <div class="form-group">
-          <label>Description (for AI detection)</label>
+          <label>What should it catch?</label>
           <textarea id="edit-theme-desc" rows="4"></textarea>
         </div>
         <div class="modal-actions">
@@ -1363,33 +1369,25 @@
       </div>
     </div>
 
-    <div class="card" style="margin-top: 24px;">
-      <h2>Counter-Strategies (Dialectical)</h2>
-      <div id="strategies-list" class="strategies-list">
-        <div class="empty-state" style="padding: 24px;">No counter-strategies configured. Add one to start.</div>
-      </div>
-      <button class="btn-primary" id="add-strategy-btn" style="margin-top: 12px;">+ Add Counter-Strategy</button>
-    </div>
-
     <!-- Strategy Modal -->
     <div id="strategy-modal" class="modal" style="display: none;">
       <div class="modal-content">
-        <h3>Configure Counter-Strategy</h3>
+        <h3>Blur Adjustment</h3>
         <div class="form-group">
-          <label>Target Narrative</label>
+          <label>Topic</label>
           <select id="strategy-theme"></select>
         </div>
         <div class="form-group">
-          <label>Thesis (The Narrative)</label>
-          <textarea id="strategy-thesis" placeholder="Auto-filled from theme description" readonly></textarea>
+          <label>What it catches</label>
+          <textarea id="strategy-thesis" placeholder="Filled in from the topic" readonly></textarea>
         </div>
         <div class="form-group">
-          <label>Score Modifier: <span id="modifier-value">+20</span> points</label>
-          <input type="range" id="strategy-modifier" min="-50" max="50" value="20">
-          <div class="setting-description">Positive = blur more (suppress). Negative = blur less (surface).</div>
+          <label>Score change: <span id="modifier-value">+20</span> points</label>
+          <input type="range" id="strategy-modifier" min="-100" max="100" value="20">
+          <div class="setting-description">Positive = blur more. Negative = blur less.</div>
         </div>
         <details class="dialectical-section">
-          <summary style="cursor: pointer; color: #888; margin: 16px 0;">Add dialectical notes (optional)</summary>
+          <summary style="cursor: pointer; color: #888; margin: 16px 0;">Add notes (optional)</summary>
           <div class="form-group">
             <label>Antithesis (optional)</label>
             <textarea id="strategy-antithesis" placeholder="Direct opposite perspective"></textarea>
@@ -1401,7 +1399,7 @@
         </details>
         <div class="modal-actions">
           <button class="btn-secondary" id="cancel-strategy-btn">Cancel</button>
-          <button class="btn-primary" id="save-strategy-btn">Save Strategy</button>
+          <button class="btn-primary" id="save-strategy-btn">Save</button>
         </div>
       </div>
     </div>
@@ -1488,6 +1486,22 @@
         </div>
       </div>
     </div>
+
+    <!-- Custom scoring rules: rarely needed, so closed until someone asks for it -->
+    <details class="settings-section" id="rubric-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-top: 24px;">
+      <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Custom Scoring Rules</summary>
+      <div class="setting-description" style="margin: 12px 0;">
+        Rewrite what the AI measures in each post. Keep the scale's direction (1 = worth your attention, 10 = scroll fuel): blurring and the built-in reference posts assume it. Posts are re-scored with saved rules as you see them.
+      </div>
+      <textarea id="rubric-text" rows="18" spellcheck="false" style="width: 100%; background: #141414; border: 1px solid #333; border-radius: 8px; padding: 12px; color: #ccc; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; resize: vertical;"></textarea>
+      <div style="display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap;">
+        <button id="rubric-test-btn" style="padding: 10px 20px; background: #3d2d4a; color: #b07dce; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Test on sample posts</button>
+        <button id="rubric-save-btn" style="padding: 10px 20px; background: #2d4a3d; color: #7dcea0; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Save</button>
+        <button id="rubric-reset-btn" style="padding: 10px 20px; background: #2a2a2a; color: #888; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">Reset to default</button>
+        <span id="rubric-state" style="color: #888; font-size: 13px;"></span>
+      </div>
+      <div id="rubric-test-results" style="display: none; margin-top: 16px; font-size: 13px;"></div>
+    </details>
 
     <!-- Platform Toggles - With blur protection -->
     <div class="settings-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #222;">

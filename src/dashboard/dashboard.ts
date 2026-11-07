@@ -1,7 +1,8 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
+import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
+import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
@@ -49,6 +50,7 @@ async function init(): Promise<void> {
 
   // Set up event listeners
   setupEventListeners();
+  setupTopics({ onChange: loadNarrativeData, onEdit: openEditThemeModal });
   await setupTrustedBlurPhase();
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
@@ -1522,9 +1524,6 @@ async function loadNarrativeData(): Promise<void> {
     // Load trends
     await loadNarrativeTrends(currentTrendDays);
 
-    // Load emerging narratives
-    await loadEmergingNarratives();
-
     // Load counter-strategies
     await loadCounterStrategies();
 
@@ -1645,7 +1644,7 @@ function setupThemeEventListeners(): void {
       const themeId = target.dataset.id;
       if (themeId) {
         const theme = currentNarrativeThemes.find(t => t.id === themeId);
-        if (theme && confirm(`Delete narrative "${theme.name}"?\n\nThis will also delete any counter-strategies using this narrative. This cannot be undone.`)) {
+        if (theme && confirm(`Delete topic "${theme.name}"?\n\nThis will also delete any blur adjustment using this topic. This cannot be undone.`)) {
           await deleteTheme(themeId);
         }
       }
@@ -1770,7 +1769,7 @@ function renderNarrativeTrends(trends: DailyNarrativeStats[]): void {
   const today = trends.length > 0 ? trends[trends.length - 1] : null;
 
   if (!today || today.totalPosts === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No narrative data yet. Browse Reddit to start tracking.</div>';
+    container.innerHTML = '<div class="empty-state" style="padding: 24px;">Nothing yet. Browse Reddit to start tracking.</div>';
     if (alertEl) alertEl.style.display = 'none';
     return;
   }
@@ -1830,61 +1829,6 @@ function renderNarrativeTrends(trends: DailyNarrativeStats[]): void {
   }
 }
 
-async function loadEmergingNarratives(): Promise<void> {
-  try {
-    const result = await chrome.runtime.sendMessage({ type: 'GET_EMERGING_NARRATIVES' }) as {
-      emerging: EmergingNarrative[];
-      unclassifiedCount: number;
-    } | null;
-
-    const emerging = result?.emerging?.filter(e => e.status === 'pending') || [];
-    const unclassifiedCount = result?.unclassifiedCount || 0;
-
-    // Update unclassified count
-    const countEl = document.getElementById('unclassified-count');
-    if (countEl) countEl.textContent = String(unclassifiedCount);
-
-    // Update badge
-    const badgeEl = document.getElementById('emerging-badge');
-    if (badgeEl) {
-      if (emerging.length > 0) {
-        badgeEl.style.display = 'inline-block';
-        badgeEl.textContent = String(emerging.length);
-      } else {
-        badgeEl.style.display = 'none';
-      }
-    }
-
-    renderEmergingNarratives(emerging);
-  } catch (error) {
-    console.error('Failed to load emerging narratives:', error);
-  }
-}
-
-function renderEmergingNarratives(emerging: EmergingNarrative[]): void {
-  const container = document.getElementById('emerging-list');
-  if (!container) return;
-
-  if (emerging.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No emerging patterns detected yet.</div>';
-    return;
-  }
-
-  container.innerHTML = emerging.map(narrative => `
-    <div class="emerging-item" data-id="${narrative.id}">
-      <div class="emerging-name">${escapeHtml(narrative.suggestedName)}</div>
-      <div class="emerging-desc">${escapeHtml(narrative.description)}</div>
-      <div class="emerging-samples">
-        ${narrative.sampleTitles.slice(0, 3).map(t => `<div class="emerging-sample">"${escapeHtml(t.slice(0, 80))}..."</div>`).join('')}
-      </div>
-      <div class="emerging-actions">
-        <button class="btn-primary confirm-emerging-btn" data-id="${narrative.id}">Confirm</button>
-        <button class="btn-secondary dismiss-emerging-btn" data-id="${narrative.id}">Dismiss</button>
-      </div>
-    </div>
-  `).join('');
-}
-
 async function loadCounterStrategies(): Promise<void> {
   try {
     const result = await chrome.runtime.sendMessage({ type: 'GET_COUNTER_STRATEGIES' }) as {
@@ -1892,6 +1836,7 @@ async function loadCounterStrategies(): Promise<void> {
     } | null;
 
     renderCounterStrategies(result?.strategies || []);
+    await renderTopics(currentNarrativeThemes, result?.strategies || []);
   } catch (error) {
     console.error('Failed to load counter-strategies:', error);
   }
@@ -1902,7 +1847,7 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
   if (!container) return;
 
   if (strategies.length === 0) {
-    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No counter-strategies configured. Add one to start.</div>';
+    container.innerHTML = '<div class="empty-state" style="padding: 24px;">No adjustments yet.</div>';
     return;
   }
 
@@ -1948,52 +1893,6 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
   }).join('');
 }
 
-/**
- * Save a custom narrative theme created by the user
- */
-async function saveCustomTheme(): Promise<void> {
-  const nameInput = document.getElementById('custom-theme-name') as HTMLInputElement;
-  const descInput = document.getElementById('custom-theme-desc') as HTMLTextAreaElement;
-
-  const name = nameInput?.value?.trim();
-  const description = descInput?.value?.trim();
-
-  if (!name) {
-    alert('Please enter a narrative name');
-    return;
-  }
-  if (!description) {
-    alert('Please enter a description. This is how the AI identifies matching content.');
-    return;
-  }
-
-  const theme: NarrativeTheme = {
-    id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name,
-    description,
-    keywords: [], // LLM-based detection uses description, not keywords
-    isSystemTheme: false,
-    active: true,
-    discoveredAt: Date.now(),
-  };
-
-  try {
-    await chrome.runtime.sendMessage({ type: 'UPDATE_NARRATIVE_THEME', theme });
-
-    // Clear form
-    nameInput.value = '';
-    descInput.value = '';
-
-    // Refresh narratives display
-    await loadNarrativeData();
-
-    console.log('Custom narrative saved:', theme.name);
-  } catch (error) {
-    console.error('Failed to save custom narrative:', error);
-    alert('Failed to save narrative. Please try again.');
-  }
-}
-
 function setupNarrativeEventListeners(): void {
   // Time selector buttons
   document.querySelectorAll('.time-btn').forEach(btn => {
@@ -2007,54 +1906,6 @@ function setupNarrativeEventListeners(): void {
 
       await loadNarrativeTrends(days);
     });
-  });
-
-  // Custom theme creation button
-  const saveCustomThemeBtn = document.getElementById('save-custom-theme-btn');
-  if (saveCustomThemeBtn) {
-    saveCustomThemeBtn.addEventListener('click', saveCustomTheme);
-  }
-
-  // Trigger discovery button
-  const discoveryBtn = document.getElementById('trigger-discovery-btn');
-  if (discoveryBtn) {
-    discoveryBtn.addEventListener('click', async () => {
-      discoveryBtn.textContent = 'Running discovery...';
-      (discoveryBtn as HTMLButtonElement).disabled = true;
-
-      try {
-        await chrome.runtime.sendMessage({ type: 'TRIGGER_NARRATIVE_DISCOVERY' });
-        await loadEmergingNarratives();
-      } catch (error) {
-        console.error('Discovery failed:', error);
-      }
-
-      const countEl = document.getElementById('unclassified-count');
-      discoveryBtn.innerHTML = `Run Discovery (<span id="unclassified-count">${countEl?.textContent || '0'}</span> unclassified posts)`;
-      (discoveryBtn as HTMLButtonElement).disabled = false;
-    });
-  }
-
-  // Confirm/dismiss emerging narrative buttons (delegated)
-  document.getElementById('emerging-list')?.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-
-    if (target.classList.contains('confirm-emerging-btn')) {
-      const id = target.dataset.id;
-      if (id) {
-        await chrome.runtime.sendMessage({ type: 'CONFIRM_EMERGING_NARRATIVE', id });
-        await loadEmergingNarratives();
-        await loadNarrativeData(); // Refresh themes
-      }
-    }
-
-    if (target.classList.contains('dismiss-emerging-btn')) {
-      const id = target.dataset.id;
-      if (id) {
-        await chrome.runtime.sendMessage({ type: 'DISMISS_EMERGING_NARRATIVE', id });
-        await loadEmergingNarratives();
-      }
-    }
   });
 
   // Strategy list event delegation
@@ -2078,7 +1929,7 @@ function setupNarrativeEventListeners(): void {
 
     if (target.classList.contains('delete-strategy-btn')) {
       const id = target.dataset.id;
-      if (id && confirm('Delete this counter-strategy?')) {
+      if (id && confirm('Delete this adjustment?')) {
         await chrome.runtime.sendMessage({ type: 'DELETE_COUNTER_STRATEGY', strategyId: id });
         await loadCounterStrategies();
       }

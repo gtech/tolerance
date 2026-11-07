@@ -25,6 +25,7 @@ import {
 import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS } from '../shared/constants';
 import { mergeDwellIntoImpressions, mergeScrollBuckets } from '../shared/attention-utils';
 import { archiveUsageDay, recentUsageDays, UsageDay, UsageHistory } from '../shared/usage-history';
+import { addTopicHit, customThemesFirst, TopicHits } from '../shared/topics';
 
 interface ToleranceDB extends DBSchema {
   sessions: {
@@ -211,11 +212,14 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   const settings = await getSettings();
   const hash = rubricHash(activeRubric(settings.scoringRubric));
   const adNote = settings.penalizeFacebookAds !== false;
+  const { topicsChangedAt } = await chrome.storage.local.get('topicsChangedAt');
 
   for (const id of postIds) {
     const cached = await db.get('scores', id);
-    // Scores from an older scoring spec, another rubric or the other ad setting are re-scored rather than mixed with new ones
+    // Scores from an older scoring spec, another rubric or the other ad setting are re-scored rather than mixed with new ones.
+    // So are scores from before the topics last changed, or a new topic wouldn't apply for up to a day.
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
+        cached.timestamp >= ((topicsChangedAt as number | undefined) ?? 0) &&
         cached.apiReason !== LEGACY_FALLBACK_REASON && cached.specVersion === SCORING_SPEC_VERSION &&
         cached.rubricHash === hash &&
         (cached.adNote === undefined || cached.adNote === adNote) &&
@@ -478,7 +482,17 @@ export async function getNarrativeThemes(): Promise<NarrativeTheme[]> {
     return SEED_NARRATIVE_THEMES;
   }
 
-  return result.narrativeThemes;
+  return customThemesFirst(result.narrativeThemes as NarrativeTheme[]);
+}
+
+// Tally a post a topic caught, for the dashboard
+export async function recordTopicHits(caught: { themeId: string; reason?: string }[]): Promise<void> {
+  if (caught.length === 0) return;
+  const { topicHits } = await chrome.storage.local.get('topicHits');
+  const today = getTodayDateString();
+  let hits = (topicHits as TopicHits | undefined) ?? {};
+  for (const { themeId, reason } of caught) hits = addTopicHit(hits, themeId, today, reason);
+  await chrome.storage.local.set({ topicHits: hits });
 }
 
 // Update or add a narrative theme
@@ -492,7 +506,7 @@ export async function saveNarrativeTheme(theme: NarrativeTheme): Promise<void> {
     themes.push(theme);
   }
 
-  await chrome.storage.local.set({ narrativeThemes: themes });
+  await chrome.storage.local.set({ narrativeThemes: themes, topicsChangedAt: Date.now() });
 }
 
 // Delete a narrative theme by ID
@@ -506,7 +520,7 @@ export async function deleteNarrativeTheme(themeId: string): Promise<boolean> {
       return false;
     }
     themes.splice(index, 1);
-    await chrome.storage.local.set({ narrativeThemes: themes });
+    await chrome.storage.local.set({ narrativeThemes: themes, topicsChangedAt: Date.now() });
 
     // Cascade: delete any counter-strategies referencing this theme
     const strategies = await getCounterStrategies();
@@ -548,14 +562,14 @@ export async function saveCounterStrategy(strategy: CounterStrategy): Promise<vo
     strategies.push(strategy);
   }
 
-  await chrome.storage.local.set({ counterStrategies: strategies });
+  await chrome.storage.local.set({ counterStrategies: strategies, topicsChangedAt: Date.now() });
 }
 
 // Delete a counter-strategy
 export async function deleteCounterStrategy(strategyId: string): Promise<void> {
   const strategies = await getCounterStrategies();
   const filtered = strategies.filter(s => s.id !== strategyId);
-  await chrome.storage.local.set({ counterStrategies: filtered });
+  await chrome.storage.local.set({ counterStrategies: filtered, topicsChangedAt: Date.now() });
 }
 
 // ==========================================
@@ -565,7 +579,7 @@ export async function deleteCounterStrategy(strategyId: string): Promise<void> {
 const HEARTBEAT_GAP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes - if gap is larger, assume user was away
 const DAY_RESET_HOUR = 4; // Reset at 4am local time (for late-night doomscrollers)
 
-function getTodayDateString(): string {
+export function getTodayDateString(): string {
   const now = new Date();
 
   // If it's before 4am, consider it part of the previous day

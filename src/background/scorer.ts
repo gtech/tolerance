@@ -13,7 +13,8 @@ import {
 import {
   scoreToBucket,
 } from '../shared/constants';
-import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies } from './storage';
+import { getCachedScores, cacheScores, logCalibration, savePostContent, getSettings, getNarrativeThemes, getCounterStrategies, recordTopicHits } from './storage';
+import { HIDE_MODIFIER } from '../shared/topics';
 import { SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { getLastCallError, scoreTextPost, scoreImagePost, scoreVideoPost, scoreInstagramVideo, scoreTextPostsBatch, scoreTextPostsBatchWithGalleries, PostForScoring, ScoreResponse, fetchGalleryImages, describeImages, isApiConfigured } from './openrouter';
 import { trackUnclassifiedPost } from './themeDiscovery';
@@ -63,11 +64,14 @@ async function applyCounterStrategies(
   if (strategies.length === 0) return;
 
   const themes = await getNarrativeThemes();
+  const caught: { themeId: string; reason?: string }[] = [];
 
   for (const score of withNarrative) {
     const detection = score.factors.narrative!;
     const strategy = strategies.find(s => s.themeId === detection.themeId);
     if (!strategy) continue;
+
+    caught.push({ themeId: detection.themeId, reason: score.apiReason });
 
     const original = score.apiScore;
     score.apiScore = Math.max(0, Math.min(100, original + strategy.scoreModifier));
@@ -77,11 +81,15 @@ async function applyCounterStrategies(
     // Make the adjustment visible in the on-screen explanation
     const themeName = themes.find(t => t.id === detection.themeId)?.name || detection.themeId;
     const sign = strategy.scoreModifier > 0 ? '+' : '';
-    const note = `[${sign}${strategy.scoreModifier} counter-strategy: ${themeName}]`;
+    const note = strategy.scoreModifier >= HIDE_MODIFIER
+      ? `[Hidden topic: ${themeName}]`
+      : `[${sign}${strategy.scoreModifier} topic adjustment: ${themeName}]`;
     score.apiReason = score.apiReason ? `${score.apiReason} ${note}` : note;
 
     log.debug(` Counter-strategy applied to ${score.postId}: ${original} → ${score.apiScore} (${sign}${strategy.scoreModifier}, theme: ${themeName})`);
   }
+
+  await recordTopicHits(caught);
 }
 
 // Record the narrative theme the model matched, so counter-strategies can apply

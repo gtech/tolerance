@@ -202,7 +202,7 @@ function convertNarrativeIndicesToThemeIds(
   }
 
   const themeIds: string[] = [];
-  for (const idx of indices) {
+  for (const idx of [...indices].sort((a, b) => a - b)) {
     // Indices are 1-based in the prompt
     const theme = activeThemes[idx - 1];
     if (theme) {
@@ -339,7 +339,7 @@ export async function scoreTextPostsBatch(
         const narrativeMatches: string[] = [];
         if (item.narratives && Array.isArray(item.narratives) && item.narratives.length > 0) {
           log.debug(` Post ${itemId} has narratives:`, item.narratives);
-          for (const idx of item.narratives) {
+          for (const idx of [...item.narratives].sort((a, b) => a - b)) {
             // Indices are 1-based in the prompt
             const theme = activeThemes[idx - 1];
             if (theme) {
@@ -469,7 +469,7 @@ export async function scoreTextPostsBatchWithGalleries(
         // Convert narrative indices to theme IDs
         const narrativeMatches: string[] = [];
         if (item.narratives && Array.isArray(item.narratives)) {
-          for (const idx of item.narratives) {
+          for (const idx of [...item.narratives].sort((a, b) => a - b)) {
             // Indices are 1-based in the prompt
             const theme = activeThemes[idx - 1];
             if (theme) {
