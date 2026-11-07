@@ -207,6 +207,8 @@ function injectStyles(): void {
       align-items: center;
       justify-content: center;
       background: rgba(0, 0, 0, 0.15) !important;
+      border: 1px solid #000 !important;
+      box-sizing: border-box !important;
     }
 
     .tolerance-blur-overlay::after {

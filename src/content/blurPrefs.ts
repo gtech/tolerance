@@ -19,6 +19,9 @@ export function applyBlurPrefs(settings: Settings | null | undefined): void {
       html.tolerance-hide-blurred-badges :not(.tolerance-revealed):has(> .tolerance-blur-overlay:not(.revealed)) > .tolerance-score-badge {
         display: none !important;
       }
+      html.tolerance-hide-blurred-badges :not(.tolerance-pending) > .tolerance-blur-overlay > .tolerance-blur-label {
+        display: none !important;
+      }
       html.tolerance-no-hover-reveal :not(.tolerance-pending) > .tolerance-blur-overlay::after {
         content: none !important;
       }
