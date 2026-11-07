@@ -500,6 +500,8 @@ export interface Settings {
     blurIntensity: number;         // Blur amount in pixels (default: 40)
     hoverRevealDelay: number;      // Seconds to hover before revealing (default: 3)
     opaqueBlur?: boolean;          // Solid gray overlay instead of semi-transparent blur (default: true)
+    hoverReveal?: boolean;         // Hovering a blurred post reveals it (default: true)
+    hideBlurredBadges?: boolean;   // Hide the score badge while a post is blurred (default: false)
   };
   // Claude de-validation filter - strip sycophancy from Claude responses
   claudeFilterEnabled?: boolean;

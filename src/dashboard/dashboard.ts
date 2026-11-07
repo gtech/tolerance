@@ -586,6 +586,11 @@ function populateSettings(settings: Settings): void {
   }
 
   // Blur settings
+  const hoverRevealInput = document.getElementById('hover-reveal') as HTMLInputElement;
+  if (hoverRevealInput) hoverRevealInput.checked = settings.twitter?.hoverReveal ?? true;
+  const hideBlurredBadgesInput = document.getElementById('hide-blurred-badges') as HTMLInputElement;
+  if (hideBlurredBadgesInput) hideBlurredBadgesInput.checked = settings.twitter?.hideBlurredBadges ?? false;
+
   if (hoverDelayInput) {
     const delay = settings.twitter?.hoverRevealDelay ?? 3;
     hoverDelayInput.value = String(delay);
@@ -920,6 +925,8 @@ function setupEventListeners(): void {
   if (opaqueBlurToggle) {
     opaqueBlurToggle.addEventListener('change', saveSettings);
   }
+  document.getElementById('hover-reveal')?.addEventListener('change', saveSettings);
+  document.getElementById('hide-blurred-badges')?.addEventListener('change', saveSettings);
 
   // API Tier selection
   const tierRadios = document.querySelectorAll('input[name="api-tier"]');
@@ -1256,6 +1263,8 @@ async function saveSettings(): Promise<void> {
       hoverRevealDelay: parseInt(hoverDelayInput?.value || '3', 10),
       blurIntensity: parseInt(blurIntensityInput?.value || '8', 10),
       opaqueBlur: opaqueBlurInput?.checked ?? true,
+      hoverReveal: (document.getElementById('hover-reveal') as HTMLInputElement | null)?.checked ?? true,
+      hideBlurredBadges: (document.getElementById('hide-blurred-badges') as HTMLInputElement | null)?.checked ?? false,
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,

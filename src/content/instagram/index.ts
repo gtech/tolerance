@@ -6,6 +6,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { setOpaque } from '../opaqueBlur';
+import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -660,7 +661,7 @@ function applyBlur(element: HTMLElement): void {
   };
 
   overlay.addEventListener('mouseenter', () => {
-    if (revealed) return;
+    if (revealed || !hoverRevealEnabled()) return;
     overlay.classList.add('revealing');
     revealTimer = setTimeout(() => {
       revealContent();
@@ -742,6 +743,8 @@ async function init(): Promise<void> {
       // Hover reveal delay
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
 
+      applyBlurPrefs(settings);
+
       // Opaque blur
       opaqueBlurEnabled = settings.twitter?.opaqueBlur ?? true;
     }
@@ -784,6 +787,8 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
     const newSettings = changes.settings.newValue as Settings;
     currentSettings = newSettings;
+
+    applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

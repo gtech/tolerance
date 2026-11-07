@@ -10,6 +10,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 import { setOpaque } from './opaqueBlur';
+import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
 
 // Track which Reddit version we're on
 let redditVersion: 'old' | 'new' | null = null;
@@ -513,7 +514,7 @@ function applyBlur(post: RedditPost): void {
   let isRevealed = false;
 
   overlay.addEventListener('mouseenter', () => {
-    if (isRevealed) return;
+    if (isRevealed || !hoverRevealEnabled()) return;
     overlay.classList.add('revealing');
 
     revealTimer = setTimeout(() => {
@@ -684,6 +685,8 @@ async function initCore(): Promise<void> {
       log.debug(' Reddit platform disabled in settings, extension inactive');
       return;
     }
+
+    applyBlurPrefs(currentSettings);
 
     // Opaque blur setting
     opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -1201,6 +1204,8 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.settings?.newValue) {
     const newSettings = changes.settings.newValue as Settings;
     currentSettings = newSettings;
+
+    applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

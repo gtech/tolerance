@@ -7,6 +7,7 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage } from './gate';
 import { setOpaque } from '../opaqueBlur';
+import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -363,6 +364,8 @@ function setupHoverReveal(element: HTMLElement): void {
   element.dataset.hoverSetup = 'true';
 
   element.addEventListener('mouseenter', () => {
+    if (!hoverRevealEnabled()) return;
+
     // Clear any existing timer
     const existingTimer = hoverTimers.get(element);
     if (existingTimer) clearTimeout(existingTimer);
@@ -770,6 +773,8 @@ async function initCore(): Promise<void> {
   // Initialize subscriptions-only mode from settings
   subscriptionsOnlyMode = currentSettings.subscriptionsOnly ?? false;
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
+
+  applyBlurPrefs(currentSettings);
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -1249,6 +1254,8 @@ chrome.storage.onChanged.addListener((changes) => {
     if (trustedPhaseChanged) {
       refreshBlurState();
     }
+
+    applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

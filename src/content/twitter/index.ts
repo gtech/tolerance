@@ -11,6 +11,7 @@ import { anchorCacheId } from '../../shared/anchor-utils';
 import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
 import { setOpaque } from '../opaqueBlur';
+import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -423,6 +424,8 @@ function setupHoverReveal(element: HTMLElement): void {
   element.dataset.hoverSetup = 'true';
 
   element.addEventListener('mouseenter', () => {
+    if (!hoverRevealEnabled()) return;
+
     // Clear any existing timer
     const existingTimer = hoverTimers.get(element);
     if (existingTimer) clearTimeout(existingTimer);
@@ -1040,6 +1043,8 @@ async function initCore(): Promise<void> {
   // Initialize subscriptions-only mode from settings
   subscriptionsOnlyMode = currentSettings.subscriptionsOnly ?? false;
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
+
+  applyBlurPrefs(currentSettings);
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -1770,6 +1775,8 @@ chrome.storage.onChanged.addListener((changes) => {
     if (trustedPhaseChanged) {
       refreshBlurState();
     }
+
+    applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

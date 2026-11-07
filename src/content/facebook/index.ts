@@ -6,6 +6,7 @@ import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CL
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { setOpaque } from '../opaqueBlur';
+import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -630,7 +631,7 @@ function applyBlur(element: HTMLElement, score: EngagementScore): void {
   };
 
   overlay.addEventListener('mouseenter', () => {
-    if (revealed) return;
+    if (revealed || !hoverRevealEnabled()) return;
     overlay.classList.add('revealing');
     revealTimer = setTimeout(revealContent, hoverRevealDelay);
     hoverTimers.set(overlay, revealTimer);
@@ -705,6 +706,7 @@ async function init(): Promise<void> {
       qualityModeEnabled = settings.qualityMode ?? false;
       subscriptionsOnlyMode = settings.subscriptionsOnly ?? false;
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;
+      applyBlurPrefs(settings);
       opaqueBlurEnabled = settings.twitter?.opaqueBlur ?? true;
     }
   } catch (error) {
@@ -750,6 +752,8 @@ chrome.storage.onChanged.addListener((changes) => {
     qualityModeEnabled = newSettings.qualityMode ?? false;
     subscriptionsOnlyMode = newSettings.subscriptionsOnly ?? false;
     refreshBlurState();
+
+    applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

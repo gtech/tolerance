@@ -1480,7 +1480,23 @@
         <input type="number" id="cooldown-posts" min="1" max="20" value="4" />
       </div>
 
-      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Blur Settings (Twitter/YouTube)</h2>
+      <h2 style="margin: 24px 0 16px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Blur Settings</h2>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Reveal on Hover</div>
+          <div class="setting-description">Hovering over a blurred post removes the blur. Turn off to keep posts blurred when the mouse passes over them.</div>
+        </div>
+        <input type="checkbox" id="hover-reveal" checked style="width: 18px; height: 18px; cursor: pointer;" />
+      </div>
+
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">Hide Badges on Blurred Posts</div>
+          <div class="setting-description">Hide the score badge while a post is blurred. It comes back if the post is revealed.</div>
+        </div>
+        <input type="checkbox" id="hide-blurred-badges" style="width: 18px; height: 18px; cursor: pointer;" />
+      </div>
 
       <div class="setting-row">
         <div>

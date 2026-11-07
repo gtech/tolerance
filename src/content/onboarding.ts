@@ -2,6 +2,7 @@
 // Shows once ever, explaining hover-to-reveal and settings customization
 
 import { OnboardingState, DEFAULT_ONBOARDING_STATE } from '../shared/types';
+import { hoverRevealEnabled } from './blurPrefs';
 
 let onboardingState: OnboardingState | null = null;
 let tooltipShown = false;
@@ -55,7 +56,7 @@ export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<v
       <div class="tolerance-onboarding-text">
         <strong>Tips:</strong>
         <ul class="tolerance-onboarding-list">
-          <li>Hover for 3 seconds to reveal blurred content</li>
+          ${hoverRevealEnabled() ? '<li>Hover for 3 seconds to reveal blurred content</li>' : ''}
           <li>Right-click any post to trust that author forever</li>
         </ul>
         <span class="tolerance-onboarding-secondary">Adjust blur thresholds and hover duration in Settings.</span>
