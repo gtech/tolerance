@@ -120,95 +120,51 @@
       background: #4d3d5a;
     }
 
-    /* Quality Mode Toggle */
-    .quality-mode-section {
-      background: linear-gradient(135deg, #1a3a2d 0%, #1a2a1a 100%);
-      border: 1px solid #2d5a3d;
+    /* Strictness */
+    .strictness-section {
+      background: #252525;
       border-radius: 8px;
       padding: 12px;
       margin-bottom: 12px;
     }
 
-    .quality-mode-section.active {
-      background: linear-gradient(135deg, #2d5a3d 0%, #1a4a2a 100%);
-      border-color: #4a8a5d;
-    }
-
-    .quality-mode-header {
+    .strictness-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
+      margin-bottom: 8px;
     }
 
-    .quality-mode-info {
+    .strictness-section h2 {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #strictness-value {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+
+    #strictness {
+      width: 100%;
+      accent-color: #999;
+      cursor: pointer;
+    }
+
+    .strictness-ends {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #888;
     }
 
-    .quality-mode-icon {
-      font-size: 16px;
-    }
-
-    .quality-mode-label {
-      font-size: 14px;
-      font-weight: 600;
-      color: #fff;
-    }
-
-    .quality-mode-desc {
+    .strictness-desc {
       font-size: 11px;
       color: #888;
       margin-top: 6px;
-    }
-
-    .quality-mode-section.active .quality-mode-desc {
-      color: #7dcea0;
-    }
-
-    /* Toggle Switch */
-    .toggle-switch {
-      position: relative;
-      width: 44px;
-      height: 24px;
-    }
-
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #444;
-      transition: 0.3s;
-      border-radius: 24px;
-    }
-
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 18px;
-      width: 18px;
-      left: 3px;
-      bottom: 3px;
-      background-color: #fff;
-      transition: 0.3s;
-      border-radius: 50%;
-    }
-
-    .toggle-switch input:checked + .toggle-slider {
-      background-color: #27ae60;
-    }
-
-    .toggle-switch input:checked + .toggle-slider:before {
-      transform: translateX(20px);
     }
 
     .api-warning {
@@ -350,34 +306,14 @@
     </div>
   </div>
 
-  <!-- Quality Mode Toggle -->
-  <div id="quality-mode-section" class="quality-mode-section">
-    <div class="quality-mode-header">
-      <div class="quality-mode-info">
-        <span class="quality-mode-icon">&#9733;</span>
-        <span class="quality-mode-label">Quality Mode</span>
-      </div>
-      <label class="toggle-switch">
-        <input type="checkbox" id="quality-mode-toggle">
-        <span class="toggle-slider"></span>
-      </label>
+  <div class="strictness-section">
+    <div class="strictness-header">
+      <h2>Strictness</h2>
+      <span id="strictness-value">Default</span>
     </div>
-    <div class="quality-mode-desc">Blur all high-engagement content instantly</div>
-  </div>
-
-  <!-- Subscriptions Only Toggle -->
-  <div id="subs-only-section" class="quality-mode-section">
-    <div class="quality-mode-header">
-      <div class="quality-mode-info">
-        <span class="quality-mode-icon">&#9741;</span>
-        <span class="quality-mode-label">Subscriptions Only</span>
-      </div>
-      <label class="toggle-switch">
-        <input type="checkbox" id="subs-only-toggle">
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-    <div class="quality-mode-desc" id="subs-only-desc">Only show content from your subscriptions</div>
+    <input type="range" id="strictness" min="1" max="5" step="1" value="3" aria-label="Strictness">
+    <div class="strictness-ends"><span>Gentle</span><span>Strict</span></div>
+    <div class="strictness-desc">Turn it up or down until it helps.</div>
   </div>
 
   <div class="boredom-section">

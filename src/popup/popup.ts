@@ -1,4 +1,6 @@
-import { AppState, Settings, DEFAULT_SETTINGS, AdaptiveSettings } from '../shared/types';
+import { AppState, Settings, AdaptiveSettings } from '../shared/types';
+import { STRICTNESS_PRESETS } from '../shared/constants';
+import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { formatMinutes, loadUsageChart } from '../shared/usage-chart';
 
 interface StateResult {
@@ -26,8 +28,6 @@ interface CalibrationFeedbackResult {
   adaptive: AdaptiveSettings;
 }
 
-let currentSettings: Settings = DEFAULT_SETTINGS;
-
 async function init(): Promise<void> {
   // Set up dashboard links FIRST - before any async operations
   // This ensures the link works even if background script is slow/failing
@@ -36,19 +36,15 @@ async function init(): Promise<void> {
     dashboardLink.addEventListener('click', openDashboard);
   }
 
-  // Set up feedback buttons and toggles early too
+  // Set up feedback buttons and strictness early too
   setupFeedbackButtons();
-  setupQualityModeToggle();
-  setupSubsOnlyToggle();
+  await setupStrictness();
 
   // Get current state
   const result = await chrome.runtime.sendMessage({ type: 'GET_STATE' }) as StateResult;
 
   if (result?.settings) {
-    currentSettings = result.settings;
     await updateApiStatus(result.settings);
-    updateQualityModeToggle(result.settings);
-    updateSubsOnlyToggle(result.settings);
   }
 
   // Check if we should show feedback prompt
@@ -225,155 +221,23 @@ async function submitFeedback(response: 'restricted' | 'balanced' | 'too_easy'):
 }
 
 // ==========================================
-// Quality Mode Functions
+// Strictness
 // ==========================================
 
-function updateQualityModeToggle(settings: Settings): void {
-  const toggle = document.getElementById('quality-mode-toggle') as HTMLInputElement | null;
-  const section = document.getElementById('quality-mode-section');
+async function setupStrictness(): Promise<void> {
+  const slider = document.getElementById('strictness') as HTMLInputElement | null;
+  const label = document.getElementById('strictness-value');
+  if (!slider || !label) return;
 
-  if (toggle) {
-    toggle.checked = settings.qualityMode ?? false;
-  }
+  const { level, exact } = await readStrictness();
+  slider.value = String(level);
+  label.textContent = exact ? STRICTNESS_PRESETS[level - 1].label : 'Custom';
 
-  if (section) {
-    if (settings.qualityMode) {
-      section.classList.add('active');
-    } else {
-      section.classList.remove('active');
-    }
-  }
-}
-
-function setupQualityModeToggle(): void {
-  const toggle = document.getElementById('quality-mode-toggle') as HTMLInputElement | null;
-  const section = document.getElementById('quality-mode-section');
-
-  if (!toggle) return;
-
-  toggle.addEventListener('change', async () => {
-    const enabled = toggle.checked;
-
-    // Update UI immediately
-    if (section) {
-      if (enabled) {
-        section.classList.add('active');
-      } else {
-        section.classList.remove('active');
-      }
-    }
-
-    // Save setting (use local storage, same as background script)
-    currentSettings.qualityMode = enabled;
-    await chrome.storage.local.set({ settings: currentSettings });
-
-    // Notify all tabs to refresh their blur state
-    const tabs = await chrome.tabs.query({});
-    for (const tab of tabs) {
-      if (tab.id) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, { type: 'QUALITY_MODE_CHANGED', enabled });
-        } catch {
-          // Tab might not have content script
-        }
-      }
-    }
+  slider.addEventListener('input', () => {
+    label.textContent = STRICTNESS_PRESETS[parseInt(slider.value, 10) - 1].label;
   });
-}
-
-// ==========================================
-// Subscriptions Only Mode Functions
-// ==========================================
-
-function updateSubsOnlyToggle(settings: Settings): void {
-  const toggle = document.getElementById('subs-only-toggle') as HTMLInputElement | null;
-  const section = document.getElementById('subs-only-section');
-  const desc = document.getElementById('subs-only-desc');
-
-  if (toggle) {
-    toggle.checked = settings.subscriptionsOnly ?? false;
-  }
-
-  if (section) {
-    if (settings.subscriptionsOnly) {
-      section.classList.add('active');
-    } else {
-      section.classList.remove('active');
-    }
-  }
-
-  // Show subscription count if synced
-  if (desc && settings.subscriptionsOnly) {
-    chrome.runtime.sendMessage({ type: 'GET_SUBSCRIPTIONS' }, (result) => {
-      if (result?.subscriptions) {
-        const ytCount = result.subscriptions.youtube?.length ?? 0;
-        const lastSynced = result.subscriptions.lastSynced?.youtube;
-        if (ytCount > 0) {
-          desc.textContent = `Synced ${ytCount} YouTube channels`;
-        } else if (lastSynced) {
-          desc.textContent = 'No subscriptions found — sync again';
-        } else {
-          desc.textContent = 'Syncing subscriptions...';
-        }
-      }
-    });
-  }
-}
-
-function setupSubsOnlyToggle(): void {
-  const toggle = document.getElementById('subs-only-toggle') as HTMLInputElement | null;
-  const section = document.getElementById('subs-only-section');
-  const desc = document.getElementById('subs-only-desc');
-
-  if (!toggle) return;
-
-  toggle.addEventListener('change', async () => {
-    const enabled = toggle.checked;
-
-    // Update UI immediately
-    if (section) {
-      if (enabled) {
-        section.classList.add('active');
-      } else {
-        section.classList.remove('active');
-      }
-    }
-
-    // Save setting
-    currentSettings.subscriptionsOnly = enabled;
-    await chrome.storage.local.set({ settings: currentSettings });
-
-    if (enabled) {
-      // Trigger first sync when enabling
-      if (desc) desc.textContent = 'Syncing subscriptions...';
-      try {
-        const syncResult = await chrome.runtime.sendMessage({
-          type: 'SYNC_SUBSCRIPTIONS',
-          platform: 'youtube',
-        });
-        if (syncResult?.count > 0) {
-          if (desc) desc.textContent = `Synced ${syncResult.count} YouTube channels`;
-        } else {
-          if (desc) desc.textContent = 'No subscriptions found (are you logged into YouTube?)';
-        }
-      } catch {
-        if (desc) desc.textContent = 'Sync failed — try again later';
-      }
-    } else {
-      if (desc) desc.textContent = 'Only show content from your subscriptions';
-    }
-
-    // Notify all tabs to refresh their blur state
-    const tabs = await chrome.tabs.query({});
-    for (const tab of tabs) {
-      if (tab.id) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, { type: 'SUBSCRIPTIONS_ONLY_CHANGED', enabled });
-        } catch {
-          // Tab might not have content script
-        }
-      }
-    }
+  slider.addEventListener('change', () => {
+    void saveStrictness(parseInt(slider.value, 10));
   });
 }
 

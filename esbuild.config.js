@@ -27,6 +27,7 @@ const staticFiles = [
   [manifestFile, 'dist/manifest.json'],
   ['src/popup/popup.html', 'dist/popup/popup.html'],
   ['src/dashboard/index.html', 'dist/dashboard/index.html'],
+  ['src/welcome/welcome.html', 'dist/welcome/welcome.html'],
   ['src/content/reddit-gate.css', 'dist/reddit-gate.css'],
   ['src/content/instagram/gate.css', 'dist/instagram-gate.css'],
 ];
@@ -128,6 +129,11 @@ const builds = [
     ...commonOptions,
     entryPoints: ['src/dashboard/dashboard.ts'],
     outfile: 'dist/dashboard/dashboard.js',
+  },
+  {
+    ...commonOptions,
+    entryPoints: ['src/welcome/welcome.ts'],
+    outfile: 'dist/welcome/welcome.js',
   },
 ];
 

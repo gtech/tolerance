@@ -58,6 +58,11 @@ import {
 chrome.runtime.onInstalled.addListener(async (details) => {
   log.debug(' installed, reason:', details.reason);
 
+  // First run only: ask how strict to be
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
+  }
+
   // Set initial state with baseline start date
   const state = await getState();
   if (!state.baselineStartDate || state.baselineStartDate === 0) {

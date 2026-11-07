@@ -841,6 +841,28 @@
       background-color: #fff;
     }
 
+    /* Subscriptions Only Toggle Slider */
+    #subs-only-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    #subs-only-toggle:checked + #subs-only-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    #subs-only-toggle:checked + #subs-only-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
     /* Hide Facebook Ads Toggle Slider */
     #fb-ads-slider:before {
       position: absolute;
@@ -1074,6 +1096,21 @@
         <div id="quality-mode-status" style="margin-top: 12px; font-size: 12px; font-weight: 600; color: #667eea; display: none;">
           &#10003; Active - Maximum content filtering
         </div>
+      </div>
+      <div class="card" id="subs-only-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Subscriptions Only
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="subs-only-toggle" style="opacity: 0; width: 0; height: 0;">
+            <span id="subs-only-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Only show content from your subscriptions.
+        </div>
+        <div id="subs-only-status" style="margin-top: 8px; font-size: 12px; color: #aaa;"></div>
       </div>
       <div class="card" id="blur-until-scored-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -1470,6 +1507,13 @@
           </label>
         </div>
         <div style="margin-top: 8px; font-size: 12px; color: #666;">Disable platforms to turn off Tolerance scoring on that site.</div>
+        <div id="turn-down-offer" role="status" style="display: none; margin-top: 12px; padding: 12px; background: #222; border: 1px solid #333; border-radius: 6px; font-size: 13px; color: #ccc;">
+          <span id="turn-down-text"></span>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button id="turn-down-accept" class="btn-secondary" type="button" style="padding: 6px 12px; font-size: 12px;">Turn it down</button>
+            <button id="turn-down-dismiss" class="btn-secondary" type="button" style="padding: 6px 12px; font-size: 12px;">Keep it off</button>
+          </div>
+        </div>
       </div>
     </div>
 

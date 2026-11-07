@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Tolerance</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      line-height: 1.5;
+      padding: 64px 16px;
+    }
+
+    main { max-width: 560px; margin: 0 auto; }
+
+    h1 { font-size: 28px; color: #fff; margin-bottom: 12px; }
+
+    p { color: #aaa; font-size: 15px; margin-bottom: 12px; }
+
+    h2 { font-size: 18px; color: #fff; margin: 32px 0 12px; }
+
+    .choice {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: #141414;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .choice:hover { border-color: #666; }
+
+    .choice.selected { border-color: #ccc; background: #222; }
+
+    .choice strong { display: block; color: #fff; font-size: 15px; }
+
+    .choice span { color: #999; font-size: 13px; }
+
+    #done { min-height: 22px; color: #e0e0e0; margin-top: 16px; }
+
+    .note { font-size: 13px; color: #888; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Tolerance is on</h1>
+    <p>It leaves your feeds up and blurs the posts built to hook you.</p>
+    <p>Blockers tend to end up switched off because they're all or nothing. You can turn this one up or down until it helps.</p>
+
+    <h2>How strict do you want it?</h2>
+    <button class="choice" type="button" data-level="2">
+      <strong>Gentle</strong>
+      <span>Only the most hook-heavy posts get blurred, and only later in a session.</span>
+    </button>
+    <button class="choice selected" type="button" data-level="3">
+      <strong>Default</strong>
+      <span>Blurring starts after about 15 minutes, and covers more the longer you scroll.</span>
+    </button>
+    <button class="choice" type="button" data-level="4">
+      <strong>Strict</strong>
+      <span>The worst posts are blurred from the start, and much more as you go.</span>
+    </button>
+    <p id="done" role="status"></p>
+
+    <p class="note">You can change this anytime from the Tolerance icon in your toolbar. Pin it from the puzzle icon so it's easy to find.</p>
+  </main>
+  <script src="welcome.js"></script>
+</body>
+</html>

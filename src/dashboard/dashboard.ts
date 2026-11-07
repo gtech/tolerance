@@ -1,6 +1,7 @@
 import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, EmergingNarrative, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
+import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
@@ -52,6 +53,7 @@ async function init(): Promise<void> {
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
   await setupFacebookAdsSetting();
+  await setupSubscriptionsOnly();
   await setupRubricEditor();
   setupStrictnessSlider();
 
@@ -137,6 +139,102 @@ async function setupFacebookAdsSetting(): Promise<void> {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, penalizeFacebookAds: toggle.checked } });
   });
+}
+
+// Subscriptions Only card: blur everything but subscribed channels and followed accounts
+async function setupSubscriptionsOnly(): Promise<void> {
+  const toggle = document.getElementById('subs-only-toggle') as HTMLInputElement | null;
+  const desc = document.getElementById('subs-only-status');
+  if (!toggle) return;
+
+  const settings = await getSettings();
+  toggle.checked = settings.subscriptionsOnly ?? false;
+
+  // Show subscription count if synced
+  if (desc && settings.subscriptionsOnly) {
+    chrome.runtime.sendMessage({ type: 'GET_SUBSCRIPTIONS' }, (result) => {
+      if (result?.subscriptions) {
+        const ytCount = result.subscriptions.youtube?.length ?? 0;
+        const lastSynced = result.subscriptions.lastSynced?.youtube;
+        if (ytCount > 0) {
+          desc.textContent = `Synced ${ytCount} YouTube channels`;
+        } else if (lastSynced) {
+          desc.textContent = 'No subscriptions found — sync again';
+        } else {
+          desc.textContent = 'Syncing subscriptions...';
+        }
+      }
+    });
+  }
+
+  toggle.addEventListener('change', async () => {
+    const enabled = toggle.checked;
+    await chrome.storage.local.set({ settings: { ...(await getSettings()), subscriptionsOnly: enabled } });
+
+    if (enabled) {
+      // Trigger first sync when enabling
+      if (desc) desc.textContent = 'Syncing subscriptions...';
+      try {
+        const syncResult = await chrome.runtime.sendMessage({
+          type: 'SYNC_SUBSCRIPTIONS',
+          platform: 'youtube',
+        });
+        if (syncResult?.count > 0) {
+          if (desc) desc.textContent = `Synced ${syncResult.count} YouTube channels`;
+        } else {
+          if (desc) desc.textContent = 'No subscriptions found (are you logged into YouTube?)';
+        }
+      } catch {
+        if (desc) desc.textContent = 'Sync failed — try again later';
+      }
+    } else if (desc) {
+      desc.textContent = '';
+    }
+
+    // Notify all tabs to refresh their blur state
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type: 'SUBSCRIPTIONS_ONLY_CHANGED', enabled });
+        } catch {
+          // Tab might not have content script
+        }
+      }
+    }
+  });
+}
+
+// When someone turns a site off, offer to turn Tolerance down instead: a tool that's
+// too strict gets switched off, and one notch gentler may be all they wanted
+async function offerTurnDown(siteInput: HTMLInputElement, siteName: string): Promise<void> {
+  const offer = document.getElementById('turn-down-offer');
+  const text = document.getElementById('turn-down-text');
+  const gentler = document.getElementById('turn-down-accept');
+  const keepOff = document.getElementById('turn-down-dismiss');
+  if (!offer || !text || !gentler || !keepOff) return;
+
+  const { level } = await readStrictness();
+  if (level <= 1) return; // already as gentle as it goes
+
+  const next = STRICTNESS_PRESETS[level - 2].label;
+  text.textContent = `Too strict on ${siteName}? You can turn Tolerance down to ${next} and keep it on.`;
+  gentler.style.display = '';
+  keepOff.style.display = '';
+  offer.style.display = 'block';
+
+  keepOff.onclick = () => { offer.style.display = 'none'; };
+  gentler.onclick = async () => {
+    siteInput.checked = true;
+    await saveSettings();
+    await saveStrictness(level - 1);
+    setThresholdSliders(strictnessThresholds(level - 1));
+    updateStrictnessDisplay(strictnessThresholds(level - 1));
+    void renderThresholdNow();
+    text.textContent = `${siteName} is back on, and strictness is now ${next}.`;
+    gentler.style.display = 'none';
+    keepOff.style.display = 'none';
+  };
 }
 
 // Scoring rubric card: edit the text posts are scored against, try it on the
@@ -1006,15 +1104,23 @@ function setupEventListeners(): void {
   }
 
   // Platform toggles
-  const platformReddit = document.getElementById('platform-reddit');
-  const platformTwitter = document.getElementById('platform-twitter');
-  const platformYoutube = document.getElementById('platform-youtube');
-  const platformInstagram = document.getElementById('platform-instagram');
-
-  if (platformReddit) platformReddit.addEventListener('change', saveSettings);
-  if (platformTwitter) platformTwitter.addEventListener('change', saveSettings);
-  if (platformYoutube) platformYoutube.addEventListener('change', saveSettings);
-  if (platformInstagram) platformInstagram.addEventListener('change', saveSettings);
+  for (const [id, name] of [
+    ['platform-reddit', 'Reddit'],
+    ['platform-twitter', 'Twitter/X'],
+    ['platform-youtube', 'YouTube'],
+    ['platform-instagram', 'Instagram'],
+  ]) {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    input?.addEventListener('change', async () => {
+      await saveSettings();
+      if (input.checked) {
+        const offer = document.getElementById('turn-down-offer');
+        if (offer) offer.style.display = 'none';
+      } else {
+        await offerTurnDown(input, name);
+      }
+    });
+  }
 
   // Provider type toggle
   const providerTypeSelect = document.getElementById('provider-type') as HTMLSelectElement;
