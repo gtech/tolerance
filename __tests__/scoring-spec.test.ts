@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import { activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, MEDIA_POST_ID, parseDims, pickPostResult, readScore, RUBRIC, rubricHash, scoreFromDims } from '../src/shared/scoring-spec';
 
+describe('Facebook ad note', () => {
+  const fb = { id: 'a', platform: 'facebook' as const, text: 'Post', source: 'Brand' };
+  const tw = { id: 'b', platform: 'twitter' as const, text: 'Tweet', source: '@x' };
+
+  it('is in Facebook prompts, even with a custom rubric', () => {
+    expect(buildBatchPrompt([fb])).toContain('Facebook advertisements');
+    expect(buildSinglePrompt(fb)).toContain('Facebook advertisements');
+    expect(buildMediaPrompt(fb)).toContain('Facebook advertisements');
+    expect(buildBatchPrompt([fb], [], undefined, 'My rubric')).toContain('Facebook advertisements');
+  });
+
+  it('is not in other platforms\' prompts', () => {
+    expect(buildBatchPrompt([tw])).not.toContain('Facebook advertisements');
+    expect(buildSinglePrompt(tw)).not.toContain('Facebook advertisements');
+    expect(buildMediaPrompt(tw)).not.toContain('Facebook advertisements');
+  });
+});
+
 describe('scoring spec prompts', () => {
   it('labels each platform correctly', () => {
     const prompt = buildBatchPrompt([

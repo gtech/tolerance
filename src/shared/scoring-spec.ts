@@ -14,7 +14,8 @@
 // v5: YouTube titles come with the video's length and are batched 10 at a time;
 // whole-page batches flattened lectures and clips alike to 4-6.
 // v6: image and video posts are scored with the calibration posts too, not alone.
-export const SCORING_SPEC_VERSION = 6;
+// v7: Facebook ads score 10. Other platforms' prompts are unchanged.
+export const SCORING_SPEC_VERSION = 7;
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -145,6 +146,12 @@ function mediaNotes(posts: ScoringPost[]): string {
   return notes.length ? `\n\n${notes.join('\n')}` : '';
 }
 
+// Sits outside the rubric, so it still applies when the user edits the rubric
+function platformNotes(posts: ScoringPost[]): string {
+  if (!posts.some(p => p.platform === 'facebook')) return '';
+  return '\n\nFacebook advertisements: a post that exists to sell a product or service or to send the reader to a shop or landing page, usually from a brand or business, is an ad. Give an ad score 10 and value 1, however useful or clever it seems. Say it is an ad in the reason. Ordinary posts that merely mention a product, event or business are not ads.';
+}
+
 function themeSection(themes: ScoringTheme[], batch: boolean): string {
   if (themes.length === 0) return '';
   return `
@@ -163,7 +170,7 @@ export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = []
 
 ${describePost(post)}
 
-${rubric}${mediaNotes([post])}${themeSection(themes, false)}
+${rubric}${mediaNotes([post])}${platformNotes([post])}${themeSection(themes, false)}
 
 Respond with ONLY valid JSON: {${fields(themes)}}`;
 }
@@ -175,7 +182,7 @@ export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = 
 
 ${list}${imageNote}
 
-${rubric}${mediaNotes(posts)}${themeSection(themes, true)}
+${rubric}${mediaNotes(posts)}${platformNotes(posts)}${themeSection(themes, true)}
 
 Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
 }
