@@ -28,7 +28,7 @@ describe('strictness presets', () => {
     for (let level = 1; level <= 5; level++) {
       expect(thresholdsToStrictness(strictnessThresholds(level))).toEqual({ level, exact: true });
     }
-    expect(thresholdsToStrictness({ normal: 100, reduced: 75, windDown: 60, minimal: 40 })).toEqual({ level: 3, exact: false });
+    expect(thresholdsToStrictness({ normal: 100, reduced: 55, windDown: 50, minimal: 45 })).toEqual({ level: 3, exact: false });
   });
 
   it('clamps out-of-range levels', () => {

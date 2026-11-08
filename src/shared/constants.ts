@@ -269,12 +269,12 @@ export const SCORE_THRESHOLDS = {
 };
 
 // Default blur thresholds (score at or above this gets blurred)
-// Based on calibration data: these values blur ~20%, ~26%, ~60% of content respectively
+// Set from William's day-to-day use (2026-11-08)
 export const DEFAULT_BLUR_THRESHOLDS = {
   normal: 100,    // No blurring - baseline experience
-  reduced: 75,    // ~20% blurred
-  windDown: 65,   // ~26% blurred
-  minimal: 40,    // ~60% blurred
+  reduced: 55,
+  windDown: 45,
+  minimal: 45,
 } as const;
 
 // One-slider strictness presets (1 = gentlest, 3 = defaults, 5 = strictest).
@@ -282,11 +282,11 @@ export const DEFAULT_BLUR_THRESHOLDS = {
 export type BlurThresholdSet = { normal: number; reduced: number; windDown: number; minimal: number };
 
 export const STRICTNESS_PRESETS: { label: string; thresholds: BlurThresholdSet }[] = [
-  { label: 'Very gentle', thresholds: { normal: 100, reduced: 90, windDown: 80, minimal: 60 } },
-  { label: 'Gentle',      thresholds: { normal: 100, reduced: 85, windDown: 75, minimal: 50 } },
+  { label: 'Very gentle', thresholds: { normal: 100, reduced: 65, windDown: 65, minimal: 65 } },
+  { label: 'Gentle',      thresholds: { normal: 100, reduced: 65, windDown: 55, minimal: 55 } },
   { label: 'Default',     thresholds: { ...DEFAULT_BLUR_THRESHOLDS } },
-  { label: 'Strict',      thresholds: { normal: 90,  reduced: 65, windDown: 50, minimal: 30 } },
-  { label: 'Very strict', thresholds: { normal: 75,  reduced: 50, windDown: 40, minimal: 25 } },
+  { label: 'Strict',      thresholds: { normal: 55,  reduced: 45, windDown: 45, minimal: 45 } },
+  { label: 'Very strict', thresholds: { normal: 45,  reduced: 45, windDown: 45, minimal: 35 } },
 ];
 
 export function strictnessThresholds(level: number): BlurThresholdSet {
