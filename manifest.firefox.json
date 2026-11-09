@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Tolerance",
-  "version": "0.1.31",
-  "description": "Make social media boring again",
+  "version": "0.1.32",
+  "description": "Keeps your feed and takes out what drags you in: clickbait, rage bait and sponsored posts. Works on Reddit, YouTube, X and more.",
   "browser_specific_settings": {
     "gecko": {
       "id": "tolerance@tolerance.lol",
