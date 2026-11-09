@@ -5,7 +5,7 @@ import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
-import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage } from './gate';
+import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 
@@ -192,6 +192,23 @@ function applyHideMode(settings: Settings | null): void {
   document.documentElement.classList.toggle(HIDE_BLURRED_CLASS, settings?.twitter?.hideBlurredYouTube ?? false);
 }
 
+// Hide Shorts (Settings: "Hide YouTube Shorts")
+function shortsHidden(): boolean {
+  return (currentSettings?.hideYouTubeShorts ?? false) && currentSettings?.platforms?.youtube !== false;
+}
+
+function applyShortsMode(): void {
+  document.documentElement.classList.toggle(HIDE_SHORTS_CLASS, shortsHidden());
+  redirectShorts();
+}
+
+// In-app navigation to a Short (early.ts handles direct loads)
+function redirectShorts(): void {
+  if (!shortsHidden()) return;
+  const watchUrl = shortsWatchUrl(location.pathname);
+  if (watchUrl) location.replace(watchUrl);
+}
+
 // Track hover timers for timed reveal
 const hoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
@@ -345,6 +362,9 @@ function injectStyles(): void {
     html.${HIDE_BLURRED_CLASS} .tolerance-blurred {
       display: none !important;
     }
+
+    /* Hide Shorts (setting) */
+    ${hideShortsCss()}
   `;
   document.head.appendChild(style);
 }
@@ -785,6 +805,7 @@ async function initCore(): Promise<void> {
 
   applyBlurPrefs(currentSettings);
   applyHideMode(currentSettings);
+  applyShortsMode();
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -813,6 +834,7 @@ async function initCore(): Promise<void> {
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {
     log.debug(' Navigation detected, resetting state');
+    redirectShorts();
     updateGate();
     processedVideoIds.clear();
     scoreCache.clear();
@@ -864,8 +886,10 @@ async function processVideos(): Promise<void> {
   try {
     const t0 = performance.now();
 
-    // Scrape all visible videos
-    const allVideos = scrapeVisibleVideos();
+    // Scrape all visible videos. With Shorts hidden, Shorts aren't scored: nobody
+    // will see them, and the loop below releases their cards from the gate.
+    const hideShorts = shortsHidden();
+    const allVideos = scrapeVisibleVideos().filter(v => !(hideShorts && v.isShort));
     const t1 = performance.now();
 
     // Cards the scraper can't parse (ads, shelf headers, placeholders) will never be
@@ -1273,6 +1297,7 @@ chrome.storage.onChanged.addListener((changes) => {
 
     applyBlurPrefs(newSettings);
     applyHideMode(newSettings);
+    applyShortsMode();
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

@@ -459,6 +459,9 @@ export interface Settings {
   logLevel?: LogLevel;
   // Hide Facebook Reels (the Reels tray and reel posts in the feed). Default: true
   hideFacebookReels?: boolean;
+  // Hide YouTube Shorts (shelves, menu entries, channel tab; /shorts links open in
+  // the normal player). Default: false
+  hideYouTubeShorts?: boolean;
   // Give ads the top score on every site. Default: true. Named from when it was
   // Facebook only; the name stays so saved choices carry over.
   penalizeFacebookAds?: boolean;

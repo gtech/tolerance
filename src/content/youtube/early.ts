@@ -3,10 +3,25 @@
 // own gate and removes this style), so new cards never flash unblurred.
 
 import type { Settings } from '../../shared/types';
-import { gateCss, isUnscoredYouTubePage } from './gate';
+import { gateCss, isUnscoredYouTubePage, shortsWatchUrl } from './gate';
 import { syncGateOpacity } from '../gateOpacity';
 
 const FALLBACK_MS = 15000; // never leave the feed blurred if the main script fails
+
+// Opening a Shorts link directly (new tab, shared link): with Shorts hidden, go
+// to the normal player before the Shorts feed gets going
+const watchUrl = shortsWatchUrl(location.pathname);
+if (watchUrl) {
+  try {
+    chrome.storage.local.get('settings', (result) => {
+      if (chrome.runtime.lastError) return;
+      const settings = result.settings as Partial<Settings> | undefined;
+      if (settings?.hideYouTubeShorts && settings?.platforms?.youtube !== false) location.replace(watchUrl);
+    });
+  } catch {
+    // Extension context gone: leave the page alone
+  }
+}
 
 if (!isUnscoredYouTubePage(location.pathname)) {
   const style = document.createElement('style');

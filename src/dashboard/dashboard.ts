@@ -54,6 +54,7 @@ async function init(): Promise<void> {
   await setupTrustedBlurPhase();
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
+  await setupYouTubeShortsSetting();
   await setupFacebookAdsSetting();
   await setupSubscriptionsOnly();
   await setupRubricEditor();
@@ -131,6 +132,17 @@ async function setupFacebookReelsSetting(): Promise<void> {
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, hideFacebookReels: toggle.checked } });
+  });
+}
+
+// Hide YouTube Shorts card (off unless turned on)
+async function setupYouTubeShortsSetting(): Promise<void> {
+  const toggle = document.getElementById('yt-shorts-toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).hideYouTubeShorts ?? false;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({ settings: { ...current, hideYouTubeShorts: toggle.checked } });
   });
 }
 
