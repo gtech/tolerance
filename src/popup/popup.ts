@@ -238,7 +238,37 @@ async function setupStrictness(): Promise<void> {
   });
   slider.addEventListener('change', () => {
     void saveStrictness(parseInt(slider.value, 10));
+    void showFineTuneHint();
   });
+}
+
+// After a strictness change, point to per-phase control in the dashboard. Shown
+// in the first few popups where the slider moves, and never again once clicked.
+const FINE_TUNE_HINT_KEY = 'fineTuneHint';
+const FINE_TUNE_HINT_MAX = 3;
+let fineTuneHintShown = false;
+
+async function showFineTuneHint(): Promise<void> {
+  if (fineTuneHintShown) return;
+  const desc = document.getElementById('strictness-desc');
+  if (!desc) return;
+  const stored = await chrome.storage.local.get(FINE_TUNE_HINT_KEY);
+  const hint = (stored[FINE_TUNE_HINT_KEY] as { shown: number; clicked: boolean } | undefined)
+    ?? { shown: 0, clicked: false };
+  if (hint.clicked || hint.shown >= FINE_TUNE_HINT_MAX) return;
+  fineTuneHintShown = true;
+  void chrome.storage.local.set({ [FINE_TUNE_HINT_KEY]: { ...hint, shown: hint.shown + 1 } });
+
+  desc.textContent = 'Want different levels as a session goes on? ';
+  const link = document.createElement('a');
+  link.href = '#';
+  link.textContent = 'Fine-tune per phase';
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    void chrome.storage.local.set({ [FINE_TUNE_HINT_KEY]: { shown: hint.shown + 1, clicked: true } });
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/index.html#thresholds') });
+  });
+  desc.append(link);
 }
 
 document.addEventListener('DOMContentLoaded', init);

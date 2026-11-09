@@ -94,6 +94,8 @@ async function init(): Promise<void> {
   // Scroll to API setup section if hash is present
   if (window.location.hash === '#api-setup') {
     scrollToApiSetup();
+  } else if (window.location.hash === '#thresholds') {
+    scrollToFineTune();
   }
 
   // Refresh global session every 30 seconds
@@ -961,6 +963,17 @@ function scrollToApiSetup(): void {
       }
     }, 500);
   }
+}
+
+// From the popup's "Fine-tune per phase" link: open the per-phase sliders and
+// briefly outline the card so it's clear where to look
+function scrollToFineTune(): void {
+  const card = document.getElementById('thresholds');
+  if (!card) return;
+  (document.getElementById('threshold-fine-tune') as HTMLDetailsElement | null)?.setAttribute('open', '');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  card.style.boxShadow = '0 0 0 2px #7dcea0';
+  setTimeout(() => { card.style.boxShadow = ''; }, 2000);
 }
 
 function setupEventListeners(): void {
