@@ -282,7 +282,7 @@ export const DEFAULT_BLUR_THRESHOLDS = {
 export type BlurThresholdSet = { normal: number; reduced: number; windDown: number; minimal: number };
 
 export const STRICTNESS_PRESETS: { label: string; thresholds: BlurThresholdSet }[] = [
-  { label: 'Very gentle', thresholds: { normal: 100, reduced: 65, windDown: 65, minimal: 65 } },
+  { label: 'Very gentle', thresholds: { normal: 100, reduced: 85, windDown: 85, minimal: 85 } },
   { label: 'Gentle',      thresholds: { normal: 100, reduced: 65, windDown: 55, minimal: 55 } },
   { label: 'Default',     thresholds: { ...DEFAULT_BLUR_THRESHOLDS } },
   { label: 'Strict',      thresholds: { normal: 55,  reduced: 45, windDown: 45, minimal: 45 } },
