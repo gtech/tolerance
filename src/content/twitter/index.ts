@@ -1,5 +1,5 @@
 import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
-import { log, setLogLevel } from '../../shared/constants';
+import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from './observer';
@@ -138,7 +138,7 @@ function shouldBlurScore(score: EngagementScore): boolean {
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
 
   const displayScore = score.apiScore;
-  // Quality Mode uses aggressive threshold (20)
+  // Quality Mode skips the phases for its own fixed threshold
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
 }
@@ -225,9 +225,8 @@ let hoverRevealDelay = 3000; // Default 3 seconds
 let currentBlurThreshold = 55; // Default for 'normal' phase
 let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 
-// Quality Mode - instant aggressive blur (scores > 20)
+// Quality Mode - instant aggressive blur (QUALITY_MODE_THRESHOLD)
 let qualityModeEnabled = false;
-const QUALITY_MODE_THRESHOLD = 21;
 
 // Subscriptions Only - blur everything except subscribed sources
 let subscriptionsOnlyMode = false;

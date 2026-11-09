@@ -1,5 +1,5 @@
 import { RedditPost, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../shared/types';
-import { log, setLogLevel } from '../shared/constants';
+import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { scrapeNewRedditPosts, serializeNewRedditPost } from './scraper-new';
 import { reorderPosts, recordImpressions } from './reorder';
@@ -29,9 +29,8 @@ let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 let currentBlurThreshold = 55; // Default for 'normal' phase
 let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 
-// Quality Mode - instant aggressive blur (scores > 20)
+// Quality Mode - instant aggressive blur (QUALITY_MODE_THRESHOLD)
 let qualityModeEnabled = false;
-const QUALITY_MODE_THRESHOLD = 21;
 
 // Opaque blur - solid gray overlay instead of semi-transparent
 let opaqueBlurEnabled = false;

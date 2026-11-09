@@ -1,5 +1,5 @@
 import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
-import { log, setLogLevel } from '../../shared/constants';
+import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
@@ -29,9 +29,8 @@ let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 let currentBlurThreshold = 55; // Default for 'normal' phase
 let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 
-// Quality Mode
+// Quality Mode - instant aggressive blur (QUALITY_MODE_THRESHOLD)
 let qualityModeEnabled = false;
-const QUALITY_MODE_THRESHOLD = 21;
 
 // Subscriptions Only
 let subscriptionsOnlyMode = false;

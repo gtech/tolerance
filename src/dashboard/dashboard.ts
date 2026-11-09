@@ -1,5 +1,5 @@
 import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
-import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
+import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, QUALITY_MODE_THRESHOLD, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { renderTopics, setupTopics } from './topics';
@@ -379,13 +379,25 @@ const THRESHOLD_SLIDER_IDS: [string, keyof BlurThresholdSet][] = [
   ['blur-minimal', 'minimal'],
 ];
 
+// The per-phase sliders hold 120 - threshold (20..100 maps onto itself), so moving
+// right lowers the threshold and blurs more, like the Strictness slider, and the
+// filled part of the track grows with how much gets blurred
+function toSliderValue(threshold: number): string {
+  return String(120 - threshold);
+}
+
+function sliderThreshold(slider: HTMLInputElement | null, fallback: number): number {
+  const v = parseInt(slider?.value ?? '', 10);
+  return Number.isNaN(v) ? fallback : 120 - v;
+}
+
 // Set both copies (top card + settings section) of the per-phase sliders
 function setThresholdSliders(thresholds: BlurThresholdSet): void {
   for (const [id, key] of THRESHOLD_SLIDER_IDS) {
     for (const suffix of ['', '-top']) {
       const slider = document.getElementById(`${id}${suffix}`) as HTMLInputElement | null;
       const valueEl = document.getElementById(`${id}-value${suffix}`);
-      if (slider) slider.value = String(thresholds[key]);
+      if (slider) slider.value = toSliderValue(thresholds[key]);
       if (valueEl) valueEl.textContent = String(thresholds[key]);
     }
   }
@@ -393,7 +405,7 @@ function setThresholdSliders(thresholds: BlurThresholdSet): void {
 
 function readThresholdSliders(): BlurThresholdSet {
   const read = (id: string, fallback: number) =>
-    parseInt((document.getElementById(`${id}-top`) as HTMLInputElement | null)?.value || String(fallback), 10);
+    sliderThreshold(document.getElementById(`${id}-top`) as HTMLInputElement | null, fallback);
   return {
     normal: read('blur-normal', DEFAULT_BLUR_THRESHOLDS.normal),
     reduced: read('blur-reduced', DEFAULT_BLUR_THRESHOLDS.reduced),
@@ -814,9 +826,9 @@ function populateCustomThresholds(settings: Settings): void {
 
     console.log(`updateSlider: ${id} = ${value}`, { slider: !!slider, valueEl: !!valueEl, topSlider: !!topSlider, topValueEl: !!topValueEl });
 
-    if (slider) slider.value = String(value);
+    if (slider) slider.value = toSliderValue(value);
     if (valueEl) valueEl.textContent = String(value);
-    if (topSlider) topSlider.value = String(value);
+    if (topSlider) topSlider.value = toSliderValue(value);
     if (topValueEl) topValueEl.textContent = String(value);
   };
 
@@ -845,6 +857,21 @@ function populateCustomThresholds(settings: Settings): void {
     timingWinddown.value = String(phaseTiming.windDown);
     const valueEl = document.getElementById('timing-winddown-value');
     if (valueEl) valueEl.textContent = String(phaseTiming.windDown);
+  }
+  setPhaseTimeLabels(phaseTiming);
+}
+
+// "(15–45 min)" next to each per-phase slider, so the phase names mean something
+function setPhaseTimeLabels(timing: { normal: number; reduced: number; windDown: number }): void {
+  const labels: [string, string][] = [
+    ['phase-time-normal', `(0–${timing.normal} min)`],
+    ['phase-time-reduced', `(${timing.normal}–${timing.reduced} min)`],
+    ['phase-time-winddown', `(${timing.reduced}–${timing.windDown} min)`],
+    ['phase-time-minimal', `(${timing.windDown}+ min)`],
+  ];
+  for (const [id, text] of labels) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
   }
 }
 
@@ -2299,12 +2326,13 @@ function setupThresholdControls(): void {
     const valueEl = document.getElementById(`${id}-value`);
     if (slider && valueEl) {
       slider.addEventListener('input', () => {
-        valueEl.textContent = slider.value;
+        const threshold = String(sliderThreshold(slider, 100));
+        valueEl.textContent = threshold;
         // Sync to top card slider
         const topSlider = document.getElementById(`${id}-top`) as HTMLInputElement;
         const topValueEl = document.getElementById(`${id}-value-top`);
         if (topSlider) topSlider.value = slider.value;
-        if (topValueEl) topValueEl.textContent = slider.value;
+        if (topValueEl) topValueEl.textContent = threshold;
       });
       slider.addEventListener('change', saveCustomThresholds);
     }
@@ -2314,10 +2342,11 @@ function setupThresholdControls(): void {
     const topValueEl = document.getElementById(`${id}-value-top`);
     if (topSlider && topValueEl) {
       topSlider.addEventListener('input', () => {
-        topValueEl.textContent = topSlider.value;
+        const threshold = String(sliderThreshold(topSlider, 100));
+        topValueEl.textContent = threshold;
         // Sync to settings section slider
         if (slider) slider.value = topSlider.value;
-        if (valueEl) valueEl.textContent = topSlider.value;
+        if (valueEl) valueEl.textContent = threshold;
       });
       topSlider.addEventListener('change', saveCustomThresholds);
     }
@@ -2331,6 +2360,13 @@ function setupThresholdControls(): void {
     if (slider && valueEl) {
       slider.addEventListener('input', () => {
         valueEl.textContent = slider.value;
+        const minutes = (sliderId: string) =>
+          parseInt((document.getElementById(sliderId) as HTMLInputElement).value, 10);
+        setPhaseTimeLabels({
+          normal: minutes('timing-normal'),
+          reduced: minutes('timing-reduced'),
+          windDown: minutes('timing-winddown'),
+        });
       });
       slider.addEventListener('change', saveCustomThresholds);
     }
@@ -2347,10 +2383,11 @@ async function saveCustomThresholds(): Promise<void> {
   const existing = await getSettings();
 
   // Read all slider values
-  const blurNormal = parseInt((document.getElementById('blur-normal') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.normal), 10);
-  const blurReduced = parseInt((document.getElementById('blur-reduced') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.reduced), 10);
-  const blurWinddown = parseInt((document.getElementById('blur-winddown') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.windDown), 10);
-  const blurMinimal = parseInt((document.getElementById('blur-minimal') as HTMLInputElement)?.value || String(DEFAULT_BLUR_THRESHOLDS.minimal), 10);
+  const slider = (id: string) => document.getElementById(id) as HTMLInputElement | null;
+  const blurNormal = sliderThreshold(slider('blur-normal'), DEFAULT_BLUR_THRESHOLDS.normal);
+  const blurReduced = sliderThreshold(slider('blur-reduced'), DEFAULT_BLUR_THRESHOLDS.reduced);
+  const blurWinddown = sliderThreshold(slider('blur-winddown'), DEFAULT_BLUR_THRESHOLDS.windDown);
+  const blurMinimal = sliderThreshold(slider('blur-minimal'), DEFAULT_BLUR_THRESHOLDS.minimal);
 
   const timingNormal = parseInt((document.getElementById('timing-normal') as HTMLInputElement)?.value || '15', 10);
   const timingReduced = parseInt((document.getElementById('timing-reduced') as HTMLInputElement)?.value || '45', 10);
@@ -2579,7 +2616,7 @@ async function renderThresholdNow(): Promise<void> {
     if (offset !== 0) {
       line += ` That's your setting ${offset < 0 ? 'lowered' : 'raised'} by ${Math.abs(offset)} from your daily "too easy / too restricted" answers.`;
     }
-    if (settings.qualityMode) line += ' Quality mode is on, which blurs everything scoring 21 or more.';
+    if (settings.qualityMode) line += ` Quality mode is on, which blurs everything scoring above ${QUALITY_MODE_THRESHOLD - 1}.`;
     if (settings.subscriptionsOnly) line += ' Subscriptions-only is on, which blurs everything not trusted.';
     text.textContent = line;
     box.style.display = '';

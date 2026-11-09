@@ -1,5 +1,5 @@
 import { YouTubeVideo, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
-import { log, setLogLevel } from '../../shared/constants';
+import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
@@ -127,9 +127,8 @@ let hoverRevealDelay = 3000; // Default 3 seconds
 let currentBlurThreshold = 55; // Default for 'normal' phase
 let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 
-// Quality Mode - instant aggressive blur (scores > 20)
+// Quality Mode - instant aggressive blur (QUALITY_MODE_THRESHOLD)
 let qualityModeEnabled = false;
-const QUALITY_MODE_THRESHOLD = 21;
 
 // Subscriptions Only - blur everything except subscribed sources
 let subscriptionsOnlyMode = false;
@@ -182,7 +181,7 @@ function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; white
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
 
   const displayScore = score.apiScore;
-  // Quality Mode uses aggressive threshold (20)
+  // Quality Mode skips the phases for its own fixed threshold
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
 }

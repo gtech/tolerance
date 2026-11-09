@@ -443,7 +443,7 @@ export interface Settings {
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
   // User-edited scoring rubric, replacing RUBRIC in shared/scoring-spec.ts (unset = default)
   scoringRubric?: string;
-  // Quality Mode - blur everything above 20 (show only genuine content)
+  // Quality Mode - blur everything above 40, in every phase (QUALITY_MODE_THRESHOLD)
   qualityMode?: boolean;
   // Subscriptions Only - blur everything except subscribed sources
   subscriptionsOnly?: boolean;

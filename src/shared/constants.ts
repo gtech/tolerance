@@ -311,6 +311,9 @@ export function thresholdsToStrictness(t: BlurThresholdSet): { level: number; ex
   return { level: best, exact: bestDistance === 0 };
 }
 
+// Quality Mode skips the phases and blurs every post scoring above 40
+export const QUALITY_MODE_THRESHOLD = 41;
+
 // Default phase timing (minutes)
 export const DEFAULT_PHASE_TIMING = {
   normal: 15,     // First 15 min: no blur

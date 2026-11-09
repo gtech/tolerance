@@ -1,5 +1,5 @@
 import { InstagramPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
-import { log, setLogLevel } from '../../shared/constants';
+import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
@@ -32,9 +32,8 @@ let heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 let currentBlurThreshold = 55; // Default for 'normal' phase
 let currentPhase: 'normal' | 'reduced' | 'wind-down' | 'minimal' = 'normal';
 
-// Quality Mode - instant aggressive blur (scores > 20)
+// Quality Mode - instant aggressive blur (QUALITY_MODE_THRESHOLD)
 let qualityModeEnabled = false;
-const QUALITY_MODE_THRESHOLD = 21;
 
 // Subscriptions Only - blur everything except subscribed sources
 let subscriptionsOnlyMode = false;
