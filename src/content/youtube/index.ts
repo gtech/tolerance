@@ -186,6 +186,12 @@ function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; white
   return displayScore >= threshold;
 }
 
+// Hide mode (Settings: "Hide instead of blur on YouTube")
+const HIDE_BLURRED_CLASS = 'tolerance-yt-hide-blurred';
+function applyHideMode(settings: Settings | null): void {
+  document.documentElement.classList.toggle(HIDE_BLURRED_CLASS, settings?.twitter?.hideBlurredYouTube ?? false);
+}
+
 // Track hover timers for timed reveal
 const hoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
@@ -332,6 +338,12 @@ function injectStyles(): void {
     }
     .tolerance-pending .tolerance-blur-label {
       background: rgba(149, 165, 166, 0.9);
+    }
+
+    /* Hide mode: a video blurred for its score leaves the page and the grid
+       closes up. Cards still being scored stay blurred, so nothing flashes. */
+    html.${HIDE_BLURRED_CLASS} .tolerance-blurred {
+      display: none !important;
     }
   `;
   document.head.appendChild(style);
@@ -667,8 +679,10 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
   overlay.appendChild(buildBlurLabel(score));
   video.element.appendChild(overlay);
 
-  // Show onboarding tooltip on first blur (one-time)
-  showOnboardingTooltip(video.element);
+  // Show onboarding tooltip on first blur (one-time); a hidden card has nowhere to show it
+  if (!document.documentElement.classList.contains(HIDE_BLURRED_CLASS)) {
+    showOnboardingTooltip(video.element);
+  }
 
   log.debug(` Blurred video ${video.id}, score=${score.apiScore}, bucket=${score.bucket}`);
 }
@@ -770,6 +784,7 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   applyBlurPrefs(currentSettings);
+  applyHideMode(currentSettings);
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -1257,6 +1272,7 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 
     applyBlurPrefs(newSettings);
+    applyHideMode(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;
