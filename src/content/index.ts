@@ -998,7 +998,12 @@ async function processPosts(): Promise<void> {
       }
     }
 
-    // Log impressions to storage
+    // Log impressions to storage, with the blur threshold in force and what was decided
+    for (const impression of impressions) {
+      const score = scores.get(impression.postId);
+      impression.blurThreshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
+      impression.blurred = score ? shouldBlurScore(score) : false;
+    }
     await sendMessage({
       type: 'LOG_IMPRESSIONS',
       impressions,

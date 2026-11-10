@@ -1428,7 +1428,12 @@ async function processTweets(): Promise<void> {
       pendingProcess = true;
     }
 
-    // Log impressions to storage
+    // Log impressions to storage, with the blur threshold in force and what was decided
+    for (const impression of impressions) {
+      const score = scores.get(impression.postId);
+      impression.blurThreshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
+      impression.blurred = !!score && !!twitterSettings.blurHighEngagement && !twitterSettings.reorderEnabled && shouldBlurScore(score);
+    }
     await sendMessage({
       type: 'LOG_IMPRESSIONS',
       impressions,

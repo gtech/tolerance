@@ -243,10 +243,12 @@ export interface PostImpression {
   wasReordered: boolean;
   narrativeThemeId?: string;  // Detected narrative theme ID (if any)
   // Logged since Nov 2026, so the history can be analysed without guessing
-  platform?: 'reddit' | 'twitter';
+  platform?: 'reddit' | 'twitter' | 'youtube';
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
   scoreFailed?: boolean;      // score is the 50 placeholder, not a real score
+  blurThreshold?: number;     // Blur threshold in force when the post was shown
+  blurred?: boolean;          // Whether it was blurred (trust and other exemptions can differ from the threshold)
   // Attention metrics (accumulated after render by AttentionTracker)
   dwellMs?: number;               // Total time the post was ≥50% visible in a visible tab
   viewportEnters?: number;        // How many times it entered the viewport

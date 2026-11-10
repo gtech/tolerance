@@ -78,11 +78,25 @@ export class AttentionTracker {
   // existing tweets; calling track() again with the new element re-attaches
   // observation while accumulated-but-unflushed data is preserved.
   track(postId: string, element: HTMLElement): void {
+    // The element was showing a different post (YouTube reuses its cards): stop timing
+    // the old one, or it would keep accruing time while the new post is on screen.
+    const previous = this.byElement.get(element);
+    if (previous && previous.postId !== postId) {
+      this.endSegment(previous, Date.now());
+      previous.intersecting = false;
+      this.byElement.delete(element);
+      // Unobserve so the observe below reports the element's visibility afresh
+      this.observer.unobserve(element);
+    }
+
     const existing = this.byPostId.get(postId);
     if (existing) {
       if (existing.element === element) return;
-      this.observer.unobserve(existing.element);
-      this.byElement.delete(existing.element);
+      // Leave its old element alone if that now belongs to another post
+      if (this.byElement.get(existing.element) === existing) {
+        this.observer.unobserve(existing.element);
+        this.byElement.delete(existing.element);
+      }
       this.endSegment(existing, Date.now());
       existing.element = element;
       existing.intersecting = false;

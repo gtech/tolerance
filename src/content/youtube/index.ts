@@ -1,4 +1,6 @@
-import { YouTubeVideo, EngagementScore, AppState, Settings, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { YouTubeVideo, EngagementScore, AppState, Settings, PostImpression, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { impressionScoreFields } from '../../shared/impression-fields';
+import { AttentionTracker } from '../attention';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
@@ -20,6 +22,7 @@ const scoreCache = new Map<string, { score: EngagementScore; position: number; c
 // Processing lock to prevent concurrent processVideos calls
 let isProcessing = false;
 let pendingProcess = false;
+let attentionTracker: AttentionTracker | null = null;
 
 // Recovery check for stuck states
 const RECOVERY_CHECK_INTERVAL = 10_000;
@@ -824,6 +827,13 @@ async function initCore(): Promise<void> {
   applyHideMode(currentSettings);
   applyShortsMode();
 
+  // Start attention tracking (time each video card is on screen + scroll cadence)
+  if (!attentionTracker) {
+    attentionTracker = new AttentionTracker((dwellUpdates, scrollBuckets) => {
+      void sendMessage({ type: 'LOG_ATTENTION', dwellUpdates, scrollBuckets });
+    });
+  }
+
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
 
@@ -1022,6 +1032,8 @@ async function processVideos(): Promise<void> {
     log.debug(` Scores - High: ${buckets.high}, Medium: ${buckets.medium}, Low: ${buckets.low}`);
 
     // Inject badges and handle blur based on score
+    const impressions: PostImpression[] = [];
+    const logged = new Set<string>();
     for (let i = 0; i < newVideos.length; i++) {
       const video = newVideos[i];
       const score = scores.get(video.id);
@@ -1029,6 +1041,24 @@ async function processVideos(): Promise<void> {
       if (score) {
         // Cache for re-injection
         scoreCache.set(video.id, { score, position: i, channel: video.channel });
+
+        // Record that this video was shown (once, even if it sits in two cards)
+        if (!logged.has(video.id)) {
+          logged.add(video.id);
+          impressions.push({
+            timestamp: Date.now(),
+            postId: video.id,
+            ...impressionScoreFields(score),
+            platform: 'youtube',
+            blurThreshold: qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold,
+            blurred: shouldBlurScore(score),
+            position: i,
+            originalPosition: i,
+            subreddit: video.channel,   // The source: the channel name
+            wasReordered: false,
+          });
+          attentionTracker?.track(video.id, video.element);
+        }
 
         const displayScore = score.apiScore;
         const scoringFailed = score.scoreFailed ?? false;
@@ -1052,6 +1082,11 @@ async function processVideos(): Promise<void> {
           removePendingBlur(video);
         }
       }
+    }
+
+    // Log impressions to storage
+    if (impressions.length > 0) {
+      void sendMessage({ type: 'LOG_IMPRESSIONS', impressions });
     }
   } catch (error) {
     log.error(' Error processing videos:', error);
