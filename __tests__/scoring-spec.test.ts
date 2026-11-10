@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, MEDIA_POST_ID, parseDims, pickPostResult, readScore, RUBRIC, rubricHash, scoreFromDims, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
+import { activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, IMAGE_DESCRIPTION_MAX, MEDIA_POST_ID, parseDims, pickPostResult, readImageDescription, readScore, RUBRIC, rubricHash, scoreFromDims, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
 
 describe('ad note', () => {
   const posts = (['reddit', 'twitter', 'youtube', 'instagram', 'facebook'] as const)
@@ -108,6 +108,20 @@ describe('media posts', () => {
     expect(prompt).toContain('ID: calibration-');
     expect(prompt).toContain(`attached image belongs only to post ID ${MEDIA_POST_ID}`);
     expect(buildMediaPrompt(post, [], false)).not.toContain('attached image');
+  });
+
+  it('asks for a description of the image only when one is attached, whatever the rubric', () => {
+    expect(buildMediaPrompt(post)).toContain('also include "image"');
+    expect(buildMediaPrompt(post, [], true, 'My own rubric.')).toContain('also include "image"');
+    expect(buildMediaPrompt(post, [], false)).not.toContain('"image"');
+  });
+
+  it('reads the description from a reply, tidied and capped', () => {
+    expect(readImageDescription({ score: 7, image: '  A bar chart of\n rainfall by month. ' })).toBe('A bar chart of rainfall by month.');
+    expect(readImageDescription({ score: 7, image: 'x'.repeat(1000) })).toHaveLength(IMAGE_DESCRIPTION_MAX);
+    for (const none of [{ score: 7 }, { image: '' }, { image: '   ' }, { image: 42 }, { image: null }, null, 'text']) {
+      expect(readImageDescription(none)).toBeUndefined();
+    }
   });
 
   it("picks the scored post's item, skipping calibration items", () => {

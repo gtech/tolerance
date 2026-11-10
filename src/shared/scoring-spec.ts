@@ -16,7 +16,9 @@
 // v6: image and video posts are scored with the calibration posts too, not alone.
 // v7: Facebook ads score 10. Other platforms' prompts are unchanged.
 // v8: ads score 10 on every platform, and posts a site marks as sponsored are labeled.
-export const SCORING_SPEC_VERSION = 8;
+// v9: a post scored with its image also gets a one-line description of the image
+// back, to keep with the post. The rubric is unchanged.
+export const SCORING_SPEC_VERSION = 9;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
@@ -181,7 +183,8 @@ Respond with ONLY valid JSON: {${fields(themes)}}`;
 
 export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
-  const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image.` : '';
+  // The description is asked for outside the rubric, so an edited rubric still gets one
+  const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image. In that post's result, also include "image": what the image shows, stated plainly in 25 words or fewer, quoting any prominent text in it.` : '';
   return `Rate each of these social media posts.
 
 ${list}${imageNote}
@@ -243,6 +246,16 @@ export function parseDims(obj: unknown): ScoreDims | undefined {
   const pull = clampRating(o.pull), value = clampRating(o.value);
   if (hook === undefined || effort === undefined || pull === undefined || value === undefined) return undefined;
   return { hook, effort, pull, value };
+}
+
+// The model's description of the attached image, from a parsed response item
+export const IMAGE_DESCRIPTION_MAX = 300;
+export function readImageDescription(obj: unknown): string | undefined {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const raw = (obj as Record<string, unknown>).image;
+  if (typeof raw !== 'string') return undefined;
+  const text = raw.replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, IMAGE_DESCRIPTION_MAX) : undefined;
 }
 
 // A score computed from the sub-ratings with fixed weights. Production uses the

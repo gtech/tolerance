@@ -33,6 +33,19 @@ function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   else delete score.dims;
   if (result.rubricHash) score.rubricHash = result.rubricHash;
   else delete score.rubricHash;
+  // Image posts: whether the model saw the image, and what it said the image shows
+  if (result.imageSeen !== undefined) score.imageSeen = result.imageSeen;
+  if (result.imageDescription) score.imageDescription = result.imageDescription;
+  else delete score.imageDescription;
+}
+
+// What the scoring step learned about each post's image, to store with its content
+function imageNotes(scores: EngagementScore[]): (postId: string) => { imageSeen?: boolean; imageDescription?: string } {
+  const byId = new Map(scores.map(s => [s.postId, s]));
+  return postId => {
+    const s = byId.get(postId);
+    return { imageSeen: s?.imageSeen, imageDescription: s?.imageDescription };
+  };
 }
 
 // Posts per text scoring call (Twitter text, YouTube titles); chunks run in
@@ -283,7 +296,9 @@ export async function scorePosts(
   }
 
   // Save post content for ML training data (setting-gated inside savePostContent)
+  const redditImages = imageNotes(newScores);
   await savePostContent(uncached.map(post => ({
+    ...redditImages(post.id),
     postId: post.id,
     platform: 'reddit' as const,
     text: post.text,
@@ -574,7 +589,9 @@ export async function scoreTweets(
   }
 
   // Save post content for ML training data
+  const tweetImages = imageNotes(newScores);
   await savePostContent(uncached.map(tweet => ({
+    ...tweetImages(tweet.id),
     postId: tweet.id,
     platform: 'twitter' as const,
     text: tweet.text,
@@ -998,7 +1015,9 @@ export async function scoreVideos(
   }
 
   // Save post content for ML training data
+  const videoImages = imageNotes(newScores);
   await savePostContent(uncached.map(video => ({
+    ...videoImages(video.id),
     postId: video.id,
     platform: 'youtube' as const,
     text: video.title,
@@ -1203,7 +1222,9 @@ export async function scoreInstagramPosts(
   }
 
   // Save post content for ML training data
+  const instagramImages = imageNotes(newScores);
   await savePostContent(uncached.map(post => ({
+    ...instagramImages(post.id),
     postId: post.id,
     platform: 'instagram' as const,
     text: post.caption,
@@ -1388,7 +1409,9 @@ export async function scoreFacebookPosts(
   }
 
   // Save post content for ML training data
+  const facebookImages = imageNotes(newScores);
   await savePostContent(uncached.map(post => ({
+    ...facebookImages(post.id),
     postId: post.id,
     platform: 'facebook' as const,
     text: post.caption,

@@ -8,7 +8,7 @@ import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { getFreeTierApiKey } from './provisioning';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
-import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
+import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
   score: number; // 1-10
@@ -18,6 +18,7 @@ export interface ScoreResponse {
   narrativeMatches?: string[]; // Theme IDs that matched (from LLM detection)
   dims?: ScoreDims; // Sub-ratings (hook, effort, pull, value) from the scoring spec
   imageSeen?: boolean; // Image calls: whether the image reached the model (false = scored on text alone)
+  imageDescription?: string; // What the model said the image shows (only when it saw one)
   rubricHash?: string; // Set when an edited rubric produced the score
 }
 
@@ -737,7 +738,12 @@ export async function scoreImagePost(
     const rubric = await getRubric();
     const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric, await getAdNote());
 
-    return tagRubric(await callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes), rubric);
+    const scored = tagRubric(await callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes), rubric);
+    // The gallery was described in its own step: keep that as the post's image description
+    if (scored && imageDescriptions.trim()) {
+      scored.imageDescription = imageDescriptions.replace(/\s+/g, ' ').trim().slice(0, IMAGE_DESCRIPTION_MAX);
+    }
+    return scored;
   }
 
   // Single image: use vision model from config
@@ -1083,7 +1089,7 @@ async function callApi(
           fullResponse: data,
           narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
           dims: parseDims(parsed),
-          ...(imageUrl ? { imageSeen: imageSent } : {}),
+          ...(imageUrl ? { imageSeen: imageSent, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
         };
       }
       return noScoreResult(callType, model, content, cost, data);
@@ -1114,7 +1120,7 @@ async function callApi(
             fullResponse: data,
             narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
             dims: parseDims(parsed),
-            ...(imageUrl ? { imageSeen: imageSent } : {}),
+            ...(imageUrl ? { imageSeen: imageSent, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
           };
         }
         return noScoreResult(callType, model, content, cost, data);

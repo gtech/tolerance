@@ -202,6 +202,7 @@ export interface EngagementScore {
   rubricHash?: string;   // Set when an edited rubric produced apiScore (unset = default rubric)
   dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
   imageSeen?: boolean;   // Image/video posts: whether the image reached the model
+  imageDescription?: string; // What the model said the image shows
   preFloorScore?: number; // Video/gif tweets raised to the video floor: the score before it
   // Set when the post's anchor (quoted / replied-to post) scored higher than the post itself
   anchor?: {
@@ -229,6 +230,8 @@ export interface PostContent {
   thumbnailUrl?: string;  // Thumbnail URL (fallback if imageUrl expires)
   mediaType?: string;     // 'text' | 'image' | 'video' | 'gallery' | 'gif' | 'reel'
   quotedText?: string;    // Quote tweet: "[Quote from @author]: text"
+  imageSeen?: boolean;    // Whether the model saw the post's image when scoring it
+  imageDescription?: string; // What the model said the image shows (the image itself is not kept)
   timestamp: number;      // When we stored it
 }
 
@@ -247,6 +250,7 @@ export interface PostImpression {
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
   scoreFailed?: boolean;      // score is the 50 placeholder, not a real score
+  imageSeen?: boolean;        // Image posts: whether the model saw the image (false = scored on text alone)
   blurThreshold?: number;     // Blur threshold in force when the post was shown
   blurred?: boolean;          // Whether it was blurred (trust and other exemptions can differ from the threshold)
   // Attention metrics (accumulated after render by AttentionTracker)
