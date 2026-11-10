@@ -37,14 +37,16 @@ function stampSpec(score: EngagementScore, result: ScoreResponse): void {
   if (result.imageSeen !== undefined) score.imageSeen = result.imageSeen;
   if (result.imageDescription) score.imageDescription = result.imageDescription;
   else delete score.imageDescription;
+  if (result.imageHash) score.imageHash = result.imageHash;
+  else delete score.imageHash;
 }
 
 // What the scoring step learned about each post's image, to store with its content
-function imageNotes(scores: EngagementScore[]): (postId: string) => { imageSeen?: boolean; imageDescription?: string } {
+function imageNotes(scores: EngagementScore[]): (postId: string) => { imageSeen?: boolean; imageDescription?: string; imageHash?: string } {
   const byId = new Map(scores.map(s => [s.postId, s]));
   return postId => {
     const s = byId.get(postId);
-    return { imageSeen: s?.imageSeen, imageDescription: s?.imageDescription };
+    return { imageSeen: s?.imageSeen, imageDescription: s?.imageDescription, imageHash: s?.imageHash };
   };
 }
 

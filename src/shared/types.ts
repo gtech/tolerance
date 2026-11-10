@@ -203,6 +203,7 @@ export interface EngagementScore {
   dims?: ScoreDims;      // Sub-ratings from that spec: hook, effort, pull, value
   imageSeen?: boolean;   // Image/video posts: whether the image reached the model
   imageDescription?: string; // What the model said the image shows
+  imageHash?: string;    // Fingerprint of that image (shared/image-hash.ts)
   preFloorScore?: number; // Video/gif tweets raised to the video floor: the score before it
   // Set when the post's anchor (quoted / replied-to post) scored higher than the post itself
   anchor?: {
@@ -232,6 +233,7 @@ export interface PostContent {
   quotedText?: string;    // Quote tweet: "[Quote from @author]: text"
   imageSeen?: boolean;    // Whether the model saw the post's image when scoring it
   imageDescription?: string; // What the model said the image shows (the image itself is not kept)
+  imageHash?: string;     // Fingerprint of the image, to recognise the same picture elsewhere (shared/image-hash.ts)
   timestamp: number;      // When we stored it
 }
 

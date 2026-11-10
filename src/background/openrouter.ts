@@ -6,6 +6,7 @@ import { extractScoreFromText } from '../shared/score-parse';
 import { getSettings, getNarrativeThemes } from './storage';
 import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
+import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
@@ -19,7 +20,29 @@ export interface ScoreResponse {
   dims?: ScoreDims; // Sub-ratings (hook, effort, pull, value) from the scoring spec
   imageSeen?: boolean; // Image calls: whether the image reached the model (false = scored on text alone)
   imageDescription?: string; // What the model said the image shows (only when it saw one)
+  imageHash?: string; // Fingerprint of the image that was sent (shared/image-hash.ts)
   rubricHash?: string; // Set when an edited rubric produced the score
+}
+
+// Fingerprint an image held as a data: URL. Undefined if it can't be decoded (or isn't a
+// data: URL); the post is scored the same either way.
+async function hashImageDataUrl(dataUrl: string): Promise<string | undefined> {
+  if (!dataUrl.startsWith('data:')) return undefined;
+  try {
+    const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    // Read the pixels at full size (images are already resized to 512px for the model);
+    // anything bigger is drawn at a whole-number fraction to bound the work
+    const shrink = Math.max(1, Math.ceil(Math.max(bitmap.width, bitmap.height) / 1024));
+    const width = Math.max(1, Math.round(bitmap.width / shrink)), height = Math.max(1, Math.round(bitmap.height / shrink));
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    return dhashFromPixels(ctx.getImageData(0, 0, width, height).data, width, height);
+  } catch {
+    return undefined;
+  }
 }
 
 // The rubric to score with: the user's edited one, else the default
@@ -863,6 +886,7 @@ async function callApi(
   }
 
   let imageSent = false;
+  let imageHash: string | undefined;
   try {
     const messages: Array<{
       role: string;
@@ -915,6 +939,9 @@ async function callApi(
       // Only add image if we have a valid URL/base64
       if (transformedImageUrl) {
         log.debug(` Sending to ${model}, image=${transformedImageUrl.startsWith('data:') ? 'base64' : transformedImageUrl.slice(0, 60)}...`);
+
+        // Fingerprint the image we're about to send, to keep with the post
+        imageHash = await hashImageDataUrl(transformedImageUrl);
 
         // Multimodal message with image URL
         // Use detail: 'low' to reduce token cost from ~1500-2500 to ~85 tokens
@@ -1089,7 +1116,7 @@ async function callApi(
           fullResponse: data,
           narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
           dims: parseDims(parsed),
-          ...(imageUrl ? { imageSeen: imageSent, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
+          ...(imageUrl ? { imageSeen: imageSent, imageHash, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
         };
       }
       return noScoreResult(callType, model, content, cost, data);
@@ -1120,7 +1147,7 @@ async function callApi(
             fullResponse: data,
             narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
             dims: parseDims(parsed),
-            ...(imageUrl ? { imageSeen: imageSent, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
+            ...(imageUrl ? { imageSeen: imageSent, imageHash, imageDescription: imageSent ? readImageDescription(parsed) : undefined } : {}),
           };
         }
         return noScoreResult(callType, model, content, cost, data);
@@ -1136,7 +1163,7 @@ async function callApi(
     const extracted = extractScoreFromText(content);
     if (extracted) {
       log.debug('API: Extracted score from fallback pattern:', extracted.score);
-      return { ...extracted, cost, fullResponse: data, ...(imageUrl ? { imageSeen: imageSent } : {}) };
+      return { ...extracted, cost, fullResponse: data, ...(imageUrl ? { imageSeen: imageSent, imageHash } : {}) };
     }
 
     console.error('API: Could not extract score from:', content);
