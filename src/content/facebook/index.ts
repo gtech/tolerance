@@ -383,7 +383,13 @@ async function sendMessage<M extends MessageType>(message: M): Promise<ResponseF
 }
 
 async function processPosts(): Promise<void> {
-  if (!isExtensionValid()) return;
+  if (!isExtensionValid()) {
+    // The extension was updated or reloaded under this tab and can no longer score.
+    // Drop the gate, or every new post stays blurred and unclickable until a reload.
+    updateGate();
+    return;
+  }
+  if (currentSettings?.platforms?.facebook === false) return;
 
   log.debug('Facebook: processPosts called, pathname:', window.location.pathname);
 
@@ -668,26 +674,11 @@ async function init(): Promise<void> {
 
   injectStyles();
 
-  // Navigation is watched from every page, so arriving at the feed from elsewhere works
-  setupNavigationObserver(() => {
-    processedPostIds.clear();
-    updateGate();
-    if (isValidFeedPage()) {
-      setupFacebookObserver(processPosts);
-      void processPosts();
-    } else {
-      disconnectObserver();
-    }
-  });
-
-  if (!isValidFeedPage()) {
-    log.debug('Facebook: Not a valid feed page, waiting for navigation');
-    removeEarlyBlur();
-    return;
-  }
-  log.debug('Facebook: Valid feed page, continuing init');
-
-  // Get settings
+  // Get settings, on every page: a tab opened on a profile or a permalink still has to
+  // be ready when the person reaches the feed. (This used to come after the feed-page
+  // check, so such a tab scored the feed with no settings at all, and the navigation
+  // watcher was registered before the "Facebook turned off" check, so a disabled
+  // Facebook was scored after the first in-site navigation.)
   try {
     const response = await sendMessage({ type: 'GET_STATE' });
     if (response) {
@@ -715,22 +706,41 @@ async function init(): Promise<void> {
     log.error('Facebook: Failed to get settings:', error);
   }
 
+  let feedStarted = false;
+  const startFeed = async (): Promise<void> => {
+    if (!feedStarted) {
+      feedStarted = true;
+      // Fetch initial blur threshold
+      await updateBlurThreshold();
+      // Start heartbeat
+      startHeartbeat();
+    }
+    await processPosts();
+    // Set up observer for new feed items
+    setupFacebookObserver(processPosts);
+  };
+
+  // Navigation is watched from every page, so arriving at the feed from elsewhere works
+  setupNavigationObserver(() => {
+    processedPostIds.clear();
+    updateGate();
+    if (isValidFeedPage()) {
+      void startFeed();
+    } else {
+      disconnectObserver();
+    }
+  });
+
   // Switch from early.ts's CSS blur to our own gate
   updateGate();
   removeEarlyBlur();
+
+  if (!isValidFeedPage()) {
+    log.debug('Facebook: Not a valid feed page, waiting for navigation');
+    return;
+  }
   hideReelTrays();
-
-  // Fetch initial blur threshold
-  await updateBlurThreshold();
-
-  // Start heartbeat
-  startHeartbeat();
-
-  // Initial process
-  await processPosts();
-
-  // Set up observer for new feed items
-  setupFacebookObserver(processPosts);
+  await startFeed();
 
   log.debug('Facebook: Initialization complete');
 }

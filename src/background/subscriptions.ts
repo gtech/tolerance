@@ -1,5 +1,6 @@
-import { SubscriptionList, DEFAULT_SUBSCRIPTION_LIST } from '../shared/types';
+import { SubscriptionList, DEFAULT_SUBSCRIPTION_LIST, normalizeSourceId } from '../shared/types';
 import { log } from '../shared/constants';
+import { getSettings } from './storage';
 
 const STORAGE_KEY = 'subscriptionList';
 const ALARM_NAME = 'sync-subscriptions';
@@ -39,8 +40,7 @@ export function isSubscribed(
   const list = subscriptionList[platform];
   if (!list || list.length === 0) return false;
 
-  const normalizedSource = sourceId.toLowerCase().replace(/^[@u/]+/, '');
-  return list.includes(normalizedSource);
+  return list.includes(normalizeSourceId(sourceId));
 }
 
 /**
@@ -181,6 +181,11 @@ export function cancelSubscriptionSync(): void {
  */
 export async function handleSyncAlarm(alarmName: string): Promise<boolean> {
   if (alarmName !== ALARM_NAME) return false;
+  // Stop fetching the subscriptions page once the mode has been turned off
+  if (!(await getSettings()).subscriptionsOnly) {
+    cancelSubscriptionSync();
+    return true;
+  }
   await syncYouTubeSubscriptions();
   return true;
 }

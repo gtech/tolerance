@@ -6,7 +6,7 @@
  * 2. Add time-based break suggestions
  */
 
-import { getSettings } from './storage';
+import { getSettings, getTodayDateString } from './storage';
 import { getFreeTierApiKey } from './provisioning';
 import { log } from '../shared/constants';
 
@@ -26,7 +26,9 @@ const HEARTBEAT_GAP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
  */
 export async function getClaudeSession(): Promise<ClaudeSession> {
   const result = await chrome.storage.local.get<Record<string, ClaudeSession | undefined>>(CLAUDE_SESSION_KEY);
-  const today = new Date().toISOString().split('T')[0];
+  // The same day everything else uses (local time, turning over at 4am). This was the
+  // UTC date, which reset the session mid-afternoon for anyone west of Greenwich.
+  const today = getTodayDateString();
 
   let session: ClaudeSession = result[CLAUDE_SESSION_KEY] || {
     totalMinutes: 0,

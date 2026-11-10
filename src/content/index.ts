@@ -703,6 +703,7 @@ async function initCore(): Promise<void> {
       return;
     }
 
+    qualityModeEnabled = currentSettings.qualityMode ?? false;
     applyBlurPrefs(currentSettings);
     startScrapeHealth('reddit', currentSettings, !isCommentsPage());
 
@@ -854,6 +855,9 @@ function imageElementToBase64(img: HTMLImageElement): string | null {
 // Main processing function
 async function processPosts(): Promise<void> {
   if (!isExtensionValid()) return;
+  // Reddit turned off in the dashboard. (The check at start-up only skipped the rest
+  // of the set-up; the observers were still installed and posts were still scored.)
+  if (currentSettings?.platforms?.reddit === false) return;
 
   const t0 = performance.now();
 
@@ -914,6 +918,10 @@ async function processPosts(): Promise<void> {
 
     if (!scoreResult || !('scores' in scoreResult)) {
       console.error('Tolerance: Failed to get scores');
+      // Don't leave the batch stuck on "Scoring...": show the posts, and let them be
+      // tried again shortly (not at once, or a broken API would be asked in a loop)
+      for (const post of newPosts) removePendingBlur(post);
+      setTimeout(() => { for (const post of newPosts) processedPostIds.delete(post.id); }, 10000);
       return;
     }
 
@@ -979,7 +987,8 @@ async function processPosts(): Promise<void> {
       const score = scores.get(impression.postId);
       if (post && score) {
         const displayScore = score.apiScore;
-        const scoringFailed = score.apiScore === undefined;
+        // A failed score arrives as a placeholder 50 with scoreFailed set, never as undefined
+        const scoringFailed = !!score.scoreFailed;
 
         // Apply or remove blur based on score
         if (shouldBlurScore(score)) {
@@ -1232,6 +1241,9 @@ chrome.storage.onChanged.addListener((changes) => {
     const newSettings = changes.settings.newValue as Settings;
     currentSettings = newSettings;
 
+    // Quality Mode was never read on Reddit, so it did nothing here. It applies to
+    // posts scored from now on; ones already on the page keep their state.
+    qualityModeEnabled = newSettings.qualityMode ?? false;
     applyBlurPrefs(newSettings);
 
     // Update opaque blur setting and apply to existing overlays

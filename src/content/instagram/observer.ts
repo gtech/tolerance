@@ -144,10 +144,8 @@ function handleNavigation(callback: () => void): void {
   // Only process on feed pages
   if (isValidFeedPage()) {
     // Wait for new content to load
-    setTimeout(() => {
-      setupInstagramObserver(callback);
-      callback();
-    }, 500);
+    // The callback sets the post watcher up again itself
+    setTimeout(callback, 500);
   } else {
     log.debug('Instagram: Not a valid feed page, staying disconnected');
   }

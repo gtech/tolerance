@@ -712,6 +712,11 @@ function handleCellsAdded(cells: HTMLElement[]): void {
       if (shouldBlurScore(cached.score)) {
         const article = cell.querySelector('article[data-testid="tweet"]') as HTMLElement;
         applyBlurToTweet({ id: tweetId, element: article } as Tweet, cached.score, twitterSettings.blurIntensity);
+      } else {
+        // Scored and below the threshold: release it now. Otherwise the gate blurs
+        // the recreated cell again until the next pass, which can be seconds away.
+        stampCell(cell, tweetId);
+        markCellDone(cell);
       }
     } else if (!processedTweetIds.has(tweetId) && currentSettings?.blurUntilScored !== false) {
       stampCell(cell, tweetId);
@@ -1228,7 +1233,7 @@ async function processTweets(): Promise<void> {
           }
 
           const displayScore = cached.score.apiScore;
-          const scoringFailed = cached.score.apiScore === undefined;
+          const scoringFailed = !!cached.score.scoreFailed;
           injectScoreBadge(tweet, {
             score: displayScore,
             bucket: cached.score.bucket,
@@ -1409,7 +1414,8 @@ async function processTweets(): Promise<void> {
         }
 
         const displayScore = score.apiScore;
-        const scoringFailed = score.apiScore === undefined;
+        // A failed score arrives as a placeholder 50 with scoreFailed set, never as undefined
+        const scoringFailed = !!score.scoreFailed;
         injectScoreBadge(tweet, {
           score: displayScore,
           bucket: score.bucket,

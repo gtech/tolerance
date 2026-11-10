@@ -144,7 +144,8 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSettings();
   const provider: ApiProviderConfig = settings.apiProvider || { type: 'openrouter' };
 
-  log.debug(` Raw provider settings:`, JSON.stringify(provider));
+  // Never the key itself: debug logs get pasted into bug reports
+  log.debug(` Raw provider settings:`, JSON.stringify({ ...provider, apiKey: provider.apiKey ? '(set)' : undefined }));
 
   const isOpenRouter = provider.type !== 'openai-compatible';
 
@@ -865,6 +866,13 @@ export async function scoreInstagramVideo(
 // Call type for tracking
 type ApiCallType = 'text-batch' | 'image' | 'video' | 'gallery-describe' | 'instagram-video' | 'text-single';
 
+// What one call found out, for its own caller (see callOpenRouter)
+interface CallOutcome { upstreamLimited?: boolean }
+
+// A provider that stalls must not hold a whole batch: the handler would never answer
+// and the tab's posts would sit behind the pre-score blur.
+const SCORING_TIMEOUT_MS = 60_000;
+
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
 async function callApi(
   config: ProviderConfig,
@@ -874,7 +882,8 @@ async function callApi(
   callType: ApiCallType = 'text-single',
   postCount: number = 1,
   activeThemes?: NarrativeTheme[],
-  imageRequired = false
+  imageRequired = false,
+  outcome?: CallOutcome
 ): Promise<ScoreResponse | null> {
   const callStart = performance.now();
   log.debug(` callApi START at t=${callStart.toFixed(0)}, model=${model}, endpoint=${config.endpoint}`);
@@ -1022,6 +1031,7 @@ async function callApi(
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(SCORING_TIMEOUT_MS),
     });
     const fetchEnd = performance.now();
     log.debug(` fetch completed in ${(fetchEnd - fetchStart).toFixed(0)}ms`);
@@ -1036,11 +1046,18 @@ async function callApi(
         ? `${UPSTREAM_RATE_LIMITED} (${model})`
         : `API error ${response.status} (${model}): ${errorText.slice(0, 160)}`;
 
-      // Check for budget exhaustion / key limit / rate limit errors (402, 403, 429)
-      if (!upstreamLimited && (response.status === 402 || response.status === 403 || response.status === 429)) {
+      if (upstreamLimited && outcome) outcome.upstreamLimited = true;
+
+      // Check for a rejected key (401: invalid or revoked), budget exhaustion, key limit
+      // or rate limit (402, 403, 429). Without 401 here a dead key showed nothing at all.
+      if (!upstreamLimited && [401, 402, 403, 429].includes(response.status)) {
         await setApiErrorState({
           exhausted: true,
-          message: config.isFreeTier
+          message: response.status === 401
+            ? (config.isFreeTier
+              ? 'The free tier key was rejected. Add your own API key, or reinstall to get a new free key.'
+              : 'The API key was rejected as invalid (401). Check the key in the dashboard.')
+            : config.isFreeTier
             ? 'Free tier daily limit reached. Add your own API key for unlimited usage.'
             : `OpenRouter rejected the API key (${response.status}). Check the key's spend limit and account credits at openrouter.ai.`,
           timestamp: Date.now(),
@@ -1212,8 +1229,11 @@ async function callOpenRouter(
   const effectiveModel = model || config.textModel;
   log.debug(` callOpenRouter using model: ${effectiveModel} (passed: ${model}, config: ${config.textModel})`);
   lastCallError = null;
-  const result = await callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes, imageRequired);
-  if (result || !getLastCallError()?.startsWith(UPSTREAM_RATE_LIMITED)) return result;
+  // Whether to retry is decided from this call's own outcome. lastCallError is shared
+  // by every call in flight, and rate limits arrive exactly when many are.
+  const outcome: CallOutcome = {};
+  const result = await callApi(config, prompt, effectiveModel, imageUrl, callType, postCount, activeThemes, imageRequired, outcome);
+  if (result || !outcome.upstreamLimited) return result;
 
   // Provider rate limit: one retry after a short, jittered pause
   await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1500));
@@ -1233,7 +1253,16 @@ export interface ApiCallLog {
 }
 
 // Track API usage
-async function trackUsage(cost: number, trackCosts: boolean = true, details?: Partial<ApiCallLog>): Promise<void> {
+// One at a time: scoring runs many calls at once, and each of these reads the totals,
+// adds to them and writes them back, so concurrent ones used to overwrite each other
+// and the dashboard under-counted calls and cost.
+let usageQueue: Promise<void> = Promise.resolve();
+function trackUsage(cost: number, trackCosts: boolean = true, details?: Partial<ApiCallLog>): Promise<void> {
+  usageQueue = usageQueue.then(() => addUsage(cost, trackCosts, details)).catch(e => log.debug(' Could not record API usage', e));
+  return usageQueue;
+}
+
+async function addUsage(cost: number, trackCosts: boolean, details?: Partial<ApiCallLog>): Promise<void> {
   const result = await chrome.storage.local.get<{ apiUsage?: ApiUsage; apiCallLog?: ApiCallLog[] }>(['apiUsage', 'apiCallLog']);
   const usage = result.apiUsage || {
     totalCalls: 0,

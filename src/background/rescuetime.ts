@@ -94,7 +94,10 @@ export async function getProductivityStats(): Promise<ProductivityStats | null> 
 }
 
 async function fetchRescueTimeData(apiKey: string): Promise<ProductivityStats> {
-  const today = new Date().toISOString().split('T')[0];
+  // The local calendar date, which is what RescueTime's restrict_begin/end mean. The
+  // UTC date asked for tomorrow's (empty) day in the evening west of Greenwich.
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const url = new URL('https://www.rescuetime.com/anapi/data');
   url.searchParams.set('key', apiKey);

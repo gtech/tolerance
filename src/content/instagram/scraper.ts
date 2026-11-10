@@ -428,7 +428,8 @@ function parseRelativeTime(text: string): number | null {
   const now = Date.now() / 1000;
 
   // Patterns: "21h", "2d", "1w", "3m" (minutes), "2mo" (months)
-  const match = text.match(/^(\d+)\s*(s|m|h|d|w|mo|y)/i);
+  // "mo" before "m", or "2mo" reads as two minutes
+  const match = text.match(/^(\d+)\s*(mo|s|m|h|d|w|y)/i);
   if (!match) return null;
 
   const value = parseInt(match[1], 10);

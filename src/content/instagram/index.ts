@@ -434,6 +434,7 @@ async function sendMessage<M extends MessageType>(message: M): Promise<ResponseF
 
 async function processPosts(): Promise<void> {
   if (!isExtensionValid()) return;
+  if (currentSettings?.platforms?.instagram === false) return;
 
   const pathname = window.location.pathname;
   log.debug('Instagram: processPosts called, pathname:', pathname);
@@ -606,7 +607,8 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Create badge
   const displayScore = score.apiScore;
-  const scoringFailed = score.apiScore === undefined;
+  // A failed score arrives as a placeholder 50 with scoreFailed set, never as undefined
+  const scoringFailed = !!score.scoreFailed;
   const badge = document.createElement('div');
   badge.className = `tolerance-score-badge ${scoringFailed ? 'failed' : score.bucket}`;
   badge.textContent = scoringFailed ? '?' : displayScore.toString();
@@ -720,19 +722,10 @@ async function init(): Promise<void> {
   injectStyles();
   injectOnboardingStyles();
 
-  // Blur navigation buttons (Explore, Reels) with 10-second hover reveal
-  blurNavigationButtons();
-  // Re-check periodically in case Instagram recreates the nav
-  setInterval(blurNavigationButtons, 2000);
-
-  // Check if we should run feed processing on this page
-  if (!isValidFeedPage()) {
-    log.debug('Instagram: Not a valid feed page, skipping feed processing');
-    return;
-  }
-  log.debug('Instagram: Valid feed page, continuing init');
-
-  // Get settings
+  // Get settings. This runs on every Instagram page, feed or not: Instagram moves
+  // between pages without reloading, so a tab opened on a post or a profile still has
+  // to be ready when the person clicks Home. (It used to give up here on a non-feed
+  // page, and the feed was then never scored for the life of the tab.)
   try {
     const response = await sendMessage({ type: 'GET_STATE' });
     if (response) {
@@ -770,21 +763,38 @@ async function init(): Promise<void> {
     log.error('Instagram: Failed to get settings:', error);
   }
 
-  // Fetch initial blur threshold BEFORE processing posts
-  await updateBlurThreshold();
+  // Blur navigation buttons (Explore, Reels) with 10-second hover reveal. After the
+  // settings, so it doesn't happen with Instagram turned off.
+  blurNavigationButtons();
+  // Re-check periodically in case Instagram recreates the nav
+  setInterval(blurNavigationButtons, 2000);
 
-  // Start heartbeat for session tracking
-  startHeartbeat();
+  let feedStarted = false;
+  const startFeed = async (): Promise<void> => {
+    if (!feedStarted) {
+      feedStarted = true;
+      // Fetch initial blur threshold BEFORE processing posts
+      await updateBlurThreshold();
+      // Start heartbeat for session tracking
+      startHeartbeat();
+    }
+    await processPosts();
+    setupInstagramObserver(processPosts);
+  };
 
-  // Initial process
-  await processPosts();
-
-  // Set up observers
-  setupInstagramObserver(processPosts);
+  // Called after each move to a feed page. The post watcher is given processPosts
+  // itself: it used to be handed this callback, so every newly seen post cleared the
+  // processed list and re-blurred posts the person had already revealed.
   setupNavigationObserver(() => {
     processedPostIds.clear();
-    processPosts();
+    void startFeed();
   });
+
+  if (isValidFeedPage()) {
+    await startFeed();
+  } else {
+    log.debug('Instagram: Not a feed page yet, waiting for navigation');
+  }
 
   log.debug('Instagram: Initialization complete');
 }

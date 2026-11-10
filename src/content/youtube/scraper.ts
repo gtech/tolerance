@@ -220,7 +220,10 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
     // screen ("36K", "2d ago") with the long form in its accessibility label
     // ("36 thousand views", "2 days ago"). The older selectors above no longer match there.
     const metadataParts = [...element.querySelectorAll('.ytContentMetadataViewModelMetadataText')]
-      .map(el => el.getAttribute('aria-label') || el.textContent || '');
+      .map(el => el.getAttribute('aria-label') || el.textContent || '')
+      // Not the channel name, which sits in the same style on sidebar cards: a channel
+      // called "Bird Watching" would otherwise read as a live stream
+      .filter(isCountOrDate);
     const metadataText = metadataParts.length > 0 ? metadataParts.join(' · ') : (metadataElement?.textContent || '');
 
     const viewCount = parseViewCount(metadataText);
@@ -234,7 +237,7 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       'span.ytd-thumbnail-overlay-time-status-renderer, ' +    // Legacy
       '.badge-shape-wiz__text'                                 // Legacy fallback
     )].map(el => el.textContent?.trim() || '');
-    const duration = pickDuration(badgeTexts) ?? badgeTexts[0];
+    const duration = pickDuration(badgeTexts);
 
     // Check if it's a live stream
     const isLive = metadataText.toLowerCase().includes('watching') ||

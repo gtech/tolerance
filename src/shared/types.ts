@@ -416,11 +416,19 @@ export function isWhitelisted(
   whitelist: WhitelistEntry[] | undefined
 ): boolean {
   if (!whitelist || whitelist.length === 0) return false;
-  const normalizedSource = sourceId.toLowerCase().replace(/^[@u/]+/, '');
+  const normalizedSource = normalizeSourceId(sourceId);
   return whitelist.some(entry =>
     entry.platform === platform &&
-    entry.sourceId.toLowerCase().replace(/^[@u/]+/, '') === normalizedSource
+    normalizeSourceId(entry.sourceId) === normalizedSource
   );
+}
+
+// An account, channel or subreddit name as compared everywhere: lower case, without a
+// leading "@" or "u/". (This used to be the pattern /^[@u/]+/, which strips any run of
+// those characters, so "UndecidedMF" became "ndecidedmf" and never matched the
+// subscription list, and "uber" and "ber" counted as the same trusted source.)
+export function normalizeSourceId(sourceId: string): string {
+  return sourceId.trim().toLowerCase().replace(/^\/?u\//, '').replace(/^@+/, '');
 }
 
 // Subscription list for subscriptions-only mode

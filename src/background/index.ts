@@ -1,4 +1,4 @@
-import { MessageType, MessageResponses, ScoresResponse, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
+import { MessageType, MessageResponses, ScoresResponse, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT, isWhitelisted } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
@@ -180,11 +180,7 @@ if (chrome.contextMenus?.onClicked) {
     const whitelist: WhitelistEntry[] = settings.whitelist || [];
 
     // Check if already whitelisted
-    const normalizedSource = sourceId.toLowerCase().replace(/^[@u/]+/, '');
-    const alreadyExists = whitelist.some(entry =>
-      entry.platform === platform &&
-      entry.sourceId.toLowerCase().replace(/^[@u/]+/, '') === normalizedSource
-    );
+    const alreadyExists = isWhitelisted(sourceId, platform, whitelist);
 
     if (alreadyExists) {
       log.debug(`Context menu: ${sourceId} already whitelisted`);
@@ -292,6 +288,7 @@ async function fetchImageInBackground(url: string): Promise<string> {
 // Message handler for content script communication
 // Also handles heartbeats from tracker.js on other social media sites
 chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, sender, sendResponse) => {
+  if (typeof message?.type !== 'string') return false;
   // Track sender tab for potential image fetch requests
   if (sender.tab?.id && message.type.startsWith('SCORE_')) {
     activeContentScriptTabId = sender.tab.id;
@@ -382,7 +379,12 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
     return true;
   }
 
-  handleMessage(message as MessageType, sender).then(sendResponse);
+  // Always answer. A handler that throws (database won't open, storage full) used to
+  // leave the sender waiting with no reply at all.
+  handleMessage(message as MessageType, sender).then(sendResponse).catch(error => {
+    log.warn(` ${message.type} failed:`, error);
+    sendResponse({ error: error instanceof Error ? error.message : String(error) });
+  });
   return true; // Indicates async response
 });
 
@@ -725,6 +727,10 @@ async function handleMessage(
 
     case 'SYNC_SUBSCRIPTIONS': {
       const handles = await syncYouTubeSubscriptions();
+      // The dashboard sends this when Subscriptions Only is turned on. The daily
+      // refresh used to be scheduled only at install or update, so a list synced
+      // from the dashboard was fetched once and then went stale.
+      scheduleSubscriptionSync();
       return { success: true, count: handles.length, handles };
     }
 
@@ -739,35 +745,25 @@ async function handleMessage(
   }
 }
 
-// Helper to check if URL is Reddit
-function isRedditUrl(url?: string): boolean {
+// Whether a URL is on one of these sites, by host name. (These used to be substring
+// tests on the whole URL, so netflix.com, dropbox.com and xbox.com all counted as
+// x.com, and any URL mentioning reddit.com counted as Reddit.)
+function isOnSite(url: string | undefined, ...domains: string[]): boolean {
   if (!url) return false;
-  return url.includes('reddit.com');
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+  return domains.some(d => host === d || host.endsWith('.' + d));
 }
 
-// Helper to check if URL is Twitter/X
-function isTwitterUrl(url?: string): boolean {
-  if (!url) return false;
-  return url.includes('twitter.com') || url.includes('x.com');
-}
-
-// Helper to check if URL is YouTube
-function isYouTubeUrl(url?: string): boolean {
-  if (!url) return false;
-  return url.includes('youtube.com');
-}
-
-// Helper to check if URL is Instagram
-function isInstagramUrl(url?: string): boolean {
-  if (!url) return false;
-  return url.includes('instagram.com');
-}
-
-// Helper to check if URL is Facebook
-function isFacebookUrl(url?: string): boolean {
-  if (!url) return false;
-  return url.includes('facebook.com');
-}
+const isRedditUrl = (url?: string): boolean => isOnSite(url, 'reddit.com');
+const isTwitterUrl = (url?: string): boolean => isOnSite(url, 'twitter.com', 'x.com');
+const isYouTubeUrl = (url?: string): boolean => isOnSite(url, 'youtube.com');
+const isInstagramUrl = (url?: string): boolean => isOnSite(url, 'instagram.com');
+const isFacebookUrl = (url?: string): boolean => isOnSite(url, 'facebook.com');
 
 // Helper to check if URL is any supported social media platform
 function isSocialMediaUrl(url?: string): boolean {

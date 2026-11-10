@@ -288,6 +288,21 @@ export async function cacheScores(scores: EngagementScore[]): Promise<void> {
   await tx.done;
 }
 
+// Everything recorded about what was seen: sessions, cached scores, calibration and
+// stored post text. For "Clear All Data".
+export async function clearAllStores(): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['sessions', 'scores', 'calibration', 'postContent'], 'readwrite');
+  await Promise.all([
+    tx.objectStore('sessions').clear(),
+    tx.objectStore('scores').clear(),
+    tx.objectStore('calibration').clear(),
+    tx.objectStore('postContent').clear(),
+  ]);
+  await tx.done;
+  heldDwell.clear();
+}
+
 export async function clearScoreCache(): Promise<number> {
   const db = await getDB();
   const tx = db.transaction('scores', 'readwrite');

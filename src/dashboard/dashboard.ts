@@ -5,7 +5,7 @@ import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
-import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
+import { getAllSessions, clearAllStores, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
@@ -1607,12 +1607,19 @@ async function clearData(): Promise<void> {
     return;
   }
 
-  // For now, just clear local storage - full DB clear would need background message
-  // This is a simplified version; full implementation would add CLEAR_DATA message handler
   try {
+    // The history itself lives in the database. This used to clear only the small
+    // settings storage and report success, leaving every session, score and stored
+    // post in place.
+    await clearAllStores();
+    // The install keeps its identity and free key, so clearing doesn't mint a new one
+    const keep = await chrome.storage.local.get(['installId', 'provisionedKey', 'researchConsent']);
     await chrome.storage.local.clear();
-    await loadDashboardData();
-    alert('Data cleared successfully. Reload the extension to reinitialize.');
+    await chrome.storage.local.set(keep);
+    alert('All data and settings cleared.');
+    // Reload so the controls show the cleared state; left as they were, the next
+    // change would save the old values (including the API key) straight back
+    location.reload();
   } catch (error) {
     console.error('Clear failed:', error);
     alert('Clear failed. See console for details.');
@@ -1905,7 +1912,7 @@ function renderNarrativeTrends(trends: DailyNarrativeStats[]): void {
   if (alertEl) {
     if (spikes.length > 0) {
       alertEl.style.display = 'block';
-      alertEl.innerHTML = `<strong>Alert:</strong> ${spikes.join(', ')}`;
+      alertEl.innerHTML = `<strong>Alert:</strong> ${escapeHtml(spikes.join(', '))}`;
     } else {
       alertEl.style.display = 'none';
     }
@@ -1929,7 +1936,7 @@ function renderNarrativeTrends(trends: DailyNarrativeStats[]): void {
 
     bars.push(`
       <div class="narrative-bar-row">
-        <span class="narrative-label" title="${theme.name}">${theme.name}</span>
+        <span class="narrative-label" title="${escapeHtml(theme.name)}">${escapeHtml(theme.name)}</span>
         <div class="narrative-bar-container">
           <div class="narrative-bar ${colorClass}" style="width: ${Math.min(100, exposure)}%"></div>
           ${baseline > 0 ? `<div class="baseline-marker" style="left: ${Math.min(100, baseline)}%"></div>` : ''}
@@ -2010,7 +2017,12 @@ function renderCounterStrategies(strategies: CounterStrategy[]): void {
   }).join('');
 }
 
+// Called after every reload of the topic data, but the listeners must only be added
+// once: stacked copies asked "Delete this adjustment?" several times over.
+let narrativeListenersReady = false;
 function setupNarrativeEventListeners(): void {
+  if (narrativeListenersReady) return;
+  narrativeListenersReady = true;
   // Time selector buttons
   document.querySelectorAll('.time-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -2195,7 +2207,9 @@ async function saveStrategy(): Promise<void> {
 function escapeHtml(str: string): string {
   const div = document.createElement('div');
   div.textContent = str;
-  return div.innerHTML;
+  // Quotes too: this is used inside attribute values, where an unescaped " cut the
+  // value short (a trusted source with a quote in its name could not be removed)
+  return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 async function testEndpoint(): Promise<void> {
@@ -2361,7 +2375,8 @@ async function loadGlobalSession(): Promise<void> {
     const effectiveRatioEl = document.getElementById('effective-ratio');
     if (effectiveRatioEl) {
       const ratios = settings.phaseRatios;
-      const currentRatio = ratios[phase as keyof typeof ratios] ?? 0.2;
+      // The phase is named "wind-down" but its setting is keyed "windDown"
+      const currentRatio = ratios[(phase === 'wind-down' ? 'windDown' : phase) as keyof typeof ratios] ?? 0.2;
       effectiveRatioEl.textContent = `${Math.round(currentRatio * 100)}%`;
     }
   } catch (error) {
@@ -2451,6 +2466,8 @@ function setupThresholdControls(): void {
   if (resetBtnTop) {
     resetBtnTop.addEventListener('click', resetThresholdsToCalibrated);
   }
+  // The large reset button lower down had no handler at all
+  document.getElementById('quick-reset-btn')?.addEventListener('click', resetThresholdsToCalibrated);
 }
 
 async function saveCustomThresholds(): Promise<void> {
@@ -2570,6 +2587,7 @@ function renderWhitelist(whitelist: WhitelistEntry[]): void {
     reddit: 'Reddit',
     instagram: 'Instagram',
     youtube: 'YouTube',
+    facebook: 'Facebook',
   };
 
   const platformColors: Record<string, string> = {
@@ -2577,6 +2595,7 @@ function renderWhitelist(whitelist: WhitelistEntry[]): void {
     reddit: '#ff4500',
     instagram: '#e1306c',
     youtube: '#ff0000',
+    facebook: '#1877f2',
   };
 
   container.innerHTML = whitelist.map(entry => {
