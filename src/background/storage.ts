@@ -159,26 +159,69 @@ export async function logAttention(
   scrollBuckets: ScrollBucket[]
 ): Promise<void> {
   let matched = 0;
+  // Updates held from earlier go in with this batch; whatever still has no post waits again
+  const updates = [...takeHeldDwell(), ...dwellUpdates];
+  const unmatched: DwellUpdate[] = [];
   const session = await updateCurrentSession(session => {
-    matched = mergeDwellIntoImpressions(session.posts, dwellUpdates);
+    matched = mergeDwellIntoImpressions(session.posts, updates, unmatched);
     if (scrollBuckets.length > 0) {
       session.scroll = mergeScrollBuckets(session.scroll ?? [], scrollBuckets);
     }
   });
   if (!session) {
+    holdDwell(updates);
     log.warn(': No session found for logging attention');
     return;
   }
-  log.debug(`: Attention merged - ${matched}/${dwellUpdates.length} dwell updates, ${scrollBuckets.length} scroll buckets`);
+  holdDwell(unmatched);
+  log.debug(`: Attention merged - ${matched}/${updates.length} dwell updates, ${scrollBuckets.length} scroll buckets`);
+}
+
+// Time-on-screen updates whose post hasn't been logged yet. A page starts timing a post
+// when it is scored and logs the post a moment later, so the first update can arrive
+// first; it used to be dropped, leaving the post's total short by its first seconds.
+// Held in memory only (lost if the background restarts) and capped.
+const HELD_DWELL_MAX = 1000;
+const heldDwell = new Map<string, DwellUpdate>();
+
+function holdDwell(updates: DwellUpdate[]): void {
+  for (const u of updates) {
+    const held = heldDwell.get(u.postId);
+    if (held) {
+      held.dwellMs += u.dwellMs;
+      held.enters += u.enters;
+      held.maxContinuousMs = Math.max(held.maxContinuousMs, u.maxContinuousMs);
+    } else {
+      heldDwell.set(u.postId, { ...u });
+    }
+  }
+  // Oldest first out: a post that is never logged shouldn't hold a place for ever
+  while (heldDwell.size > HELD_DWELL_MAX) heldDwell.delete(heldDwell.keys().next().value!);
+}
+
+// Forget held updates: they belong to the session that just ended
+export function clearHeldDwell(): void {
+  heldDwell.clear();
+}
+
+function takeHeldDwell(): DwellUpdate[] {
+  const held = [...heldDwell.values()];
+  heldDwell.clear();
+  return held;
 }
 
 export async function logImpressions(impressions: PostImpression[]): Promise<void> {
+  // Time on screen that arrived before these posts were logged now has somewhere to go
+  const held = takeHeldDwell();
+  const stillHeld: DwellUpdate[] = [];
   const session = await updateCurrentSession(session => {
     session.posts.push(...impressions);
     for (const imp of impressions) {
       session.engagementDistribution[imp.bucket]++;
     }
+    mergeDwellIntoImpressions(session.posts, held, stillHeld);
   });
+  holdDwell(session ? stillHeld : held);
   if (!session) {
     log.warn(': No session found for logging impressions');
     return;
@@ -191,6 +234,7 @@ export async function endSession(): Promise<void> {
     session.endTime = Date.now();
   });
   if (!session) return;
+  clearHeldDwell();
   await setState({ currentSessionId: null, sessionTabId: null });
 }
 

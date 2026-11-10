@@ -38,6 +38,7 @@ async function clearDatabase(): Promise<void> {
 
 beforeEach(async () => {
   kv.clear();
+  storage.clearHeldDwell();
   await storage.getAllSessions(); // makes sure the database exists
   await clearDatabase();
 });
@@ -100,6 +101,28 @@ describe('sessions', () => {
     expect(session?.posts.map(p => p.postId).sort()).toEqual(['a', 'b', 'c']);
     expect(session?.posts.find(p => p.postId === 'a')?.dwellMs).toBe(1500);
     expect(session?.scroll).toEqual([{ minute: 100, scrolledPx: 900, maxVelocityPxS: 50, scrollActiveMs: 400 }]);
+  });
+
+  it('keeps time on screen that arrives before its post is logged', async () => {
+    await storage.createSession('active');
+    // The page starts timing a post when it is scored, and logs it a moment later
+    await storage.logAttention([{ postId: 'early', dwellMs: 1900, enters: 1, maxContinuousMs: 1900 }], []);
+    expect((await storage.getCurrentSession())?.posts).toEqual([]);
+    await storage.logImpressions([impression('early')]);
+    await storage.logAttention([{ postId: 'early', dwellMs: 4300, enters: 0, maxContinuousMs: 6200 }], []);
+
+    const post = (await storage.getCurrentSession())?.posts[0];
+    expect(post).toMatchObject({ dwellMs: 6200, viewportEnters: 1, maxContinuousDwellMs: 6200 });
+  });
+
+  it('adds up several early updates for the same post, and waits across batches', async () => {
+    await storage.createSession('active');
+    await storage.logAttention([{ postId: 'p', dwellMs: 1000, enters: 1, maxContinuousMs: 1000 }], []);
+    await storage.logAttention([{ postId: 'p', dwellMs: 500, enters: 1, maxContinuousMs: 500 }], []);
+    await storage.logImpressions([impression('other')]);   // still not the post being timed
+    await storage.logImpressions([impression('p')]);
+    const post = (await storage.getCurrentSession())?.posts.find(x => x.postId === 'p');
+    expect(post).toMatchObject({ dwellMs: 1500, viewportEnters: 2, maxContinuousDwellMs: 1000 });
   });
 
   it('drops impressions and attention quietly when there is no session', async () => {

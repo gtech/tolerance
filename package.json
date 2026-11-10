@@ -18,7 +18,8 @@
     "ship": "pnpm build && git add -A && git commit -m \"update\" && git push",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
-    "eval:scoring": "node scripts/eval/run.mjs"
+    "eval:scoring": "node scripts/eval/run.mjs",
+    "check-export": "node scripts/check-export.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
