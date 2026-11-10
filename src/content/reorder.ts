@@ -1,5 +1,6 @@
 import { RedditPost, EngagementScore, PostImpression } from '../shared/types';
 import { log } from '../shared/constants';
+import { impressionScoreFields } from '../shared/impression-fields';
 
 // Reorder posts in the DOM according to scheduled order
 // This is the core intervention - transforms variable reward into fixed interval
@@ -87,13 +88,12 @@ export function reorderPosts(
     impressions.push({
       timestamp: Date.now(),
       postId,
-      score: score?.apiScore ?? 50,
-      bucket: score?.bucket ?? 'medium',
+      ...impressionScoreFields(score),
+      platform: 'reddit',
       position,
       originalPosition: originalPos,
       subreddit: post.subreddit,
       wasReordered,
-      narrativeThemeId,
     });
 
     fragment.appendChild(post.element);
@@ -145,13 +145,12 @@ export function recordImpressions(
     return {
       timestamp: Date.now(),
       postId: post.id,
-      score: score?.apiScore ?? 50,
-      bucket: score?.bucket ?? 'medium',
+      ...impressionScoreFields(score),
+      platform: 'reddit',
       position: index,
       originalPosition: index,
       subreddit: post.subreddit,
       wasReordered: false,
-      narrativeThemeId: score?.factors?.narrative?.themeId,
     };
   });
 }

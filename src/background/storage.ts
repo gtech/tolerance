@@ -75,8 +75,28 @@ function getDB(): Promise<IDBPDatabase<ToleranceDB>> {
         }
       },
     });
+    // Don't keep a failed open: the next call should try again
+    dbPromise.catch(() => { dbPromise = null; });
   }
   return dbPromise;
+}
+
+// Change the current session inside one transaction. Reading the session, changing it
+// and writing it back as separate steps let two updates that arrive together (impressions
+// from one tab, attention from another) overwrite each other.
+async function updateCurrentSession(change: (session: SessionLog) => void): Promise<SessionLog | null> {
+  const state = await getState();
+  if (!state.currentSessionId) return null;
+
+  const db = await getDB();
+  const tx = db.transaction('sessions', 'readwrite');
+  const session = await tx.store.get(state.currentSessionId);
+  if (session) {
+    change(session);
+    await tx.store.put(session);
+  }
+  await tx.done;
+  return session ?? null;
 }
 
 // State management (using chrome.storage.local for small state)
@@ -120,10 +140,7 @@ export async function createSession(mode: 'baseline' | 'active', tabId?: number)
 
   await db.put('sessions', session);
   await setState({ currentSessionId: session.sessionId, sessionTabId: tabId ?? null });
-
-  // Log existing session count for debugging
-  const allSessions = await db.getAllFromIndex('sessions', 'by-start');
-  log.debug(`: Created session ${session.sessionId} for tab ${tabId}. Total sessions: ${allSessions.length}`);
+  log.debug(`: Created session ${session.sessionId} for tab ${tabId}`);
 
   return session;
 }
@@ -141,60 +158,39 @@ export async function logAttention(
   dwellUpdates: DwellUpdate[],
   scrollBuckets: ScrollBucket[]
 ): Promise<void> {
-  const session = await getCurrentSession();
+  let matched = 0;
+  const session = await updateCurrentSession(session => {
+    matched = mergeDwellIntoImpressions(session.posts, dwellUpdates);
+    if (scrollBuckets.length > 0) {
+      session.scroll = mergeScrollBuckets(session.scroll ?? [], scrollBuckets);
+    }
+  });
   if (!session) {
     log.warn(': No session found for logging attention');
     return;
   }
-
-  const matched = mergeDwellIntoImpressions(session.posts, dwellUpdates);
-  if (scrollBuckets.length > 0) {
-    session.scroll = mergeScrollBuckets(session.scroll ?? [], scrollBuckets);
-  }
-
-  const db = await getDB();
-  await db.put('sessions', session);
   log.debug(`: Attention merged - ${matched}/${dwellUpdates.length} dwell updates, ${scrollBuckets.length} scroll buckets`);
 }
 
 export async function logImpressions(impressions: PostImpression[]): Promise<void> {
-  const session = await getCurrentSession();
+  const session = await updateCurrentSession(session => {
+    session.posts.push(...impressions);
+    for (const imp of impressions) {
+      session.engagementDistribution[imp.bucket]++;
+    }
+  });
   if (!session) {
     log.warn(': No session found for logging impressions');
     return;
   }
-
-  const db = await getDB();
-
-  // Update session with new impressions
-  session.posts.push(...impressions);
-
-  // Update distribution counts
-  for (const imp of impressions) {
-    session.engagementDistribution[imp.bucket]++;
-  }
-
-  await db.put('sessions', session);
   log.debug(`: Logged ${impressions.length} impressions to session ${session.sessionId}`);
-
-  // Backup session count to chrome.storage.local for persistence debugging
-  const allSessions = await db.getAllFromIndex('sessions', 'by-start');
-  await chrome.storage.local.set({
-    _sessionBackup: {
-      count: allSessions.length,
-      totalPosts: allSessions.reduce((sum, s) => sum + s.posts.length, 0),
-      lastUpdated: Date.now(),
-    }
-  });
 }
 
 export async function endSession(): Promise<void> {
-  const session = await getCurrentSession();
+  const session = await updateCurrentSession(session => {
+    session.endTime = Date.now();
+  });
   if (!session) return;
-
-  const db = await getDB();
-  session.endTime = Date.now();
-  await db.put('sessions', session);
   await setState({ currentSessionId: null, sessionTabId: null });
 }
 
@@ -209,8 +205,12 @@ export async function getCachedScores(postIds: string[]): Promise<Map<string, En
   const hash = rubricHash(activeRubric(settings.scoringRubric));
   const { topicsChangedAt } = await chrome.storage.local.get('topicsChangedAt');
 
-  for (const id of postIds) {
-    const cached = await db.get('scores', id);
+  // One transaction for the whole batch, not one per post
+  const tx = db.transaction('scores');
+  const records = await Promise.all(postIds.map(id => tx.store.get(id)));
+
+  for (const [i, id] of postIds.entries()) {
+    const cached = records[i];
     // Scores from an older scoring spec or another rubric are re-scored rather than mixed with new ones.
     // So are scores from before the topics or ad setting last changed, or the change wouldn't apply for up to a day.
     if (cached && now - cached.timestamp < SCORE_TTL_MS && !cached.scoreFailed &&
@@ -286,6 +286,9 @@ export interface CalibrationMetadata {
     apiFullResponse?: unknown;
 }
 
+// How far past maxEntries the calibration store may grow before it is pruned back
+export const CALIBRATION_PRUNE_SLACK = 25;
+
 // Calibration data (for fine-tuning)
 export async function logCalibration(
   postId: string,
@@ -328,9 +331,11 @@ export async function logCalibration(
     apiFullResponse: storeReason ? metadata?.apiFullResponse : undefined,
   });
 
-  // Cleanup old entries if maxEntries is set
+  // Cleanup old entries if maxEntries is set. Pruning has to load every entry to find
+  // the oldest, so let the store run a little over and prune in batches, not on every
+  // post once it is full.
   const maxEntries = settings.calibration?.maxEntries ?? 500;
-  if (maxEntries > 0) {
+  if (maxEntries > 0 && await db.count('calibration') > maxEntries + CALIBRATION_PRUNE_SLACK) {
     const allEntries = await db.getAll('calibration');
     if (allEntries.length > maxEntries) {
       // Sort by timestamp and delete oldest entries
@@ -598,16 +603,20 @@ export async function deleteCounterStrategy(strategyId: string): Promise<void> {
 const HEARTBEAT_GAP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes - if gap is larger, assume user was away
 const DAY_RESET_HOUR = 4; // Reset at 4am local time (for late-night doomscrollers)
 
-export function getTodayDateString(): string {
+// The usage day `daysAgo` days back. Days run 4am to 4am: before 4am still counts as
+// the previous day, so late-night use doesn't get a fresh session at midnight.
+function usageDateString(daysAgo: number): string {
   const now = new Date();
-
-  // If it's before 4am, consider it part of the previous day
-  // This helps late-night users not get a fresh session at midnight
   if (now.getHours() < DAY_RESET_HOUR) {
     now.setDate(now.getDate() - 1);
   }
+  now.setDate(now.getDate() - daysAgo);
 
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+export function getTodayDateString(): string {
+  return usageDateString(0);
 }
 
 // Get or initialize global session
@@ -911,9 +920,9 @@ export function getEffectivePhaseThresholds(
   };
 }
 
-// Helper to get yesterday's date string
+// The usage day before today's, on the same 4am-to-4am days as getTodayDateString.
+// (It used to be the calendar day before, so between midnight and 4am "yesterday"
+// and "today" were the same date and the feedback prompt never matched.)
 function getYesterdayDateString(): string {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  return usageDateString(1);
 }

@@ -6,7 +6,7 @@ import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getRecentSessions, getCalibrationData, getAllPostContent } from '../background/storage';
-import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
+import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
 import type { RubricTestRow } from '../background/openrouter';
@@ -1507,6 +1507,26 @@ async function exportData(): Promise<void> {
     parts.push('{\n');
     parts.push(`  "exportDate": ${JSON.stringify(new Date().toISOString())},\n`);
     parts.push(`  "apiUsage": ${JSON.stringify(usageResult?.usage ?? null)},\n`);
+    parts.push(`  "extensionVersion": ${JSON.stringify(chrome.runtime.getManifest().version)},\n`);
+    parts.push(`  "scoringSpecVersion": ${SCORING_SPEC_VERSION},\n`);
+    // The small records kept outside IndexedDB: minutes per day, topic tallies, the
+    // daily feedback answers, and topic names (sessions refer to topics by id).
+    // Settings are left out on purpose: they hold API keys.
+    const kept = await chrome.storage.local.get<{
+      usageHistory?: Record<string, number>;
+      globalSession?: { resetDate: string; totalMinutes: number };
+      yesterdaySession?: { date: string; minutes: number };
+      topicHits?: unknown;
+      adaptiveSettings?: unknown;
+      narrativeThemes?: NarrativeTheme[];
+    }>(['usageHistory', 'globalSession', 'yesterdaySession', 'topicHits', 'adaptiveSettings', 'narrativeThemes']);
+    const minutesByDay: Record<string, number> = { ...kept.usageHistory };
+    if (kept.yesterdaySession) minutesByDay[kept.yesterdaySession.date] ??= kept.yesterdaySession.minutes;
+    if (kept.globalSession) minutesByDay[kept.globalSession.resetDate] = kept.globalSession.totalMinutes;
+    parts.push(`  "minutesByDay": ${JSON.stringify(minutesByDay)},\n`);
+    parts.push(`  "topicHits": ${JSON.stringify(kept.topicHits ?? {})},\n`);
+    parts.push(`  "adaptiveSettings": ${JSON.stringify(kept.adaptiveSettings ?? null)},\n`);
+    parts.push(`  "topics": ${JSON.stringify((kept.narrativeThemes ?? []).map(t => ({ id: t.id, name: t.name })))},\n`);
     writeArray('sessions', sessions);
     writeArray('calibration', calibration);
     writeArray('postContent', postContent, true);

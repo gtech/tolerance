@@ -1,5 +1,6 @@
 import { Tweet, EngagementScore, PostImpression } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { impressionScoreFields } from '../../shared/impression-fields';
 
 // Reorder tweets by recalculating translateY based on actual heights
 // Twitter uses absolute positioning + translateY for virtual scrolling
@@ -81,13 +82,12 @@ export function reorderTweets(
     impressions.push({
       timestamp: Date.now(),
       postId: tweetId,
-      score: score?.apiScore ?? 50,
-      bucket: score?.bucket ?? 'medium',
+      ...impressionScoreFields(score),
+      platform: 'twitter',
       position,
       originalPosition: originalPos,
       subreddit: `@${tweet.author}`,
       wasReordered,
-      narrativeThemeId: score?.factors?.narrative?.themeId,
     });
 
     // Move Y down by this tweet's height for next tweet
@@ -112,13 +112,12 @@ export function recordImpressions(
     return {
       timestamp: Date.now(),
       postId: tweet.id,
-      score: score?.apiScore ?? 50,
-      bucket: score?.bucket ?? 'medium',
+      ...impressionScoreFields(score),
+      platform: 'twitter',
       position: index,
       originalPosition: index,
       subreddit: `@${tweet.author}`,
       wasReordered: false,
-      narrativeThemeId: score?.factors?.narrative?.themeId,
     };
   });
 }
