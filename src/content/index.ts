@@ -8,6 +8,7 @@ import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
+import { startScrapeHealth, reportScraped } from './scrapeHealth';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 import { noteReveal } from './burstCard';
 import { attachHoldReveal } from './holdReveal';
@@ -703,6 +704,7 @@ async function initCore(): Promise<void> {
     }
 
     applyBlurPrefs(currentSettings);
+    startScrapeHealth('reddit', currentSettings, !isCommentsPage());
 
     // Opaque blur setting
     opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -866,6 +868,7 @@ async function processPosts(): Promise<void> {
 
   // Filter to only new posts we haven't processed
   const newPosts = allPosts.filter(p => !processedPostIds.has(p.id));
+  reportScraped('reddit', newPosts);
 
   if (newPosts.length === 0) {
     return;

@@ -4,6 +4,7 @@ import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from 
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
@@ -13,6 +14,7 @@ import { releaseIfStillUnscraped } from '../gateSwitch';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
+const healthReported = new Set<string>();   // posts already counted by the scraper health check
 
 // Cache scores for badge re-injection when Facebook recreates DOM elements
 const scoreCache = new Map<string, { score: EngagementScore; author: string }>();
@@ -421,6 +423,8 @@ async function processPosts(): Promise<void> {
     }
 
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));
+    reportScraped('facebook', newPosts.filter(p => !healthReported.has(p.id)));
+    for (const p of newPosts) healthReported.add(p.id);
 
     // Re-inject badges for posts that were processed but DOM was recreated, and
     // settle any whose result landed on a detached element (stuck on "Scoring...")
@@ -700,6 +704,7 @@ async function init(): Promise<void> {
         setLogLevel(settings.logLevel);
       }
 
+      startScrapeHealth('facebook', settings, isValidFeedPage());
       qualityModeEnabled = settings.qualityMode ?? false;
       subscriptionsOnlyMode = settings.subscriptionsOnly ?? false;
       hoverRevealDelay = (settings.twitter?.hoverRevealDelay ?? 3) * 1000;

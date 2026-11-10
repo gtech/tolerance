@@ -3,6 +3,7 @@ import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
 import { SCORE_MESSAGE_PLATFORM, canScoreFrom } from '../shared/scoring-surfaces';
+import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow, getScrapeHealth } from './scrapeHealth';
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
@@ -221,6 +222,7 @@ if (chrome.contextMenus?.onClicked) {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'cleanup') {
     await cleanupOldScores();
+    await runDailyScrapeHealthCheck();
   } else if (alarm.name === 'narrativeDiscovery') {
     // Run theme discovery if enough unclassified posts accumulated
     const discovered = await discoverEmergingNarratives();
@@ -707,6 +709,19 @@ async function handleMessage(
     // ==========================================
     // Subscription Sync Handlers
     // ==========================================
+
+    case 'SCRAPE_HEALTH': {
+      await recordScrapeHealth(message.platform, { loads: message.loads, posts: message.posts, fields: message.fields });
+      return { success: true };
+    }
+
+    case 'GET_SCRAPE_HEALTH': {
+      return { type: 'SCRAPE_HEALTH_RESULT', ...(await getScrapeHealth()) };
+    }
+
+    case 'RUN_SCRAPE_HEALTH_CHECK': {
+      return { type: 'SCRAPE_HEALTH_REPORT', report: await runScrapeHealthCheckNow() };
+    }
 
     case 'SYNC_SUBSCRIPTIONS': {
       const handles = await syncYouTubeSubscriptions();

@@ -8,6 +8,7 @@ import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getRecentSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
+import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
 import type { RubricTestRow } from '../background/openrouter';
 
@@ -59,6 +60,7 @@ async function init(): Promise<void> {
   await setupResearchSetting();
   await setupFacebookAdsSetting();
   await setupAiLabelSetting();
+  await setupScrapeHealth();
   await setupSubscriptionsOnly();
   await setupRubricEditor();
   setupStrictnessSlider();
@@ -183,6 +185,80 @@ async function setupAiLabelSetting(): Promise<void> {
       topicsChangedAt: Date.now(), // re-score posts under the new setting
     });
   });
+}
+
+// Scraper Health Check card (developer; off unless turned on)
+async function setupScrapeHealth(): Promise<void> {
+  const toggle = document.getElementById('scrape-health-toggle') as HTMLInputElement | null;
+  const box = document.getElementById('scrape-health-report');
+  if (!toggle || !box) return;
+
+  type Health = { history: HealthHistory; report: HealthReport | null; today: string };
+  let latest: Health | null = null;
+  const line = (text: string, className?: string): HTMLElement => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    if (className) div.className = className;
+    return div;
+  };
+
+  const render = async (): Promise<void> => {
+    box.replaceChildren();
+    if (!toggle.checked) return;
+    latest = await chrome.runtime.sendMessage({ type: 'GET_SCRAPE_HEALTH' }) as Health | null;
+    if (!latest) return;
+    const { history, report, today } = latest;
+
+    if (!report) box.append(line('No check has run yet. It runs once a day, after a day with some browsing has finished.'));
+    else if (report.alerts.length === 0) box.append(line(`Last check (${report.day}): no problems found.`, 'ok'));
+    else {
+      box.append(line(`Last check (${report.day}): ${report.alerts.length} problem${report.alerts.length === 1 ? '' : 's'}.`));
+      for (const alert of report.alerts) box.append(line(alert.message, 'alert'));
+    }
+
+    // What was counted on the checked day and today, site by site
+    for (const day of [...new Set([report?.day, today])].filter((d): d is string => !!d && !!history[d])) {
+      const table = document.createElement('table');
+      const head = table.insertRow();
+      for (const h of [day === today ? `Today (${day})` : day, 'Feed pages', 'Posts', 'Found']) {
+        const th = document.createElement('th');
+        th.textContent = h;
+        head.append(th);
+      }
+      for (const [platform, counts] of Object.entries(history[day])) {
+        const row = table.insertRow();
+        const found = Object.entries(counts.fields)
+          .map(([field, t]) => `${field} ${t.seen ? Math.round(t.found / t.seen * 100) : 0}% of ${t.seen}`).join(', ');
+        for (const cell of [platform, String(counts.loads), String(counts.posts), found || 'nothing counted yet']) row.insertCell().textContent = cell;
+      }
+      box.append(table);
+    }
+  };
+
+  toggle.checked = (await getSettings()).scrapeHealthCheck === true;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({ settings: { ...current, scrapeHealthCheck: toggle.checked } });
+    await render();
+  });
+  document.getElementById('scrape-health-run')?.addEventListener('click', async () => {
+    await chrome.runtime.sendMessage({ type: 'RUN_SCRAPE_HEALTH_CHECK' });
+    await render();
+  });
+  document.getElementById('scrape-health-copy')?.addEventListener('click', async (event) => {
+    if (!latest) return;
+    // The same thing an automated fixer would be handed: which site, which field, how bad
+    const text = JSON.stringify({
+      extensionVersion: chrome.runtime.getManifest().version,
+      report: latest.report,
+      counts: Object.fromEntries([...new Set([latest.report?.day, latest.today])].filter((d): d is string => !!d).map(d => [d, latest!.history[d] ?? {}])),
+    }, null, 2);
+    await navigator.clipboard.writeText(text);
+    const button = event.currentTarget as HTMLButtonElement;
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = 'Copy report'; }, 1500);
+  });
+  await render();
 }
 
 // Subscriptions Only card: blur everything but subscribed channels and followed accounts

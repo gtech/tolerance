@@ -6,6 +6,7 @@ import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageCha
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
@@ -23,6 +24,7 @@ const scoreCache = new Map<string, { score: EngagementScore; position: number; c
 let isProcessing = false;
 let pendingProcess = false;
 let attentionTracker: AttentionTracker | null = null;
+const healthReported = new Set<string>();
 
 // Recovery check for stuck states
 const RECOVERY_CHECK_INTERVAL = 10_000;
@@ -824,6 +826,7 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   applyBlurPrefs(currentSettings);
+  startScrapeHealth('youtube', currentSettings, !isUnscoredYouTubePage(location.pathname));
   applyHideMode(currentSettings);
   applyShortsMode();
 
@@ -986,6 +989,9 @@ async function processVideos(): Promise<void> {
     if (newVideos.length === 0) {
       return;
     }
+    // Videos not yet reported to the scraper health check (a video stays "new" until it is scored)
+    reportScraped('youtube', newVideos.filter(v => !healthReported.has(v.id)));
+    for (const v of newVideos) healthReported.add(v.id);
 
     log.debug(` Processing ${newVideos.length} new videos (scrape: ${(t1 - t0).toFixed(0)}ms)`);
     lastProcessTime = Date.now();

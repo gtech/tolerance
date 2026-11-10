@@ -4,6 +4,7 @@ import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
@@ -22,6 +23,7 @@ const scoreCache = new Map<string, { score: EngagementScore; originalPosition: n
 
 // Processing lock to prevent concurrent processPosts calls
 let isProcessing = false;
+const healthReported = new Set<string>();   // posts already counted by the scraper health check
 let pendingProcess = false;
 let processingStartTime = 0;
 const MAX_PROCESSING_TIME = 15000; // 15 second timeout to prevent stuck processing
@@ -473,6 +475,8 @@ async function processPosts(): Promise<void> {
 
     // Filter to unprocessed posts
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));
+    reportScraped('instagram', newPosts.filter(p => !healthReported.has(p.id)));
+    for (const p of newPosts) healthReported.add(p.id);
 
     // Re-inject badges for posts that were processed but DOM was recreated
     for (const post of posts) {
@@ -745,6 +749,8 @@ async function init(): Promise<void> {
       if (settings.logLevel) {
         setLogLevel(settings.logLevel);
       }
+
+      startScrapeHealth('instagram', settings, isValidFeedPage());
 
       // Quality mode
       qualityModeEnabled = settings.qualityMode ?? false;

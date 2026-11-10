@@ -917,6 +917,34 @@
       background-color: #fff;
     }
 
+    /* Scraper Health Check Toggle Slider */
+    #scrape-health-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    #scrape-health-toggle:checked + #scrape-health-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    #scrape-health-toggle:checked + #scrape-health-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
+    #scrape-health-report table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    #scrape-health-report th, #scrape-health-report td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid #2a2a4a; font-size: 12px; color: #aaa; vertical-align: top; }
+    #scrape-health-report th { color: #777; font-weight: 500; }
+    #scrape-health-report .alert { color: #ff8a80; margin: 2px 0; }
+    #scrape-health-report .ok { color: #7dcea0; }
+
     /* Blur AI-Labeled Posts Toggle Slider */
     #ai-label-slider:before {
       position: absolute;
@@ -1280,6 +1308,26 @@
         </div>
         <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
           Gives the top score to posts declared AI-generated: labeled by the site ("AI info", "Altered or synthetic content"), tagged by their author (#aiart, "made with Sora"), or carrying an AI generator's watermark. It goes by labels only and does not guess whether unlabeled writing or images were made by AI. Changing this re-scores posts as they appear after you reload the page.
+        </div>
+      </div>
+      <div class="card" id="scrape-health-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Scraper Health Check
+            <span style="font-size: 11px; font-weight: 500; color: #888; border: 1px solid #444; border-radius: 4px; padding: 1px 6px;">Developer</span>
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="scrape-health-toggle" style="opacity: 0; width: 0; height: 0;">
+            <span id="scrape-health-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Sites change their pages, and when they do a scraper can quietly stop reading something: a video's length, a post's author, or posts altogether. With this on, Tolerance counts what each site's scraper finds while you browse and checks the counts once a day. A red mark on the toolbar icon means the last check found a problem. The counts stay on this device.
+        </div>
+        <div id="scrape-health-report" style="margin-top: 12px; font-size: 13px; color: #aaa; line-height: 1.5;"></div>
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="scrape-health-run" class="btn-primary" style="padding: 6px 14px;">Check now</button>
+          <button id="scrape-health-copy" class="btn-primary" style="padding: 6px 14px; background: #2a2a2a;">Copy report</button>
         </div>
       </div>
       <div class="card" id="grounding-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">

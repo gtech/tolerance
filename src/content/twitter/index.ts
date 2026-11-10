@@ -5,6 +5,7 @@ import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
@@ -1060,6 +1061,7 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   applyBlurPrefs(currentSettings);
+  startScrapeHealth('twitter', currentSettings, !isUnfilteredPage());
 
   // Initialize opaque blur from settings
   opaqueBlurEnabled = currentSettings.twitter?.opaqueBlur ?? true;
@@ -1288,6 +1290,7 @@ async function processTweets(): Promise<void> {
       if (newTweets.length === 0) return;
     }
     for (const tweet of newTweets) photoWaitSince.delete(tweet.id);
+    reportScraped('twitter', newTweets);
 
     // Debug: log media info for each tweet
     for (const tweet of newTweets) {

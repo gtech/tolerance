@@ -484,6 +484,9 @@ export interface Settings {
   // Give posts labeled AI-generated (by the site or their author) the top score, so they
   // get blurred. Nothing is guessed from how a post reads. Default: true
   blurAiLabeled?: boolean;
+  // Developer: count what each site's scraper finds and check it once a day for signs
+  // that the site changed its markup (shared/scrape-health.ts). Default: false
+  scrapeHealthCheck?: boolean;
   // Platform toggles - enable/disable Tolerance on each platform
   platforms: {
     reddit: boolean;
@@ -650,7 +653,11 @@ export type MessageType =
   | { type: 'GET_API_ERROR_STATE' }
   // Subscription sync
   | { type: 'SYNC_SUBSCRIPTIONS'; platform: 'youtube' }
-  | { type: 'GET_SUBSCRIPTIONS' };
+  | { type: 'GET_SUBSCRIPTIONS' }
+  // Scraper health check (developer setting)
+  | { type: 'SCRAPE_HEALTH'; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook'; loads?: number; posts?: number; fields?: Record<string, { seen: number; found: number }> }
+  | { type: 'GET_SCRAPE_HEALTH' }
+  | { type: 'RUN_SCRAPE_HEALTH_CHECK' };
 
 // What the background answers with, for the requests whose answers content scripts
 // read. The background handler checks its return values against these.
