@@ -56,10 +56,11 @@ export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<v
       <div class="tolerance-onboarding-text">
         <strong>Tips:</strong>
         <ul class="tolerance-onboarding-list">
-          ${hoverRevealEnabled() ? `<li>Hover for ${hoverRevealSeconds()} second${hoverRevealSeconds() === 1 ? '' : 's'} to reveal blurred content</li>` : ''}
-          <li>Right-click any post to trust that author forever</li>
+          <li>Press and hold a blurred post to show it, or Skip past it</li>
+          ${hoverRevealEnabled() ? `<li>Or hover for ${hoverRevealSeconds()} second${hoverRevealSeconds() === 1 ? '' : 's'}</li>` : ''}
+          <li>Right-click any post to trust that author</li>
         </ul>
-        <span class="tolerance-onboarding-secondary">Adjust blur thresholds and hover duration in Settings.</span>
+        <span class="tolerance-onboarding-secondary">Adjust how strict it is from the toolbar icon or the dashboard.</span>
       </div>
       <button class="tolerance-onboarding-dismiss" aria-label="Dismiss">✕</button>
     </div>
