@@ -1,5 +1,6 @@
 import { YouTubeVideo } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { withAiLabel } from '../aiLabel';
 
 // Scrape video data from YouTube DOM
 // YouTube uses custom web components (ytd-*) for its UI
@@ -220,7 +221,7 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
     return {
       id,
       platform: 'youtube',
-      title,
+      title: withAiLabel(element, title),
       channel,
       viewCount,
       uploadDate,

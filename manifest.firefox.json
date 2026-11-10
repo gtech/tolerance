@@ -3,7 +3,7 @@
   "name": "Tolerance Doomscroll Blocker: Facebook/YouTube etc",
   "short_name": "Tolerance",
   "version": "0.1.34",
-  "description": "Stop doomscrolling without blocking. Blurs clickbait, rage bait and ads on Reddit, YouTube, X, Instagram & Facebook. Keeps the rest.",
+  "description": "Stop doomscrolling without blocking. Blurs clickbait, rage bait, AI slop and ads on Facebook, YouTube, Instagram, X & Reddit.",
   "browser_specific_settings": {
     "gecko": {
       "id": "tolerance@tolerance.lol",

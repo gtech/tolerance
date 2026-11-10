@@ -55,6 +55,11 @@ async function getAdNote(): Promise<boolean> {
   return (await getSettings()).penalizeFacebookAds !== false;
 }
 
+// Whether prompts tell the model to give posts labeled AI-generated the top score
+async function getAiNote(): Promise<boolean> {
+  return (await getSettings()).blurAiLabeled !== false;
+}
+
 // Record which rubric produced a score
 function tagRubric(result: ScoreResponse | null, rubric: string): ScoreResponse | null {
   const hash = rubricHash(rubric);
@@ -286,7 +291,7 @@ export async function scoreTextPostsBatch(
 
   const rubric = rubricOverride === undefined ? await getRubric() : activeRubric(rubricOverride);
   const hash = rubricHash(rubric);
-  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes, undefined, rubric, await getAdNote());
+  const prompt = buildBatchPrompt(withCalibration(posts.map(toScoringPost)), activeThemes, undefined, rubric, await getAdNote(), await getAiNote());
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -430,7 +435,7 @@ export async function scoreTextPostsBatchWithGalleries(
     ...toScoringPost(p),
     media: p.galleryDescription ? 'gallery' as const : 'text' as const,
     imageDescriptions: p.galleryDescription,
-  }))), activeThemes, undefined, rubric, await getAdNote());
+  }))), activeThemes, undefined, rubric, await getAdNote(), await getAiNote());
 
   try {
     const response = await callOpenRouter(prompt, undefined, undefined, 'text-batch', posts.length);
@@ -759,7 +764,7 @@ export async function scoreImagePost(
 
     // Now score with text model using descriptions
     const rubric = await getRubric();
-    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric, await getAdNote());
+    const prompt = buildMediaPrompt({ ...post, media: 'gallery', imageDescriptions }, activeThemes, false, rubric, await getAdNote(), await getAiNote());
 
     const scored = tagRubric(await callOpenRouter(prompt, undefined, undefined, 'image', 1, activeThemes), rubric);
     // The gallery was described in its own step: keep that as the post's image description
@@ -774,7 +779,7 @@ export async function scoreImagePost(
   log.debug(` scoreImagePost single image - config.type=${config.type}, config.imageModel=${config.imageModel}, imageUrl=${imageUrl}`);
 
   const rubric = await getRubric();
-  const prompt = buildMediaPrompt(post, activeThemes, true, rubric, await getAdNote());
+  const prompt = buildMediaPrompt(post, activeThemes, true, rubric, await getAdNote(), await getAiNote());
 
   return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl, 'image', 1, activeThemes, !title.trim() && !bodyText?.trim()), rubric);
 }
@@ -822,7 +827,7 @@ export async function scoreVideoPost(
   const prompt = buildMediaPrompt({
     platform: plat, text: title, source: sourceFor(plat, source),
     likes: score, comments: numComments, media: 'video',
-  }, activeThemes, !!imageUrl, rubric, await getAdNote());
+  }, activeThemes, !!imageUrl, rubric, await getAdNote(), await getAiNote());
 
   return tagRubric(await callOpenRouter(prompt, config.imageModel, imageUrl || undefined, 'video', 1, activeThemes, !title.trim()), rubric);
 }
@@ -851,7 +856,7 @@ export async function scoreInstagramVideo(
   const prompt = buildSinglePrompt({
     platform: 'instagram', text: caption, source: sourceFor('instagram', author),
     likes: likeCount, comments: commentCount, media: 'reel',
-  }, activeThemes, rubric);
+  }, activeThemes, rubric, await getAdNote(), await getAiNote());
 
   // Use the Gemini video model for full video analysis
   return tagRubric(await callOpenRouter(prompt, DEFAULT_FULL_VIDEO_MODEL, videoUrl, 'instagram-video', 1, activeThemes), rubric);

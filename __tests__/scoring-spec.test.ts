@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, IMAGE_DESCRIPTION_MAX, MEDIA_POST_ID, parseDims, pickPostResult, readImageDescription, readScore, RUBRIC, rubricHash, scoreFromDims, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
+import { isAiLabelText } from '../src/shared/ai-label';
+import { AI_LABEL_PREFIX, activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, IMAGE_DESCRIPTION_MAX, MEDIA_POST_ID, parseDims, pickPostResult, readImageDescription, readScore, RUBRIC, rubricHash, scoreFromDims, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
 
 describe('ad note', () => {
   const posts = (['reddit', 'twitter', 'youtube', 'instagram', 'facebook'] as const)
@@ -96,6 +97,45 @@ describe('readScore', () => {
     expect(readScore({ score: 'seven' })).toBeUndefined();
     expect(readScore({ score: '' })).toBeUndefined();
     expect(readScore(null)).toBeUndefined();
+  });
+});
+
+describe('AI-generated note', () => {
+  const post = { id: 'a', platform: 'instagram' as const, text: 'Sunset over the bay', source: '@a' };
+
+  it('is in every prompt by default, whatever the rubric', () => {
+    for (const prompt of [buildBatchPrompt([post]), buildSinglePrompt(post), buildMediaPrompt(post), buildBatchPrompt([post], [], undefined, 'My rubric')]) {
+      expect(prompt).toContain('AI-generated content:');
+      expect(prompt).toContain(AI_LABEL_PREFIX.trim());
+    }
+  });
+
+  it('tells the model to go by declarations and not to guess from style', () => {
+    const prompt = buildBatchPrompt([post]);
+    expect(prompt).toContain('only when that is declared');
+    expect(prompt).toContain('Do not guess from style');
+  });
+
+  it('is left out when the setting is off, without touching the ad note', () => {
+    expect(buildBatchPrompt([post], [], undefined, RUBRIC, true, false)).not.toContain('AI-generated content:');
+    expect(buildBatchPrompt([post], [], undefined, RUBRIC, true, false)).toContain('Advertisements:');
+    expect(buildSinglePrompt(post, [], RUBRIC, true, false)).not.toContain('AI-generated content:');
+    expect(buildMediaPrompt(post, [], true, RUBRIC, true, false)).not.toContain('AI-generated content:');
+    expect(buildBatchPrompt([post], [], undefined, RUBRIC, false, true)).toContain('AI-generated content:');
+  });
+});
+
+describe('site AI labels', () => {
+  it('recognises the labels sites put on posts', () => {
+    for (const label of ['AI info', 'Made with AI', 'AI-generated', 'Creator labeled as AI-generated', 'Contains AI-generated media', 'Altered or synthetic content', '  ai  info ', 'AI info.']) {
+      expect(isAiLabelText(label)).toBe(true);
+    }
+  });
+
+  it('does not take ordinary writing about AI for a label', () => {
+    for (const text of ['I think this is AI-generated', 'AI-generated art is ruining my feed', 'More AI info in the thread below', 'AI', 'made with love', '', null, undefined]) {
+      expect(isAiLabelText(text)).toBe(false);
+    }
   });
 });
 

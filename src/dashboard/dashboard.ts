@@ -58,6 +58,7 @@ async function init(): Promise<void> {
   await setupYouTubeShortsSetting();
   await setupResearchSetting();
   await setupFacebookAdsSetting();
+  await setupAiLabelSetting();
   await setupSubscriptionsOnly();
   await setupRubricEditor();
   setupStrictnessSlider();
@@ -165,6 +166,20 @@ async function setupFacebookAdsSetting(): Promise<void> {
     const current = await getSettings();
     await chrome.storage.local.set({
       settings: { ...current, penalizeFacebookAds: toggle.checked },
+      topicsChangedAt: Date.now(), // re-score posts under the new setting
+    });
+  });
+}
+
+// Blur AI-Labeled Posts card (on unless explicitly turned off)
+async function setupAiLabelSetting(): Promise<void> {
+  const toggle = document.getElementById('ai-label-toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).blurAiLabeled !== false;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({
+      settings: { ...current, blurAiLabeled: toggle.checked },
       topicsChangedAt: Date.now(), // re-score posts under the new setting
     });
   });

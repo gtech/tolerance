@@ -917,6 +917,28 @@
       background-color: #fff;
     }
 
+    /* Blur AI-Labeled Posts Toggle Slider */
+    #ai-label-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #888;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    #ai-label-toggle:checked + #ai-label-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    #ai-label-toggle:checked + #ai-label-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
     /* Grounding Breaks Toggle Slider */
     #grounding-slider:before {
       position: absolute;
@@ -1244,6 +1266,20 @@
         </div>
         <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
           Gives ads and sponsored posts the top score on every site, so they get blurred. Changing this re-scores posts as they appear after you reload the page.
+        </div>
+      </div>
+      <div class="card" id="ai-label-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Blur AI-Labeled Posts
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="ai-label-toggle" checked style="opacity: 0; width: 0; height: 0;">
+            <span id="ai-label-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Gives the top score to posts declared AI-generated: labeled by the site ("AI info", "Altered or synthetic content"), tagged by their author (#aiart, "made with Sora"), or carrying an AI generator's watermark. It goes by labels only and does not guess whether unlabeled writing or images were made by AI. Changing this re-scores posts as they appear after you reload the page.
         </div>
       </div>
       <div class="card" id="grounding-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">

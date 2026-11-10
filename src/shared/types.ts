@@ -478,6 +478,9 @@ export interface Settings {
   // Give ads the top score on every site. Default: true. Named from when it was
   // Facebook only; the name stays so saved choices carry over.
   penalizeFacebookAds?: boolean;
+  // Give posts labeled AI-generated (by the site or their author) the top score, so they
+  // get blurred. Nothing is guessed from how a post reads. Default: true
+  blurAiLabeled?: boolean;
   // Platform toggles - enable/disable Tolerance on each platform
   platforms: {
     reddit: boolean;

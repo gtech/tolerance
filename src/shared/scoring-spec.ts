@@ -18,10 +18,15 @@
 // v8: ads score 10 on every platform, and posts a site marks as sponsored are labeled.
 // v9: a post scored with its image also gets a one-line description of the image
 // back, to keep with the post. The rubric is unchanged.
-export const SCORING_SPEC_VERSION = 9;
+// v10: posts labeled AI-generated, by the site or by their author, score 10 (a setting,
+// on by default). Nothing is guessed from how a post reads.
+export const SCORING_SPEC_VERSION = 10;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
+
+// Put ahead of the text of a post the site itself labels as AI-generated
+export const AI_LABEL_PREFIX = '[Labeled AI-generated] ';
 
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
@@ -153,9 +158,16 @@ function mediaNotes(posts: ScoringPost[]): string {
 }
 
 // Sits outside the rubric, so it still applies when the user edits the rubric
-function platformNotes(adNote: boolean): string {
-  if (!adNote) return '';
-  return `\n\nAdvertisements: a post that exists to sell a product or service or to send the reader to a shop or landing page, usually from a brand or business, is an ad, and so is any post labeled ${SPONSORED_PREFIX.trim()}. Give an ad score 10 and value 1, however useful or clever it seems. Say it is an ad in the reason. Ordinary posts that merely mention a product, event or business are not ads.`;
+function platformNotes(adNote: boolean, aiNote: boolean): string {
+  const ads = adNote
+    ? `\n\nAdvertisements: a post that exists to sell a product or service or to send the reader to a shop or landing page, usually from a brand or business, is an ad, and so is any post labeled ${SPONSORED_PREFIX.trim()}. Give an ad score 10 and value 1, however useful or clever it seems. Say it is an ad in the reason. Ordinary posts that merely mention a product, event or business are not ads.`
+    : '';
+  // Only what is declared: telling AI writing from human writing by its style is
+  // unreliable, and a wrong guess would hide a person's own post.
+  const ai = aiNote
+    ? `\n\nAI-generated content: a post counts as AI-generated only when that is declared: it is labeled ${AI_LABEL_PREFIX.trim()}, its author says so (for example #aiart, #aigenerated, "made with Sora", "generated with Midjourney"), or its picture carries an AI generator's watermark or an "AI info" label. Give such a post score 10 and say it is AI-generated in the reason. Do not guess from style: writing that merely sounds machine-made, or a polished image, is not a declaration. A post that discusses AI is not AI-generated.`
+    : '';
+  return ads + ai;
 }
 
 function themeSection(themes: ScoringTheme[], batch: boolean): string {
@@ -171,17 +183,17 @@ function fields(themes: ScoringTheme[]): string {
   return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<15 words max: what grabs attention and what, if anything, it gives back>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
 }
 
-export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true): string {
+export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true, aiNote = true): string {
   return `Rate this social media post.
 
 ${describePost(post)}
 
-${rubric}${mediaNotes([post])}${platformNotes(adNote)}${themeSection(themes, false)}
+${rubric}${mediaNotes([post])}${platformNotes(adNote, aiNote)}${themeSection(themes, false)}
 
 Respond with ONLY valid JSON: {${fields(themes)}}`;
 }
 
-export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true): string {
+export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true, aiNote = true): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
   // The description is asked for outside the rubric, so an edited rubric still gets one
   const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image. In that post's result, also include "image": what the image shows, stated plainly in 25 words or fewer, quoting any prominent text in it.` : '';
@@ -189,7 +201,7 @@ export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = 
 
 ${list}${imageNote}
 
-${rubric}${mediaNotes(posts)}${platformNotes(adNote)}${themeSection(themes, true)}
+${rubric}${mediaNotes(posts)}${platformNotes(adNote, aiNote)}${themeSection(themes, true)}
 
 Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
 }
@@ -212,8 +224,8 @@ export function isCalibrationId(id: string | undefined): boolean {
 // One image/video post, scored alongside the calibration posts: alone, the model
 // rates anything intriguing 6-7. With attached=true the image is marked as its own.
 export const MEDIA_POST_ID = 'post-1';
-export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC, adNote = true): string {
-  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric, adNote);
+export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC, adNote = true, aiNote = true): string {
+  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric, adNote, aiNote);
 }
 
 // The scored post's item from a batch-shaped reply, skipping calibration items.

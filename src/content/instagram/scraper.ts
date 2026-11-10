@@ -1,6 +1,7 @@
 import { InstagramPost } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
+import { withAiLabel } from '../aiLabel';
 
 // Scrape Instagram post data from DOM
 // Based on actual Instagram DOM structure as of Dec 2025
@@ -62,7 +63,7 @@ function parsePostElement(element: HTMLElement): InstagramPost | null {
 
     // Check if sponsored
     const isSponsored = detectSponsored(element, caption);
-    const scoredCaption = isSponsored ? `${SPONSORED_PREFIX}${caption}` : caption;
+    const scoredCaption = withAiLabel(element, isSponsored ? `${SPONSORED_PREFIX}${caption}` : caption);
 
     // Timestamp
     const createdUtc = extractTimestamp(element) || Date.now() / 1000;

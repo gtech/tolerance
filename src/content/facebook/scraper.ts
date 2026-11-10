@@ -1,5 +1,6 @@
 import { FacebookPost } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { withAiLabel } from '../aiLabel';
 
 // Scrape Facebook post data from DOM
 // Facebook uses React SPA with heavily obfuscated CSS class names.
@@ -112,8 +113,9 @@ function parsePostElement(element: HTMLElement): FacebookPost | null {
       author: name,
       authorDisplayName: name,
       authorUserId,
-      text: caption,
-      caption,
+      // Marked when Facebook put its own AI label ("AI info") on the post
+      text: withAiLabel(element, caption),
+      caption: withAiLabel(element, caption),
       score: likeCount,
       likeCount,
       numComments: commentCount,

@@ -1,6 +1,7 @@
 import { Tweet, TweetAnchor } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
+import { withAiLabel } from '../aiLabel';
 
 // Scrape tweet data from Twitter/X DOM
 // Twitter uses React with data-testid attributes for stable selectors
@@ -63,7 +64,7 @@ export function parseTweetElement(element: HTMLElement): Tweet | null {
     // Tweet text
     const textElement = [...element.querySelectorAll('[data-testid="tweetText"]')].find(t => !inQuotedTweet(element, t));
     const tweetText = textElement?.textContent?.trim() || '';
-    const text = isPromotedTweet(element) ? `${SPONSORED_PREFIX}${tweetText}` : tweetText;
+    const text = withAiLabel(element, isPromotedTweet(element) ? `${SPONSORED_PREFIX}${tweetText}` : tweetText);
 
     // Timestamp
     const timeElement = element.querySelector('time');
