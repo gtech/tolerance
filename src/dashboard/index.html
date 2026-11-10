@@ -1376,59 +1376,6 @@
       <div id="usage-chart"></div>
     </div>
 
-    <!-- Stats Grid -->
-    <div class="grid">
-      <div class="card">
-        <h2>Total Posts Seen</h2>
-        <div class="big-number" id="total-posts">0</div>
-      </div>
-
-      <div class="card">
-        <h2>Total Sessions</h2>
-        <div class="big-number" id="total-sessions">0</div>
-      </div>
-
-      <div class="card">
-        <h2>Posts Reordered</h2>
-        <div class="big-number" id="posts-reordered">0</div>
-      </div>
-
-      <div class="card">
-        <h2>Engagement Distribution</h2>
-        <div class="distribution-bars">
-          <div class="bar-row">
-            <span class="bar-label">High</span>
-            <div class="bar-container">
-              <div class="bar bar-high" id="bar-high" style="width: 0%"></div>
-            </div>
-            <span class="bar-value" id="pct-high">0%</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Medium</span>
-            <div class="bar-container">
-              <div class="bar bar-medium" id="bar-medium" style="width: 0%"></div>
-            </div>
-            <span class="bar-value" id="pct-medium">0%</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Low</span>
-            <div class="bar-container">
-              <div class="bar bar-low" id="bar-low" style="width: 0%"></div>
-            </div>
-            <span class="bar-value" id="pct-low">0%</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="card">
-      <h2>Recent Sessions</h2>
-      <div class="sessions-list" id="sessions-list">
-        <div class="empty-state">No sessions recorded yet</div>
-      </div>
-    </div>
-
     <!-- Topic details: everything past the Topics card -->
     <details style="margin-top: 32px;">
       <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px; margin-bottom: 16px;">Topic Details</summary>
@@ -1608,11 +1555,18 @@
       </div>
     </div>
 
-    <!-- Custom scoring rules: rarely needed, so closed until someone asks for it -->
-    <details class="settings-section" id="rubric-section" style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-top: 24px;">
-      <summary style="cursor: pointer; color: #888; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px;">Custom Scoring Rules</summary>
-      <div class="setting-description" style="margin: 12px 0;">
-        Rewrite what the AI measures in each post. Keep the scale's direction (1 = worth your attention, 10 = scroll fuel): blurring and the built-in reference posts assume it. Posts are re-scored with saved rules as you see them.
+    <!-- Custom scoring rules: the whole scoring prompt, editable. Closed by default
+         because the editor is long, so the summary has to say what is inside. -->
+    <details class="settings-section" id="rubric-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a; border-radius: 12px; padding: 24px; margin-top: 24px;">
+      <summary style="cursor: pointer;">
+        <span style="color: #b07dce; text-transform: uppercase; letter-spacing: 0.5px; font-size: 14px; font-weight: 600;">Custom Scoring Rules</span>
+        <div style="margin-top: 10px; font-size: 18px; font-weight: 600; color: #eee; line-height: 1.35;">Decide what gets blurred, in your own words.</div>
+        <div style="margin-top: 6px; font-size: 13px; color: #aaa; line-height: 1.5;">
+          These are the instructions the AI reads before scoring every post, and you can rewrite all of them. Tired of crypto, celebrity gossip or election coverage? Want long reads and posts from friends to always get through? Say so in plain language. Click to open the editor.
+        </div>
+      </summary>
+      <div class="setting-description" style="margin: 16px 0 12px;">
+        One rule to keep: the direction of the scale (1 = worth your attention, 10 = scroll fuel). Blurring and the built-in reference posts assume it. Try your rules on sample posts before saving; once saved, posts are re-scored with them as you see them, and Reset brings back the default.
       </div>
       <textarea id="rubric-text" rows="18" spellcheck="false" style="width: 100%; background: #141414; border: 1px solid #333; border-radius: 8px; padding: 12px; color: #ccc; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.5; resize: vertical;"></textarea>
       <div style="display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap;">

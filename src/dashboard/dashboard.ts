@@ -1,11 +1,11 @@
-import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
+import { AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, QUALITY_MODE_THRESHOLD, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
-import { getAllSessions, getRecentSessions, getCalibrationData, getAllPostContent } from '../background/storage';
+import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
@@ -1010,19 +1010,9 @@ async function loadDashboardData(): Promise<void> {
       return;
     }
 
-    const { sessionsCount, totalPosts, totalHigh, totalMedium, totalLow, postsReordered } = result.stats;
     const apiUsage = result.apiUsage || { totalCalls: 0, totalCost: 0, lastReset: Date.now() };
 
     console.log('Dashboard data received:', { ...result.stats, apiUsage });
-
-    // Update stats
-    const totalPostsEl = document.getElementById('total-posts');
-    const totalSessionsEl = document.getElementById('total-sessions');
-    const postsReorderedEl = document.getElementById('posts-reordered');
-
-    if (totalPostsEl) totalPostsEl.textContent = String(totalPosts);
-    if (totalSessionsEl) totalSessionsEl.textContent = String(sessionsCount);
-    if (postsReorderedEl) postsReorderedEl.textContent = String(postsReordered);
 
     // Update API usage
     const apiCostEl = document.getElementById('api-cost');
@@ -1031,65 +1021,9 @@ async function loadDashboardData(): Promise<void> {
     if (apiCostEl) apiCostEl.textContent = `$${(apiUsage.totalCost || 0).toFixed(4)}`;
     if (apiCallsEl) apiCallsEl.textContent = String(apiUsage.totalCalls || 0);
 
-    // Update distribution bars
-    const total = totalHigh + totalMedium + totalLow;
-    if (total > 0) {
-      updateBar('high', totalHigh / total);
-      updateBar('medium', totalMedium / total);
-      updateBar('low', totalLow / total);
-    }
-
-    // Update sessions list. Read straight from IndexedDB: the message above carries
-    // only totals, because whole sessions can be too big to send.
-    updateSessionsList(await getRecentSessions(20));
-
   } catch (error) {
     console.error('Failed to load dashboard data:', error);
   }
-}
-
-function updateBar(bucket: string, ratio: number): void {
-  const bar = document.getElementById(`bar-${bucket}`);
-  const pct = document.getElementById(`pct-${bucket}`);
-
-  if (bar) {
-    bar.style.width = `${ratio * 100}%`;
-  }
-  if (pct) {
-    pct.textContent = `${Math.round(ratio * 100)}%`;
-  }
-}
-
-function updateSessionsList(sessions: SessionLog[]): void {
-  const list = document.getElementById('sessions-list');
-  if (!list) return;
-
-  if (sessions.length === 0) {
-    list.innerHTML = '<div class="empty-state">No sessions recorded yet</div>';
-    return;
-  }
-
-  // Already most recent first
-  list.innerHTML = sessions.map(session => {
-    const date = new Date(session.startTime);
-    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-    const duration = session.endTime
-      ? Math.round((session.endTime - session.startTime) / 60000)
-      : '--';
-
-    return `
-      <div class="session-item">
-        <div>
-          <div class="session-date">${dateStr}</div>
-          <div style="font-size: 12px; color: #555;">${duration} min</div>
-        </div>
-        <div class="session-stats">
-          ${session.posts.length} posts
-          (${session.engagementDistribution.high}H / ${session.engagementDistribution.medium}M / ${session.engagementDistribution.low}L)
-        </div>
-      </div>
-    `;
-  }).join('');
 }
 
 function scrollToApiSetup(): void {
