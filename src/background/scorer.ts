@@ -109,15 +109,17 @@ async function applyCounterStrategies(
 
   for (const score of withNarrative) {
     const detection = score.factors.narrative!;
+    // Keep what the model said, on every post a topic matched: the logged history is
+    // used to measure the feed, and a topic you chose to hide would otherwise count as
+    // the feed serving you bait. Recorded even when no adjustment follows, so a
+    // topic-tagged post without it is known to predate this.
+    if (score.modelScore === undefined) score.modelScore = score.apiScore;
     const strategy = strategies.find(s => s.themeId === detection.themeId);
     if (!strategy) continue;
 
     caught.push({ themeId: detection.themeId, reason: score.apiReason });
 
     const original = score.apiScore;
-    // Keep what the model said: the logged history is used to measure the feed, and a
-    // topic you chose to hide would otherwise count as the feed serving you bait
-    if (score.modelScore === undefined) score.modelScore = original;
     score.apiScore = Math.max(0, Math.min(100, original + strategy.scoreModifier));
     score.bucket = scoreToBucket(score.apiScore, platform);
     detection.appliedModifier = strategy.scoreModifier;
