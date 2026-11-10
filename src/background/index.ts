@@ -3,8 +3,13 @@ import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
+import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
 watchStrictnessChanges();
+
+// Uninstall survey URL: set whenever the background starts, kept fresh on changes
+updateUninstallUrl();
+watchForUninstallUrlChanges();
 import {
   getState,
   getSettings,
