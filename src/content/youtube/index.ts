@@ -7,6 +7,7 @@ import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
+import { firstSighting } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
@@ -1049,7 +1050,8 @@ async function processVideos(): Promise<void> {
         scoreCache.set(video.id, { score, position: i, channel: video.channel });
 
         // Record that this video was shown (once, even if it sits in two cards)
-        if (!logged.has(video.id)) {
+        // ...and once per page load: every in-site navigation re-handles cards still in the document
+        if (!logged.has(video.id) && firstSighting(video.id)) {
           logged.add(video.id);
           impressions.push({
             timestamp: Date.now(),

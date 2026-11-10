@@ -249,7 +249,7 @@ export interface PostImpression {
   wasReordered: boolean;
   narrativeThemeId?: string;  // Detected narrative theme ID (if any)
   // Logged since Nov 2026, so the history can be analysed without guessing
-  platform?: 'reddit' | 'twitter' | 'youtube';
+  platform?: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';   // the last two since 10 Nov 2026
   short?: boolean;            // YouTube: a Short. Shorts in a shelf name no channel, so their source is empty
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value

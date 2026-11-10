@@ -5,6 +5,7 @@ import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disco
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
+import { logShown, type ShownPost } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
@@ -562,13 +563,21 @@ async function processPosts(): Promise<void> {
     }
 
     // Inject badges and apply blur
+    const shown: ShownPost[] = [];
     for (const post of postsNeedingScoring) {
       const score = scoreMap.get(post.id);
       if (score) {
         scoreCache.set(post.id, { score, originalPosition: 0, author: post.authorUsername });
         injectBadge(post, score);
+        shown.push({
+          id: post.id, element: post.element, source: post.authorUsername, score,
+          blurThreshold: qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold,
+          blurred: shouldBlurScore(score),
+        });
       }
     }
+    // Record what was shown and start timing it (Instagram logged nothing before Nov 2026)
+    logShown('instagram', shown);
   } catch (error) {
     log.error('Instagram: Error processing posts:', error);
   } finally {

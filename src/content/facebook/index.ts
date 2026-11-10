@@ -5,6 +5,7 @@ import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, discon
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
+import { logShown, type ShownPost } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
@@ -508,6 +509,7 @@ async function processPosts(): Promise<void> {
     }
 
     const missing: FacebookPost[] = [];
+    const shown: ShownPost[] = [];
     for (const post of postsNeedingScoring) {
       const score = scoreMap.get(post.id);
       if (score) {
@@ -517,11 +519,18 @@ async function processPosts(): Promise<void> {
           : document.querySelector<HTMLElement>(`[${FB_POST_ID_ATTR}="${CSS.escape(post.id)}"]`);
         if (live) injectBadge({ ...post, element: live }, score);
         else pendingProcess = true;
+        shown.push({
+          id: post.id, element: live, source: post.authorDisplayName, score,
+          blurThreshold: qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold,
+          blurred: shouldBlurScore(score),
+        });
       } else {
         missing.push(post);
       }
     }
     if (missing.length > 0) retryUnscored(missing);
+    // Record what was shown and start timing it (Facebook logged nothing before Nov 2026)
+    logShown('facebook', shown);
   } catch (error) {
     log.error('Facebook: Error processing posts:', error);
   } finally {

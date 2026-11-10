@@ -99,7 +99,7 @@ const BROKEN: [string, 'error' | 'warning', string, (e: Loose) => void][] = [
   ['post.dims-range', 'error', 'a sub-score of 0', e => { post(e, 1).dims.hook = 0; }],
   ['post.dims-range', 'error', 'a missing sub-score', e => { delete post(e, 1).dims.value; }],
   ['post.model-score', 'error', 'a model score above 100', e => { post(e, 3).modelScore = 600; }],
-  ['post.platform', 'error', 'a platform that does not log posts', e => { post(e, 1).platform = 'instagram'; }],
+  ['post.platform', 'error', 'a platform that does not log posts', e => { post(e, 1).platform = 'tiktok'; }],
   ['post.threshold', 'error', 'a newer post with no blur threshold', e => { delete post(e, 1).blurThreshold; }],
   ['post.threshold', 'error', 'a newer post with no blur decision', e => { delete post(e, 1).blurred; }],
   ['post.threshold', 'error', 'an older post with half of the newer fields', e => { post(e, 0).blurred = true; }],

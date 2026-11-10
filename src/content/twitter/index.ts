@@ -6,6 +6,7 @@ import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from '
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
+import { firstSighting } from '../impressionLog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
@@ -1443,10 +1444,14 @@ async function processTweets(): Promise<void> {
       impression.blurThreshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
       impression.blurred = !!score && !!twitterSettings.blurHighEngagement && !twitterSettings.reorderEnabled && shouldBlurScore(score);
     }
-    await sendMessage({
-      type: 'LOG_IMPRESSIONS',
-      impressions,
-    });
+    // Once per page load: opening a tweet and going back re-handles the whole timeline
+    const firstSeen = impressions.filter(i => firstSighting(i.postId));
+    if (firstSeen.length > 0) {
+      await sendMessage({
+        type: 'LOG_IMPRESSIONS',
+        impressions: firstSeen,
+      });
+    }
   } catch (error) {
     log.error(' Error processing tweets:', error);
   } finally {

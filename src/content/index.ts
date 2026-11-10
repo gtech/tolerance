@@ -9,6 +9,7 @@ import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { startScrapeHealth, reportScraped } from './scrapeHealth';
+import { attention, firstSighting } from './impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 import { noteReveal } from './burstCard';
 import { attachHoldReveal } from './holdReveal';
@@ -986,6 +987,8 @@ async function processPosts(): Promise<void> {
       const post = postMap.get(impression.postId);
       const score = scores.get(impression.postId);
       if (post && score) {
+        // Time on screen (Reddit recorded none before 10 Nov 2026)
+        if (post.element) attention().track(post.id, post.element);
         const displayScore = score.apiScore;
         // A failed score arrives as a placeholder 50 with scoreFailed set, never as undefined
         const scoringFailed = !!score.scoreFailed;
@@ -1016,10 +1019,14 @@ async function processPosts(): Promise<void> {
       impression.blurThreshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
       impression.blurred = score ? shouldBlurScore(score) : false;
     }
-    await sendMessage({
-      type: 'LOG_IMPRESSIONS',
-      impressions,
-    });
+    // Once per page load: coming back from a post's comments re-handles the whole feed
+    const firstSeen = impressions.filter(i => firstSighting(i.postId));
+    if (firstSeen.length > 0) {
+      await sendMessage({
+        type: 'LOG_IMPRESSIONS',
+        impressions: firstSeen,
+      });
+    }
 
     // Inject/update reminder card
     await injectProductivityCard();
