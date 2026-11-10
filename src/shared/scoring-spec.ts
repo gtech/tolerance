@@ -28,6 +28,15 @@ export const SPONSORED_PREFIX = '[Sponsored] ';
 // Put ahead of the text of a post the site itself labels as AI-generated
 export const AI_LABEL_PREFIX = '[Labeled AI-generated] ';
 
+// Which of those markers the scrapers put on a post's text. Only markers at the very
+// start count, so a post that merely contains the words isn't taken for a marked one.
+export function siteLabels(text: string | undefined): { sponsored: boolean; aiLabeled: boolean } {
+  let rest = text ?? '';
+  const aiLabeled = rest.startsWith(AI_LABEL_PREFIX);
+  if (aiLabeled) rest = rest.slice(AI_LABEL_PREFIX.length);
+  return { sponsored: rest.startsWith(SPONSORED_PREFIX), aiLabeled };
+}
+
 export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
 

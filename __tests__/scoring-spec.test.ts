@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isAiLabelText } from '../src/shared/ai-label';
-import { AI_LABEL_PREFIX, activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, IMAGE_DESCRIPTION_MAX, MEDIA_POST_ID, parseDims, pickPostResult, readImageDescription, readScore, RUBRIC, rubricHash, scoreFromDims, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
+import { AI_LABEL_PREFIX, activeRubric, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, IMAGE_DESCRIPTION_MAX, MEDIA_POST_ID, parseDims, pickPostResult, readImageDescription, readScore, RUBRIC, rubricHash, scoreFromDims, siteLabels, SPONSORED_PREFIX } from '../src/shared/scoring-spec';
 
 describe('ad note', () => {
   const posts = (['reddit', 'twitter', 'youtube', 'instagram', 'facebook'] as const)
@@ -122,6 +122,21 @@ describe('AI-generated note', () => {
     expect(buildSinglePrompt(post, [], RUBRIC, true, false)).not.toContain('AI-generated content:');
     expect(buildMediaPrompt(post, [], true, RUBRIC, true, false)).not.toContain('AI-generated content:');
     expect(buildBatchPrompt([post], [], undefined, RUBRIC, false, true)).toContain('AI-generated content:');
+  });
+});
+
+describe('site markers on a post', () => {
+  it('reads the markers the scrapers put at the start of the text', () => {
+    expect(siteLabels(`${SPONSORED_PREFIX}Buy now`)).toEqual({ sponsored: true, aiLabeled: false });
+    expect(siteLabels(`${AI_LABEL_PREFIX}Sunset`)).toEqual({ sponsored: false, aiLabeled: true });
+    expect(siteLabels(`${AI_LABEL_PREFIX}${SPONSORED_PREFIX}Buy now`)).toEqual({ sponsored: true, aiLabeled: true });
+  });
+
+  it('ignores the same words anywhere else in a post', () => {
+    expect(siteLabels('Why does every post say [Sponsored] now?')).toEqual({ sponsored: false, aiLabeled: false });
+    expect(siteLabels('Is this [Labeled AI-generated] thing new?')).toEqual({ sponsored: false, aiLabeled: false });
+    expect(siteLabels('')).toEqual({ sponsored: false, aiLabeled: false });
+    expect(siteLabels(undefined)).toEqual({ sponsored: false, aiLabeled: false });
   });
 });
 
