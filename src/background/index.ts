@@ -468,7 +468,7 @@ async function handleMessage(
 
     case 'ENSURE_SESSION': {
       let state = await getState();
-      const tabId = _sender.tab?.id;
+      const tabId = sender.tab?.id;
       if (!state.currentSessionId) {
         const session = await createSession(state.mode, tabId);
         log.debug(': Session created:', session.sessionId, 'for tab:', tabId);
