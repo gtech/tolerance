@@ -1,6 +1,7 @@
 import { MessageType, MessageResponses, ScoresResponse, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT, isWhitelisted } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
+import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { syncResearchConsent } from '../shared/research-consent';
 import { SCORE_MESSAGE_PLATFORM, canScoreFrom } from '../shared/scoring-surfaces';
 import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow, getScrapeHealth } from './scrapeHealth';
@@ -285,6 +286,16 @@ async function fetchImageInBackground(url: string): Promise<string> {
   return `data:image/jpeg;base64,${btoa(binary)}`;
 }
 
+// Move any API keys still in the settings object into their own store straight away,
+// before a content script has a chance to read them (see shared/secrets.ts)
+void getSecrets();
+
+// Whether a message came from one of the extension's own pages (dashboard, popup)
+// rather than from a content script running inside a website
+function isOwnPage(sender: chrome.runtime.MessageSender): boolean {
+  return !sender.tab || (sender.url ?? '').startsWith(chrome.runtime.getURL(''));
+}
+
 // Message handler for content script communication
 // Also handles heartbeats from tracker.js on other social media sites
 chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, sender, sendResponse) => {
@@ -374,6 +385,9 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
 
   // Handle TEST_ENDPOINT for dashboard connection testing
   if (message.type === 'TEST_ENDPOINT') {
+    // Dashboard only: this makes the background send a request to whatever address it
+    // is given, which no page on a social site has any business asking for
+    if (!isOwnPage(sender)) return false;
     const { endpoint, model, apiKey } = message as { type: string; endpoint: string; model?: string; apiKey?: string };
     testEndpointConnection(endpoint, model, apiKey).then(sendResponse);
     return true;
@@ -415,7 +429,7 @@ async function handleMessage(
         log.info('Baseline period complete, switching to active mode');
       }
 
-      return { type: 'STATE_RESULT', state, settings } satisfies MessageResponses['GET_STATE'];
+      return { type: 'STATE_RESULT', state, settings: withoutSecrets(settings) } satisfies MessageResponses['GET_STATE'];
     }
 
     case 'SCORE_POSTS': {
@@ -604,7 +618,7 @@ async function handleMessage(
       return {
         type: 'CARD_DATA_RESULT',
         productivity,
-        settings,
+        settings: withoutSecrets(settings),
         state,
         highEngagementToday,
       };

@@ -8,6 +8,7 @@
 
 import { getSettings, getTodayDateString } from './storage';
 import { getFreeTierApiKey } from './provisioning';
+import { getSecrets } from '../shared/secrets';
 import { log } from '../shared/constants';
 
 // Claude session tracking
@@ -196,8 +197,9 @@ export async function rewriteResponse(text: string): Promise<RewriteResult> {
 
   // Get API key - use own key if available, otherwise free tier
   let apiKey: string | undefined;
-  if (settings.apiTier === 'own-key' && settings.openRouterApiKey) {
-    apiKey = settings.openRouterApiKey;
+  const ownKey = (await getSecrets()).openRouterApiKey;
+  if (settings.apiTier === 'own-key' && ownKey) {
+    apiKey = ownKey;
     log.debug('Using own API key for Claude filter');
   } else {
     apiKey = (await getFreeTierApiKey()) ?? undefined;

@@ -1,6 +1,7 @@
 import { log } from '../shared/constants';
 import { EmergingNarrative, NarrativeTheme } from '../shared/types';
 import { getSettings, getNarrativeThemes, saveEmergingNarratives, getEmergingNarratives } from './storage';
+import { getSecrets } from '../shared/secrets';
 
 // Track unclassified posts for batch analysis
 let unclassifiedPosts: { title: string; postId: string; timestamp: number }[] = [];
@@ -85,8 +86,9 @@ interface DiscoveryResult {
 // Call OpenRouter API for theme discovery
 async function callDiscoveryApi(prompt: string): Promise<DiscoveryResult | null> {
   const settings = await getSettings();
+  const ownKey = (await getSecrets()).openRouterApiKey;
 
-  if (!settings.openRouterApiKey) {
+  if (!ownKey) {
     log.debug(': No API key for theme discovery');
     return null;
   }
@@ -95,7 +97,7 @@ async function callDiscoveryApi(prompt: string): Promise<DiscoveryResult | null>
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${settings.openRouterApiKey}`,
+        'Authorization': `Bearer ${ownKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'chrome-extension://tolerance',
         'X-Title': 'Tolerance Theme Discovery',

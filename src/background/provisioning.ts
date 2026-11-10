@@ -2,15 +2,9 @@
 // Provisions a unique API key per extension install from the backend
 
 import { log } from '../shared/constants';
+import { getSecrets, setSecrets, type ProvisionedKey } from '../shared/secrets';
 
 const API_BASE = 'https://api.tolerance.lol';
-
-interface ProvisionedKey {
-  apiKey: string;
-  monthlyLimit: number;
-  variant?: string;
-  provisionedAt: number;
-}
 
 // Generate a stable install ID (persisted across sessions)
 async function getOrCreateInstallId(): Promise<string> {
@@ -68,7 +62,7 @@ export async function provisionFreeKey(forceLog = false): Promise<ProvisionedKey
     };
 
     // Cache the provisioned key
-    await chrome.storage.local.set({ provisionedKey: provisioned });
+    await setSecrets({ provisionedKey: provisioned });
     log.debug(` Provisioned free tier key (limit: $${data.monthlyLimit}/month, variant: ${data.variant || 'default'})`);
 
     return provisioned;
@@ -80,13 +74,12 @@ export async function provisionFreeKey(forceLog = false): Promise<ProvisionedKey
 
 // Get cached provisioned key (if any)
 export async function getProvisionedKey(): Promise<ProvisionedKey | null> {
-  const result = await chrome.storage.local.get<{ provisionedKey?: ProvisionedKey }>('provisionedKey');
-  return result.provisionedKey || null;
+  return (await getSecrets()).provisionedKey || null;
 }
 
 // Clear provisioned key (for testing or re-provisioning)
 export async function clearProvisionedKey(): Promise<void> {
-  await chrome.storage.local.remove('provisionedKey');
+  await setSecrets({ provisionedKey: undefined });
   log.debug(` Cleared provisioned key`);
 }
 

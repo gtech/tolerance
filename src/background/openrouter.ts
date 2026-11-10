@@ -8,6 +8,7 @@ import { ApiProviderConfig, NarrativeTheme } from '../shared/types';
 import { fetchImageViaContentScript } from './index';
 import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
+import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
@@ -144,8 +145,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   const settings = await getSettings();
   const provider: ApiProviderConfig = settings.apiProvider || { type: 'openrouter' };
 
-  // Never the key itself: debug logs get pasted into bug reports
-  log.debug(` Raw provider settings:`, JSON.stringify({ ...provider, apiKey: provider.apiKey ? '(set)' : undefined }));
+  log.debug(` Raw provider settings:`, JSON.stringify(withoutSecrets({ apiProvider: provider }).apiProvider));
 
   const isOpenRouter = provider.type !== 'openai-compatible';
 
@@ -153,9 +153,10 @@ async function getProviderConfig(): Promise<ProviderConfig> {
   let apiKey: string;
   let isFreeTier = false;
 
+  const secrets = await getSecrets();
   if (isOpenRouter) {
-    if (settings.apiTier === 'own-key' && settings.openRouterApiKey) {
-      apiKey = settings.openRouterApiKey;
+    if (settings.apiTier === 'own-key' && secrets.openRouterApiKey) {
+      apiKey = secrets.openRouterApiKey;
     } else {
       // Free tier - get provisioned key from backend
       isFreeTier = true;
@@ -165,7 +166,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
       }
     }
   } else {
-    apiKey = provider.apiKey || '';
+    apiKey = secrets.customApiKey || '';
   }
 
   // Use custom models if specified (non-empty), otherwise use defaults

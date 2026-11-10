@@ -8,6 +8,7 @@ import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, clearAllStores, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
+import { getSecrets, setSecrets, withoutSecrets } from '../shared/secrets';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
 import type { RubricTestRow } from '../background/openrouter';
@@ -28,6 +29,7 @@ async function init(): Promise<void> {
   // Load settings
   const settings = await getSettings();
   populateSettings(settings);
+  await populateKeys();
   await updateApiStatus(settings);
 
   // Load and render whitelist
@@ -588,9 +590,22 @@ function openProSubscription(): void {
   window.open(PRO_SUBSCRIPTION_URL, '_blank');
 }
 
+// The API key fields. Keys are kept apart from the settings (shared/secrets.ts), so
+// they are filled in and saved separately.
+async function populateKeys(): Promise<void> {
+  const secrets = await getSecrets();
+  const set = (id: string, value?: string): void => {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    if (input) input.value = value || '';
+  };
+  set('api-key', secrets.openRouterApiKey);
+  set('custom-api-key', secrets.customApiKey);
+  set('rescuetime-key', secrets.rescueTimeApiKey);
+}
+
 async function updateApiStatus(settings: Settings): Promise<void> {
   const isFreeTier = settings.apiTier !== 'own-key';
-  const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
+  const hasOpenRouterKey = Boolean((await getSecrets()).openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
   const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
@@ -804,9 +819,6 @@ function populateSettings(settings: Settings): void {
     }
   }
 
-  if (apiKeyInput && settings.openRouterApiKey) {
-    apiKeyInput.value = settings.openRouterApiKey;
-  }
 
   if (apiSampleRateInput) {
     // Convert from 0-1 to 0-100 for display
@@ -821,9 +833,6 @@ function populateSettings(settings: Settings): void {
     cooldownInput.value = String(settings.scheduler?.cooldownPosts ?? 5);
   }
 
-  if (rescueTimeInput && settings.rescueTimeApiKey) {
-    rescueTimeInput.value = settings.rescueTimeApiKey;
-  }
 
   if (todoistInput && settings.todoistUrl) {
     todoistInput.value = settings.todoistUrl;
@@ -891,9 +900,6 @@ function populateSettings(settings: Settings): void {
   }
   if (customEndpointInput) {
     customEndpointInput.value = provider.endpoint || '';
-  }
-  if (customApiKeyInput) {
-    customApiKeyInput.value = provider.apiKey || '';
   }
   if (customTextModelInput) {
     customTextModelInput.value = provider.textModel || '';
@@ -1441,11 +1447,9 @@ async function saveSettings(): Promise<void> {
   const settings: Settings = {
     ...existing,
     apiTier,
-    openRouterApiKey: apiKeyInput?.value || undefined,
     apiProvider: {
       type: providerType,
       endpoint: providerType === 'openai-compatible' ? (customEndpointInput?.value?.trim() || undefined) : undefined,
-      apiKey: providerType === 'openai-compatible' ? (customApiKeyInput?.value?.trim() || undefined) : undefined,
       textModel: customTextModelInput?.value?.trim() || undefined,
       imageModel: visionModel || undefined,
       visionMode: visionModel ? 'enabled' : 'disabled',
@@ -1474,7 +1478,6 @@ async function saveSettings(): Promise<void> {
       mediumReminder: parseInt(claudeMediumInput?.value || '60', 10),
       strongReminder: parseInt(claudeStrongInput?.value || '90', 10),
     },
-    rescueTimeApiKey: rescueTimeInput?.value || undefined,
     todoistUrl: todoistInput?.value || undefined,
     jobSearchLink: jobSearchInput?.value || undefined,
     twitter: {
@@ -1499,7 +1502,15 @@ async function saveSettings(): Promise<void> {
     },
   };
 
-  await chrome.storage.local.set({ settings });
+  // Keys go to their own store, never into the settings object: content scripts on
+  // every site can read the settings
+  // (only for fields that are on the page: a missing field must not erase its key)
+  await setSecrets({
+    ...(apiKeyInput && { openRouterApiKey: apiKeyInput.value.trim() }),
+    ...(customApiKeyInput && { customApiKey: customApiKeyInput.value.trim() }),
+    ...(rescueTimeInput && { rescueTimeApiKey: rescueTimeInput.value.trim() }),
+  });
+  await chrome.storage.local.set({ settings: withoutSecrets(settings) });
   console.log('Settings saved, apiSampleRate:', apiSampleRate, 'hoverDelay:', settings.twitter?.hoverRevealDelay);
 
   // Update API status display
@@ -1613,9 +1624,11 @@ async function clearData(): Promise<void> {
     // post in place.
     await clearAllStores();
     // The install keeps its identity and free key, so clearing doesn't mint a new one
-    const keep = await chrome.storage.local.get(['installId', 'provisionedKey', 'researchConsent']);
+    const keep = await chrome.storage.local.get(['installId', 'researchConsent']);
     await chrome.storage.local.clear();
     await chrome.storage.local.set(keep);
+    // The person's own keys go too; the free key issued to this install stays
+    await setSecrets({ openRouterApiKey: undefined, customApiKey: undefined, rescueTimeApiKey: undefined });
     alert('All data and settings cleared.');
     // Reload so the controls show the cleared state; left as they were, the next
     // change would save the old values (including the API key) straight back

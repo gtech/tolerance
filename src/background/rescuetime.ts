@@ -1,6 +1,6 @@
 // RescueTime API client for productivity tracking
 
-import { getSettings } from './storage';
+import { getSecrets } from '../shared/secrets';
 
 export interface ProductivityStats {
   writing: number;      // minutes
@@ -75,8 +75,7 @@ export async function getProductivityStats(): Promise<ProductivityStats | null> 
     return cachedStats;
   }
 
-  const settings = await getSettings();
-  const apiKey = (settings as { rescueTimeApiKey?: string }).rescueTimeApiKey;
+  const apiKey = (await getSecrets()).rescueTimeApiKey;
 
   if (!apiKey) {
     return null;

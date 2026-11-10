@@ -452,7 +452,7 @@ export const DEFAULT_SUBSCRIPTION_LIST: SubscriptionList = {
 export interface ApiProviderConfig {
   type: 'openrouter' | 'openai-compatible';
   endpoint?: string;           // Custom endpoint URL (for openai-compatible)
-  apiKey?: string;             // API key for custom endpoint (separate from OpenRouter key)
+  // (the endpoint's API key is not here: keys live in shared/secrets.ts)
   textModel?: string;          // Override default text model
   imageModel?: string;         // Override default vision model
   visionMode?: 'auto' | 'enabled' | 'disabled';  // Vision capability
@@ -462,7 +462,8 @@ export interface ApiProviderConfig {
 export interface Settings {
   scheduler: SchedulerConfig;
   apiTier?: 'free' | 'own-key';    // API tier: free (built-in key) or own-key
-  openRouterApiKey?: string;
+  // No API keys in here. Content scripts on every site can read the settings, so keys
+  // are kept in their own store (shared/secrets.ts).
   apiProvider?: ApiProviderConfig;  // Custom API endpoint configuration
   apiSampleRate: number; // e.g., 0.1 = 10% of posts validated via API
   // User-edited scoring rubric, replacing RUBRIC in shared/scoring-spec.ts (unset = default)
@@ -505,7 +506,6 @@ export interface Settings {
   };
   // Productivity card settings
   productivityCardEnabled?: boolean;  // Show productivity card in Reddit feed (default: false)
-  rescueTimeApiKey?: string;
   obsidianUrl?: string;        // Full obsidian:// URL to current article
   jobSearchLink?: string;      // Link to job search (default: LinkedIn)
   codingProjectLink?: string;  // Link to current project (optional)

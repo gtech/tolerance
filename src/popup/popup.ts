@@ -2,6 +2,7 @@ import { AppState, Settings, AdaptiveSettings } from '../shared/types';
 import { STRICTNESS_PRESETS } from '../shared/constants';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { formatMinutes, loadUsageChart } from '../shared/usage-chart';
+import { getSecrets } from '../shared/secrets';
 
 interface StateResult {
   state: AppState;
@@ -75,7 +76,8 @@ function openDashboardToApiSection(e: Event): void {
 
 async function updateApiStatus(settings: Settings): Promise<void> {
   const isFreeTier = settings.apiTier !== 'own-key';
-  const hasOpenRouterKey = Boolean(settings.openRouterApiKey?.trim());
+  // Keys are not in the settings object (shared/secrets.ts)
+  const hasOpenRouterKey = Boolean((await getSecrets()).openRouterApiKey?.trim());
   const hasCustomEndpoint = settings.apiProvider?.type === 'openai-compatible' &&
                             Boolean(settings.apiProvider?.endpoint?.trim());
   const isApiConfigured = isFreeTier || hasOpenRouterKey || hasCustomEndpoint;
