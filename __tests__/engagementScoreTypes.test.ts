@@ -12,7 +12,7 @@ describe('EngagementScore type shape', () => {
       timestamp: Date.now(),
     };
     expect(score.apiScore).toBe(75);
-    expect((score as Record<string, unknown>).heuristicScore).toBeUndefined();
+    expect((score as unknown as Record<string, unknown>).heuristicScore).toBeUndefined();
   });
 
   it('supports scoreFailed flag', () => {

@@ -1,4 +1,4 @@
-import { RedditPost, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../shared/types';
+import { RedditPost, EngagementScore, AppState, Settings, PostImpression, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { scrapeNewRedditPosts, serializeNewRedditPost } from './scraper-new';
@@ -955,7 +955,7 @@ async function processPosts(): Promise<void> {
 
         log.debug(` Scheduler returned order (first 10): ${orderedIds.slice(0, 10).map(id => {
           const s = scores.get(id);
-          return s?.apiScore ?? s?.heuristicScore ?? '?';
+          return s?.apiScore ?? '?';
         }).join(', ')}`);
 
         if (hiddenIds.length > 0) {
@@ -1056,7 +1056,7 @@ function logScoreDistribution(scores: EngagementScore[]): void {
 }
 
 // Send message to background script
-async function sendMessage(message: unknown): Promise<unknown> {
+async function sendMessage<M extends MessageType>(message: M): Promise<ResponseFor<M> | null> {
   if (!isExtensionValid()) {
     return null;
   }

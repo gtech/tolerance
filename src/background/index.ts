@@ -1,4 +1,4 @@
-import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
+import { MessageType, MessageResponses, ScoresResponse, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
@@ -391,7 +391,7 @@ async function handleMessage(
   // Private messages must never be scored: refuse anything not sent from a feed page
   if (message.type in SCORE_MESSAGE_PLATFORM && !canScoreFrom(message.type, [sender.url, sender.tab?.url])) {
     log.warn(`Refused ${message.type}: not a scorable page`);
-    return { type: 'SCORES_RESULT', scores: [] };
+    return { type: 'SCORES_RESULT', scores: [] } satisfies ScoresResponse;
   }
 
   switch (message.type) {
@@ -411,32 +411,32 @@ async function handleMessage(
         log.info('Baseline period complete, switching to active mode');
       }
 
-      return { type: 'STATE_RESULT', state, settings };
+      return { type: 'STATE_RESULT', state, settings } satisfies MessageResponses['GET_STATE'];
     }
 
     case 'SCORE_POSTS': {
       const scores = await scorePosts(message.posts);
-      return { type: 'SCORES_RESULT', scores };
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
     case 'SCORE_TWEETS': {
       const scores = await scoreTweets(message.tweets);
-      return { type: 'SCORES_RESULT', scores };
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
     case 'SCORE_VIDEOS': {
       const scores = await scoreVideos(message.videos);
-      return { type: 'SCORES_RESULT', scores };
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
     case 'SCORE_INSTAGRAM_POSTS': {
       const scores = await scoreInstagramPosts(message.posts);
-      return { type: 'SCORES_RESULT', scores };
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
     case 'SCORE_FACEBOOK_POSTS': {
       const scores = await scoreFacebookPosts(message.posts);
-      return { type: 'SCORES_RESULT', scores };
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
     case 'GET_SCHEDULER_ORDER': {
@@ -446,7 +446,7 @@ async function handleMessage(
       }
 
       const { orderedIds, hiddenIds } = await getScheduledOrder(message.postIds, scoreMap);
-      return { type: 'SCHEDULER_ORDER_RESULT', orderedIds, hiddenIds };
+      return { type: 'SCHEDULER_ORDER_RESULT', orderedIds, hiddenIds } satisfies MessageResponses['GET_SCHEDULER_ORDER'];
     }
 
     case 'LOG_IMPRESSIONS': {
@@ -567,7 +567,7 @@ async function handleMessage(
           phaseThresholds: settings.scheduler.phaseThresholds,
           phaseRatios: settings.scheduler.phaseRatios,
         },
-      };
+      } satisfies MessageResponses['GET_GLOBAL_SESSION'];
     }
 
     case 'GET_USAGE_DAYS': {
@@ -701,7 +701,7 @@ async function handleMessage(
     case 'GET_EFFECTIVE_BLUR_THRESHOLD': {
       const adaptive = await getAdaptiveSettings();
       const threshold = await getEffectiveBlurThreshold(message.phase, adaptive.blurThresholdOffset);
-      return { type: 'BLUR_THRESHOLD_RESULT', threshold, phase: message.phase };
+      return { type: 'BLUR_THRESHOLD_RESULT', threshold, phase: message.phase } satisfies MessageResponses['GET_EFFECTIVE_BLUR_THRESHOLD'];
     }
 
     // ==========================================

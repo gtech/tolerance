@@ -40,11 +40,7 @@ interface ToleranceDB extends DBSchema {
   };
   calibration: {
     key: string; // postId
-    value: {
-      postId: string;
-      apiScore: number;
-      timestamp: number;
-    };
+    value: CalibrationEntry;
   };
   postContent: {
     key: string; // postId
@@ -85,7 +81,7 @@ function getDB(): Promise<IDBPDatabase<ToleranceDB>> {
 
 // State management (using chrome.storage.local for small state)
 export async function getState(): Promise<AppState> {
-  const result = await chrome.storage.local.get('state');
+  const result = await chrome.storage.local.get<{ state?: AppState }>('state');
   return result.state || { ...DEFAULT_STATE, baselineStartDate: Date.now() };
 }
 
@@ -258,11 +254,16 @@ export async function clearScoreCache(): Promise<number> {
   return count;
 }
 
-// Calibration data (for fine-tuning)
-export async function logCalibration(
-  postId: string,
-  apiScore: number,
-  metadata?: {
+// One stored calibration record: the score plus whatever post details were logged with it
+export interface CalibrationEntry extends CalibrationMetadata {
+  postId: string;
+  apiScore: number;
+  timestamp: number;
+  heuristicScore?: number;  // Only on records from before heuristic scoring was removed
+}
+
+// What can be logged alongside a calibration score
+export interface CalibrationMetadata {
     // Core content
     permalink?: string;
     title?: string;
@@ -283,7 +284,13 @@ export async function logCalibration(
     // API response data
     apiReason?: string;
     apiFullResponse?: unknown;
-  }
+}
+
+// Calibration data (for fine-tuning)
+export async function logCalibration(
+  postId: string,
+  apiScore: number,
+  metadata?: CalibrationMetadata
 ): Promise<void> {
   const db = await getDB();
   const settings = await getSettings();
@@ -374,9 +381,19 @@ export async function getAllSessions(): Promise<SessionLog[]> {
   return db.getAllFromIndex('sessions', 'by-start');
 }
 
-export async function getCalibrationData(): Promise<
-  Array<{ postId: string; heuristicScore: number; apiScore: number; timestamp: number }>
-> {
+// The latest sessions, most recent first, without loading every session
+export async function getRecentSessions(limit: number): Promise<SessionLog[]> {
+  const db = await getDB();
+  const recent: SessionLog[] = [];
+  let cursor = await db.transaction('sessions').store.index('by-start').openCursor(null, 'prev');
+  while (cursor && recent.length < limit) {
+    recent.push(cursor.value);
+    cursor = await cursor.continue();
+  }
+  return recent;
+}
+
+export async function getCalibrationData(): Promise<CalibrationEntry[]> {
   const db = await getDB();
   return db.getAll('calibration');
 }
@@ -402,7 +419,11 @@ export async function getCalibrationStats(period: '24h' | '7d' | 'all' = '24h'):
     'all': 0,
   };
   const cutoff = cutoffs[period];
-  const data = allData.filter(d => d.timestamp >= cutoff);
+  // These stats compare the API score with the old heuristic score, so only records
+  // that have one count (none written since heuristic scoring was removed)
+  const data = allData
+    .filter(d => d.timestamp >= cutoff)
+    .flatMap(d => d.heuristicScore === undefined ? [] : [{ apiScore: d.apiScore, heuristicScore: d.heuristicScore }]);
 
   if (data.length === 0) {
     return {
@@ -534,7 +555,7 @@ export async function deleteNarrativeTheme(themeId: string): Promise<boolean> {
 
 // Get emerging (pending) narratives
 export async function getEmergingNarratives(): Promise<EmergingNarrative[]> {
-  const result = await chrome.storage.local.get('emergingNarratives');
+  const result = await chrome.storage.local.get<{ emergingNarratives?: EmergingNarrative[] }>('emergingNarratives');
   return result.emergingNarratives || [];
 }
 
@@ -545,7 +566,7 @@ export async function saveEmergingNarratives(narratives: EmergingNarrative[]): P
 
 // Get counter-strategies
 export async function getCounterStrategies(): Promise<CounterStrategy[]> {
-  const result = await chrome.storage.local.get('counterStrategies');
+  const result = await chrome.storage.local.get<{ counterStrategies?: CounterStrategy[] }>('counterStrategies');
   return result.counterStrategies || [];
 }
 
@@ -679,7 +700,7 @@ export async function recordHeartbeat(): Promise<void> {
 // If testBoredomMinutes is set in storage, use that for testing
 export async function getSessionMinutes(): Promise<number> {
   // Check for test override first
-  const testResult = await chrome.storage.local.get('testBoredomMinutes');
+  const testResult = await chrome.storage.local.get<{ testBoredomMinutes?: number }>('testBoredomMinutes');
   if (testResult.testBoredomMinutes && testResult.testBoredomMinutes > 0) {
     return testResult.testBoredomMinutes;
   }
@@ -705,7 +726,7 @@ export function getCurrentPhase(
 
 // Get adaptive settings
 export async function getAdaptiveSettings(): Promise<AdaptiveSettings> {
-  const result = await chrome.storage.local.get('adaptiveSettings');
+  const result = await chrome.storage.local.get<{ adaptiveSettings?: AdaptiveSettings }>('adaptiveSettings');
   return result.adaptiveSettings || { ...DEFAULT_ADAPTIVE_SETTINGS };
 }
 

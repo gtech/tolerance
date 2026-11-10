@@ -14,7 +14,7 @@ interface ProvisionedKey {
 
 // Generate a stable install ID (persisted across sessions)
 async function getOrCreateInstallId(): Promise<string> {
-  const result = await chrome.storage.local.get('installId');
+  const result = await chrome.storage.local.get<{ installId?: string }>('installId');
   if (result.installId) {
     return result.installId;
   }
@@ -80,7 +80,7 @@ export async function provisionFreeKey(forceLog = false): Promise<ProvisionedKey
 
 // Get cached provisioned key (if any)
 export async function getProvisionedKey(): Promise<ProvisionedKey | null> {
-  const result = await chrome.storage.local.get('provisionedKey');
+  const result = await chrome.storage.local.get<{ provisionedKey?: ProvisionedKey }>('provisionedKey');
   return result.provisionedKey || null;
 }
 

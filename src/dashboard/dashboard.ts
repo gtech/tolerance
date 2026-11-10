@@ -5,7 +5,7 @@ import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
-import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
+import { getAllSessions, getRecentSessions, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
@@ -106,7 +106,7 @@ async function init(): Promise<void> {
 }
 
 async function getState(): Promise<AppState> {
-  const result = await chrome.storage.local.get('state');
+  const result = await chrome.storage.local.get<{ state?: AppState }>('state');
   return result.state || DEFAULT_STATE;
 }
 
@@ -470,7 +470,7 @@ function setupStrictnessSlider(): void {
 }
 
 async function getSettings(): Promise<Settings> {
-  const result = await chrome.storage.local.get('settings');
+  const result = await chrome.storage.local.get<{ settings?: Settings }>('settings');
   return result.settings || DEFAULT_SETTINGS;
 }
 
@@ -948,8 +948,9 @@ async function loadDashboardData(): Promise<void> {
       updateBar('low', totalLow / total);
     }
 
-    // Update sessions list
-    updateSessionsList(sessions);
+    // Update sessions list. Read straight from IndexedDB: the message above carries
+    // only totals, because whole sessions can be too big to send.
+    updateSessionsList(await getRecentSessions(20));
 
   } catch (error) {
     console.error('Failed to load dashboard data:', error);
@@ -977,10 +978,8 @@ function updateSessionsList(sessions: SessionLog[]): void {
     return;
   }
 
-  // Show most recent first, limit to 20
-  const recent = sessions.slice().reverse().slice(0, 20);
-
-  list.innerHTML = recent.map(session => {
+  // Already most recent first
+  list.innerHTML = sessions.map(session => {
     const date = new Date(session.startTime);
     const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
     const duration = session.endTime
@@ -1455,6 +1454,9 @@ async function saveSettings(): Promise<void> {
     jobSearchLink: jobSearchInput?.value || undefined,
     twitter: {
       ...existing.twitter, // Preserve existing twitter settings
+      // Settings saved before these two existed don't have them: fill in the defaults
+      reorderEnabled: existing.twitter?.reorderEnabled ?? false,
+      blurHighEngagement: existing.twitter?.blurHighEngagement ?? true,
       hoverRevealDelay: parseInt(hoverDelayInput?.value || '3', 10),
       blurIntensity: parseInt(blurIntensityInput?.value || '8', 10),
       opaqueBlur: opaqueBlurInput?.checked ?? true,
@@ -1467,6 +1469,7 @@ async function saveSettings(): Promise<void> {
     blurUntilScoredTimeout: parseInt((document.getElementById('blur-until-scored-timeout') as HTMLSelectElement | null)?.value || String(DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT), 10),
     calibration: {
       ...existing.calibration,
+      storeApiReason: existing.calibration?.storeApiReason ?? true,
       storePostContent: (document.getElementById('store-post-content') as HTMLInputElement)?.checked ?? false,
     },
   };

@@ -591,6 +591,8 @@ export type MessageType =
   | { type: 'ENSURE_SESSION' }
   | { type: 'GET_API_USAGE' }
   | { type: 'RESET_API_USAGE' }
+  | { type: 'GET_API_CALL_LOG' }
+  | { type: 'GET_API_CALL_SUMMARY' }
   | { type: 'CLEAR_SCORE_CACHE' }
   | { type: 'TEST_RUBRIC'; rubric: string }
   | { type: 'GET_DASHBOARD_DATA' }
@@ -600,6 +602,7 @@ export type MessageType =
   | { type: 'GET_NARRATIVE_TRENDS'; days: number }
   | { type: 'GET_NARRATIVE_THEMES' }
   | { type: 'UPDATE_NARRATIVE_THEME'; theme: NarrativeTheme }
+  | { type: 'DELETE_NARRATIVE_THEME'; themeId: string }
   | { type: 'GET_EMERGING_NARRATIVES' }
   | { type: 'CONFIRM_EMERGING_NARRATIVE'; id: string; name?: string }
   | { type: 'DISMISS_EMERGING_NARRATIVE'; id: string }
@@ -629,6 +632,30 @@ export type MessageType =
   // Subscription sync
   | { type: 'SYNC_SUBSCRIPTIONS'; platform: 'youtube' }
   | { type: 'GET_SUBSCRIPTIONS' };
+
+// What the background answers with, for the requests whose answers content scripts
+// read. The background handler checks its return values against these.
+export type ScoresResponse = { type: 'SCORES_RESULT'; scores: EngagementScore[] };
+export interface MessageResponses {
+  GET_STATE: { type: 'STATE_RESULT'; state: AppState; settings: Settings };
+  SCORE_POSTS: ScoresResponse;
+  SCORE_TWEETS: ScoresResponse;
+  SCORE_VIDEOS: ScoresResponse;
+  SCORE_INSTAGRAM_POSTS: ScoresResponse;
+  SCORE_FACEBOOK_POSTS: ScoresResponse;
+  GET_SCHEDULER_ORDER: { type: 'SCHEDULER_ORDER_RESULT'; orderedIds: string[]; hiddenIds: string[] };
+  GET_GLOBAL_SESSION: {
+    type: 'GLOBAL_SESSION_RESULT';
+    globalSession: GlobalSession;
+    phase: SessionPhase;
+    settings: Pick<Settings['scheduler'], 'progressiveBoredomEnabled' | 'phaseThresholds' | 'phaseRatios'>;
+  };
+  GET_EFFECTIVE_BLUR_THRESHOLD: { type: 'BLUR_THRESHOLD_RESULT'; threshold: number; phase: SessionPhase };
+}
+
+// The answer to a given request; `unknown` for requests not listed above
+export type ResponseFor<M extends { type: string }> =
+  M['type'] extends keyof MessageResponses ? MessageResponses[M['type']] : unknown;
 
 export const DEFAULT_SETTINGS: Settings = {
   scheduler: {

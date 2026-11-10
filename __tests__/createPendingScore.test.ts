@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 // Mock chrome API before importing scorer (which transitively imports background/index.ts)
 beforeAll(() => {
-  // @ts-expect-error - mocking chrome global for test environment
-  globalThis.chrome = {
+  // A partial stand-in for the chrome global, enough for the imports below
+  (globalThis as unknown as { chrome: unknown }).chrome = {
     runtime: {
       onInstalled: { addListener: vi.fn() },
       onMessage: { addListener: vi.fn() },
@@ -72,7 +72,7 @@ describe('createPendingScore', () => {
   });
 
   it('does not have heuristicScore or heuristicConfidence', () => {
-    const score = createPendingScore('test-123') as Record<string, unknown>;
+    const score = createPendingScore('test-123') as unknown as Record<string, unknown>;
     expect(score.heuristicScore).toBeUndefined();
     expect(score.heuristicConfidence).toBeUndefined();
   });

@@ -11,9 +11,10 @@ let tooltipShown = false;
 export async function loadOnboardingState(): Promise<OnboardingState> {
   if (onboardingState) return onboardingState;
 
-  const result = await chrome.storage.local.get('onboardingState');
-  onboardingState = result.onboardingState || DEFAULT_ONBOARDING_STATE;
-  return onboardingState;
+  const result = await chrome.storage.local.get<{ onboardingState?: OnboardingState }>('onboardingState');
+  const state = result.onboardingState || DEFAULT_ONBOARDING_STATE;
+  onboardingState = state;
+  return state;
 }
 
 // Mark tooltip as dismissed

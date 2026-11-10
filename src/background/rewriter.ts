@@ -25,7 +25,7 @@ const HEARTBEAT_GAP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
  * Get or initialize Claude session
  */
 export async function getClaudeSession(): Promise<ClaudeSession> {
-  const result = await chrome.storage.local.get(CLAUDE_SESSION_KEY);
+  const result = await chrome.storage.local.get<Record<string, ClaudeSession | undefined>>(CLAUDE_SESSION_KEY);
   const today = new Date().toISOString().split('T')[0];
 
   let session: ClaudeSession = result[CLAUDE_SESSION_KEY] || {
@@ -198,7 +198,7 @@ export async function rewriteResponse(text: string): Promise<RewriteResult> {
     apiKey = settings.openRouterApiKey;
     log.debug('Using own API key for Claude filter');
   } else {
-    apiKey = await getFreeTierApiKey();
+    apiKey = (await getFreeTierApiKey()) ?? undefined;
     log.debug('Using free tier API key for Claude filter');
   }
 

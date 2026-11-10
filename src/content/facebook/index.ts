@@ -1,4 +1,4 @@
-import { FacebookPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { FacebookPost, EngagementScore, AppState, Settings, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
@@ -360,7 +360,7 @@ function removePendingBlur(post: FacebookPost): void {
   if (overlay) overlay.remove();
 }
 
-async function sendMessage(message: unknown): Promise<unknown> {
+async function sendMessage<M extends MessageType>(message: M): Promise<ResponseFor<M> | null> {
   return new Promise((resolve, reject) => {
     if (!isExtensionValid()) {
       reject(new Error('Extension context invalid'));

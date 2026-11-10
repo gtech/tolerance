@@ -20,10 +20,11 @@ export async function getSubscriptionList(): Promise<SubscriptionList> {
     return cachedList;
   }
 
-  const result = await chrome.storage.local.get(STORAGE_KEY);
-  cachedList = result[STORAGE_KEY] ?? { ...DEFAULT_SUBSCRIPTION_LIST };
+  const result = await chrome.storage.local.get<Record<string, SubscriptionList | undefined>>(STORAGE_KEY);
+  const list = result[STORAGE_KEY] ?? { ...DEFAULT_SUBSCRIPTION_LIST };
+  cachedList = list;
   cacheTime = now;
-  return cachedList;
+  return list;
 }
 
 /**

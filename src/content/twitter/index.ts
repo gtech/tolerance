@@ -1,4 +1,4 @@
-import { Tweet, EngagementScore, AppState, Settings, PostImpression, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { Tweet, EngagementScore, AppState, Settings, PostImpression, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
@@ -1225,7 +1225,7 @@ async function processTweets(): Promise<void> {
             attentionTracker?.track(tweet.id, tweet.element);
           }
 
-          const displayScore = cached.score.apiScore ?? cached.score.heuristicScore;
+          const displayScore = cached.score.apiScore;
           const scoringFailed = cached.score.apiScore === undefined;
           injectScoreBadge(tweet, {
             score: displayScore,
@@ -1506,7 +1506,7 @@ function logScoreDistribution(scores: EngagementScore[]): void {
 }
 
 // Send message to background script
-async function sendMessage(message: unknown): Promise<unknown> {
+async function sendMessage<M extends MessageType>(message: M): Promise<ResponseFor<M> | null> {
   if (!isExtensionValid()) {
     log.warn(' Extension context invalidated - please refresh the page');
     return null;

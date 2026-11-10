@@ -10,7 +10,7 @@ interface ApiErrorState {
   timestamp: number;
 }
 
-export async function showFreeTierExhaustedDialog(settings?: Settings): Promise<void> {
+export async function showFreeTierExhaustedDialog(settings?: Settings | null): Promise<void> {
   if (settings?.apiTier === 'own-key' || document.getElementById(DIALOG_ID)) {
     return;
   }

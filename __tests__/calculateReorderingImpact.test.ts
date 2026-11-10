@@ -5,10 +5,9 @@ import type { EngagementScore } from '../src/shared/types';
 function makeScore(id: string, bucket: 'low' | 'medium' | 'high'): [string, EngagementScore] {
   return [id, {
     postId: id,
-    heuristicScore: 50,
-    heuristicConfidence: 'medium',
+    apiScore: 50,
     bucket,
-    factors: { engagementRatio: 0, commentDensity: 0, keywordFlags: [], viralVelocity: 0 },
+    factors: {},
     timestamp: Date.now(),
   }];
 }

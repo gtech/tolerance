@@ -1,4 +1,4 @@
-import { YouTubeVideo, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { YouTubeVideo, EngagementScore, AppState, Settings, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
@@ -1069,7 +1069,7 @@ async function processVideos(): Promise<void> {
 }
 
 // Send message to background script
-async function sendMessage(message: unknown): Promise<unknown> {
+async function sendMessage<M extends MessageType>(message: M): Promise<ResponseFor<M> | null> {
   if (!isExtensionValid()) {
     log.warn(' Extension context invalidated - please refresh the page');
     return null;

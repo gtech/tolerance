@@ -61,7 +61,7 @@ export async function setApiErrorState(state: ApiErrorState | null): Promise<voi
 }
 
 export async function getApiErrorState(): Promise<ApiErrorState | null> {
-  const result = await chrome.storage.local.get('apiErrorState');
+  const result = await chrome.storage.local.get<{ apiErrorState?: ApiErrorState }>('apiErrorState');
   return result.apiErrorState || null;
 }
 
@@ -194,12 +194,13 @@ export interface BatchScoreResult {
 
 // Helper: Convert 1-based narrative indices from LLM to theme IDs
 function convertNarrativeIndicesToThemeIds(
-  indices: number[] | undefined,
+  rawIndices: unknown,   // Straight from the model's JSON
   activeThemes: NarrativeTheme[]
 ): string[] {
-  if (!indices || !Array.isArray(indices) || indices.length === 0) {
+  if (!Array.isArray(rawIndices) || rawIndices.length === 0) {
     return [];
   }
+  const indices = rawIndices as number[];
 
   const themeIds: string[] = [];
   for (const idx of [...indices].sort((a, b) => a - b)) {
@@ -1077,7 +1078,7 @@ async function callApi(
           : undefined;
         return {
           score: parsedScore,
-          reason: parsed.reason || '',
+          reason: String(parsed.reason || ''),
           cost,
           fullResponse: data,
           narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
@@ -1108,7 +1109,7 @@ async function callApi(
             : undefined;
           return {
             score: parsedScore,
-            reason: parsed.reason || '',
+            reason: String(parsed.reason || ''),
             cost,
             fullResponse: data,
             narrativeMatches: narrativeMatches?.length ? narrativeMatches : undefined,
@@ -1186,7 +1187,7 @@ async function callOpenRouter(
 export interface ApiCallLog {
   timestamp: number;
   model: string;
-  type: 'text-batch' | 'image' | 'video' | 'gallery-describe' | 'instagram-video';
+  type: ApiCallType;
   postCount: number;
   inputTokens: number;
   outputTokens: number;
@@ -1195,8 +1196,8 @@ export interface ApiCallLog {
 
 // Track API usage
 async function trackUsage(cost: number, trackCosts: boolean = true, details?: Partial<ApiCallLog>): Promise<void> {
-  const result = await chrome.storage.local.get(['apiUsage', 'apiCallLog']);
-  const usage = result.apiUsage as ApiUsage || {
+  const result = await chrome.storage.local.get<{ apiUsage?: ApiUsage; apiCallLog?: ApiCallLog[] }>(['apiUsage', 'apiCallLog']);
+  const usage = result.apiUsage || {
     totalCalls: 0,
     totalCost: 0,
     lastReset: Date.now(),
@@ -1231,7 +1232,7 @@ async function trackUsage(cost: number, trackCosts: boolean = true, details?: Pa
 
 // Get API call log for benchmarking
 export async function getApiCallLog(): Promise<ApiCallLog[]> {
-  const result = await chrome.storage.local.get('apiCallLog');
+  const result = await chrome.storage.local.get<{ apiCallLog?: ApiCallLog[] }>('apiCallLog');
   return result.apiCallLog || [];
 }
 

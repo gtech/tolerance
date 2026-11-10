@@ -1,4 +1,4 @@
-import { InstagramPost, EngagementScore, AppState, Settings, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
+import { InstagramPost, EngagementScore, AppState, Settings, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
@@ -410,7 +410,7 @@ function removePendingBlur(post: InstagramPost): void {
   if (overlay) overlay.remove();
 }
 
-async function sendMessage(message: unknown): Promise<unknown> {
+async function sendMessage<M extends MessageType>(message: M): Promise<ResponseFor<M> | null> {
   return new Promise((resolve, reject) => {
     if (!isExtensionValid()) {
       reject(new Error('Extension context invalid'));
