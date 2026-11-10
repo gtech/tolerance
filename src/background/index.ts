@@ -1,6 +1,7 @@
 import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
+import { syncResearchConsent } from '../shared/research-consent';
 import {
   getState,
   getSettings,
@@ -124,9 +125,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Pre-provision free tier API key (async, fire-and-forget)
   // This ensures the key is ready when the user first visits a social media site
   // Only logs on actual new provisioning (not when returning cached key)
-  provisionFreeKey().catch(err => {
-    log.debug(` Free tier key pre-provisioning failed: ${err}`);
-  });
+  provisionFreeKey()
+    .then(() => syncResearchConsent())
+    .catch(err => {
+      log.debug(` Free tier key pre-provisioning failed: ${err}`);
+    });
+});
+
+// Retry a research opt-in/out that didn't reach the server
+chrome.runtime.onStartup?.addListener(() => {
+  syncResearchConsent();
 });
 
 // Handle context menu clicks for author whitelisting

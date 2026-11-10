@@ -821,7 +821,8 @@
 
     /* Hide Facebook Reels / Hide YouTube Shorts Toggle Sliders */
     #fb-reels-slider:before,
-    #yt-shorts-slider:before {
+    #yt-shorts-slider:before,
+    #research-slider:before {
       position: absolute;
       content: "";
       height: 20px;
@@ -834,12 +835,14 @@
     }
 
     #fb-reels-toggle:checked + #fb-reels-slider,
-    #yt-shorts-toggle:checked + #yt-shorts-slider {
+    #yt-shorts-toggle:checked + #yt-shorts-slider,
+    #research-toggle:checked + #research-slider {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
 
     #fb-reels-toggle:checked + #fb-reels-slider:before,
-    #yt-shorts-toggle:checked + #yt-shorts-slider:before {
+    #yt-shorts-toggle:checked + #yt-shorts-slider:before,
+    #research-toggle:checked + #research-slider:before {
       transform: translateX(24px);
       background-color: #fff;
     }
@@ -1266,6 +1269,20 @@
             <option value="45">45 minutes</option>
           </select>
           <button id="grounding-try-btn" class="btn-secondary" type="button" style="padding: 6px 12px; font-size: 12px;">Try it now</button>
+        </div>
+      </div>
+      <div class="card" id="research-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Help Show Whether It Works
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="research-toggle" style="opacity: 0; width: 0; height: 0;">
+            <span id="research-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Once a day we record how much scoring your install used, as a single dollar figure, to see whether people scroll less over time. No posts, sites or browsing history. Turning this off deletes what we stored within a day. <a href="https://tolerance.lol/privacy.html#research" target="_blank" rel="noopener" style="color: #aaa;">Details</a>
         </div>
       </div>
     </div>

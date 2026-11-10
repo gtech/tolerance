@@ -2,6 +2,7 @@ import { SessionLog, AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, Narrat
 import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, QUALITY_MODE_THRESHOLD, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
+import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
 import { getAllSessions, getCalibrationData, getAllPostContent } from '../background/storage';
@@ -55,6 +56,7 @@ async function init(): Promise<void> {
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
   await setupYouTubeShortsSetting();
+  await setupResearchSetting();
   await setupFacebookAdsSetting();
   await setupSubscriptionsOnly();
   await setupRubricEditor();
@@ -144,6 +146,14 @@ async function setupYouTubeShortsSetting(): Promise<void> {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, hideYouTubeShorts: toggle.checked } });
   });
+}
+
+// Research opt-in card (off unless turned on here or on the welcome page)
+async function setupResearchSetting(): Promise<void> {
+  const toggle = document.getElementById('research-toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = await getResearchOptIn();
+  toggle.addEventListener('change', () => setResearchOptIn(toggle.checked));
 }
 
 // Penalize Ads card (on unless explicitly turned off)
