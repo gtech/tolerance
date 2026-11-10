@@ -46,7 +46,14 @@ describe('applySiteLabels', () => {
     expect(scores[1]).toMatchObject({ apiScore: 30, bucket: 'low', apiReason: 'model reason' });
   });
 
-  it('does the same for a post the site labels AI-generated', async () => {
+  it('leaves a post labeled AI-generated alone by default', async () => {
+    const scores = [score('ai', 40)];
+    await applySiteLabels(scores, new Map([['ai', `${AI_LABEL_PREFIX}Sunset over the bay`]]), 'instagram');
+    expect(scores[0]).toMatchObject({ apiScore: 40, apiReason: 'model reason' });
+  });
+
+  it('gives it the top score once the AI setting is turned on', async () => {
+    kv.set('settings', { blurAiLabeled: true });
     const scores = [score('ai', 40)];
     await applySiteLabels(scores, new Map([['ai', `${AI_LABEL_PREFIX}Sunset over the bay`]]), 'instagram');
     expect(scores[0].apiScore).toBe(100);
@@ -59,7 +66,7 @@ describe('applySiteLabels', () => {
     await applySiteLabels(scores, new Map([['ad', `${SPONSORED_PREFIX}Buy`], ['ai', `${AI_LABEL_PREFIX}Art`]]), 'facebook');
     expect(scores.map(s => s.apiScore)).toEqual([10, 40]);
 
-    kv.set('settings', { penalizeFacebookAds: false });   // AI setting back to its default, on
+    kv.set('settings', { penalizeFacebookAds: false, blurAiLabeled: true });
     await applySiteLabels(scores, new Map([['ad', `${SPONSORED_PREFIX}Buy`], ['ai', `${AI_LABEL_PREFIX}Art`]]), 'facebook');
     expect(scores.map(s => s.apiScore)).toEqual([10, 100]);
   });

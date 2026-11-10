@@ -146,7 +146,7 @@ async function setupFacebookReelsSetting(): Promise<void> {
 async function setupYouTubeShortsSetting(): Promise<void> {
   const toggle = document.getElementById('yt-shorts-toggle') as HTMLInputElement | null;
   if (!toggle) return;
-  toggle.checked = (await getSettings()).hideYouTubeShorts ?? false;
+  toggle.checked = (await getSettings()).hideYouTubeShorts !== false;
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, hideYouTubeShorts: toggle.checked } });
@@ -179,7 +179,7 @@ async function setupFacebookAdsSetting(): Promise<void> {
 async function setupAiLabelSetting(): Promise<void> {
   const toggle = document.getElementById('ai-label-toggle') as HTMLInputElement | null;
   if (!toggle) return;
-  toggle.checked = (await getSettings()).blurAiLabeled !== false;
+  toggle.checked = (await getSettings()).blurAiLabeled === true;
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
     await chrome.storage.local.set({

@@ -52,7 +52,7 @@ export async function applySiteLabels(
 ): Promise<void> {
   const settings = await getSettings();
   const adsOn = settings.penalizeFacebookAds !== false;
-  const aiOn = settings.blurAiLabeled !== false;
+  const aiOn = settings.blurAiLabeled === true;
   for (const score of scores) {
     if (score.scoreFailed) continue;   // left to be scored again
     const labels = siteLabels(textOf.get(score.postId));

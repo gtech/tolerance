@@ -16,7 +16,8 @@ if (watchUrl) {
     chrome.storage.local.get('settings', (result) => {
       if (chrome.runtime.lastError) return;
       const settings = result.settings as Partial<Settings> | undefined;
-      if (settings?.hideYouTubeShorts && settings?.platforms?.youtube !== false) location.replace(watchUrl);
+      // On unless turned off, including before any settings have been saved
+      if (settings?.hideYouTubeShorts !== false && settings?.platforms?.youtube !== false) location.replace(watchUrl);
     });
   } catch {
     // Extension context gone: leave the page alone

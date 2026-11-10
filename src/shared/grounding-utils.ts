@@ -12,7 +12,8 @@ export interface GroundingSettings {
   intervalMinutes: number;
 }
 
-export const DEFAULT_GROUNDING: GroundingSettings = { enabled: true, intervalMinutes: 20 };
+// Off unless turned on in the dashboard (it was on by default until the 0.1.35 release)
+export const DEFAULT_GROUNDING: GroundingSettings = { enabled: false, intervalMinutes: 20 };
 
 // Gaps up to this long count as scrolling time (heartbeats are every 30s)
 export const GROUNDING_HEARTBEAT_GAP_MS = 2 * 60 * 1000;

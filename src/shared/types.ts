@@ -485,13 +485,13 @@ export interface Settings {
   // Hide Facebook Reels (the Reels tray and reel posts in the feed). Default: true
   hideFacebookReels?: boolean;
   // Hide YouTube Shorts (shelves, menu entries, channel tab; /shorts links open in
-  // the normal player). Default: false
+  // the normal player). Default: true (false until 0.1.35)
   hideYouTubeShorts?: boolean;
   // Give ads the top score on every site. Default: true. Named from when it was
   // Facebook only; the name stays so saved choices carry over.
   penalizeFacebookAds?: boolean;
   // Give posts labeled AI-generated (by the site or their author) the top score, so they
-  // get blurred. Nothing is guessed from how a post reads. Default: true
+  // get blurred. Nothing is guessed from how a post reads. Default: false (true until 0.1.35)
   blurAiLabeled?: boolean;
   // Developer: count what each site's scraper finds and check it once a day for signs
   // that the site changed its markup (shared/scrape-health.ts). Default: false

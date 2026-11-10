@@ -58,7 +58,7 @@ async function getAdNote(): Promise<boolean> {
 
 // Whether prompts tell the model to give posts labeled AI-generated the top score
 async function getAiNote(): Promise<boolean> {
-  return (await getSettings()).blurAiLabeled !== false;
+  return (await getSettings()).blurAiLabeled === true;
 }
 
 // Record which rubric produced a score

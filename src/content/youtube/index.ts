@@ -202,7 +202,7 @@ function applyHideMode(settings: Settings | null): void {
 
 // Hide Shorts (Settings: "Hide YouTube Shorts")
 function shortsHidden(): boolean {
-  return (currentSettings?.hideYouTubeShorts ?? false) && currentSettings?.platforms?.youtube !== false;
+  return currentSettings?.hideYouTubeShorts !== false && currentSettings?.platforms?.youtube !== false;
 }
 
 function applyShortsMode(): void {
