@@ -10,6 +10,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
 import { noteReveal } from './burstCard';
+import { attachHoldReveal } from './holdReveal';
 import { setOpaque } from './opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
 import { GATE_POST_ATTR, watchGate } from './gateSwitch';
@@ -544,6 +545,17 @@ function applyBlur(post: RedditPost): void {
       e.preventDefault();
       e.stopPropagation();
     }
+  });
+
+  attachHoldReveal(overlay, {
+    post: element,
+    isRevealed: () => isRevealed,
+    reveal: () => {
+      overlay.classList.remove('revealing');
+      overlay.classList.add('revealed');
+      isRevealed = true;
+      noteReveal(overlay);
+    },
   });
 
   // Show onboarding tooltip on first blur (one-time)

@@ -6,6 +6,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
+import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { GATE_POST_ATTR, GATE_DONE_ATTR, releaseIfStillUnscraped, watchGate } from '../gateSwitch';
@@ -693,15 +694,16 @@ function applyBlur(element: HTMLElement): void {
     }
   });
 
-  // Click on overlay reveals immediately
+  // Clicks don't reveal; holding does
   overlay.addEventListener('click', (e) => {
     if (!revealed) {
+      e.preventDefault();
       e.stopPropagation();
-      revealContent();
     }
   });
 
   element.appendChild(overlay);
+  attachHoldReveal(overlay, { post: element, reveal: revealContent, isRevealed: () => revealed });
 
   // Show onboarding tooltip on first blur (one-time)
   showOnboardingTooltip(element);

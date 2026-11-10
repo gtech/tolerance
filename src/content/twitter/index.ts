@@ -8,6 +8,7 @@ import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
+import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
 import { anchorCacheId } from '../../shared/anchor-utils';
 import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
@@ -413,6 +414,20 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
+// Press-and-hold reveal; stays revealed after the mouse leaves
+function attachHoldRevealToCell(overlay: HTMLElement, cell: HTMLElement): void {
+  if (!cell.classList.contains('tolerance-revealed')) clearHeldOpen(cell);
+  attachHoldReveal(overlay, {
+    post: cell,
+    isRevealed: () => isHeldOpen(cell),
+    reveal: () => {
+      markHeldOpen(cell);
+      cell.classList.add('tolerance-revealed');
+      noteReveal(cell);
+    },
+  });
+}
+
 // Set up timed hover reveal for an element
 function setupHoverReveal(element: HTMLElement): void {
   // Avoid duplicate listeners
@@ -441,8 +456,8 @@ function setupHoverReveal(element: HTMLElement): void {
       clearTimeout(timer);
       hoverTimers.delete(element);
     }
-    // Re-blur on mouse leave
-    element.classList.remove('tolerance-revealed');
+    // Re-blur on mouse leave, unless it was revealed by holding
+    if (!isHeldOpen(element)) element.classList.remove('tolerance-revealed');
   });
 }
 
@@ -714,6 +729,7 @@ function removePendingBlur(tweet: Tweet): void {
   markCellDone(cell);
   cell.classList.remove('tolerance-pending');
   cell.classList.remove('tolerance-revealed');
+  clearHeldOpen(cell);
   cell.style.removeProperty('--tolerance-blur');
 
   // Remove overlay
@@ -786,6 +802,7 @@ function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: n
 
   overlay.appendChild(buildBlurLabel(score));
   cell.appendChild(overlay);
+  attachHoldRevealToCell(overlay, cell);
 
   log.debug(` Blurred tweet ${tweet.id}, score=${score.apiScore}, bucket=${score.bucket}`);
 
@@ -903,6 +920,7 @@ function resetCellIfRecycled(cell: HTMLElement): void {
   cell.querySelectorAll(':scope > .tolerance-score-badge, :scope > .tolerance-blur-overlay, .tolerance-score-badge')
     .forEach(n => n.remove());
   cell.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed');
+  clearHeldOpen(cell);
   cell.style.removeProperty('--tolerance-blur');
   cell.removeAttribute('data-tolerance-done');
   cell.removeAttribute(TWEET_ID_ATTR);
@@ -1581,6 +1599,7 @@ function refreshBlurState(): void {
         ? buildBlurLabel(cached.score)
         : buildBlurLabel({ postId: tweetId ?? '', apiScore: score, bucket: 'medium', factors: {}, timestamp: Date.now() }));
       htmlCell.appendChild(overlay);
+      attachHoldRevealToCell(overlay, htmlCell);
 
       // Set up hover reveal
       setupHoverReveal(htmlCell);
@@ -1588,6 +1607,7 @@ function refreshBlurState(): void {
       // Need to unblur this tweet
       cell.classList.remove('tolerance-blurred');
       cell.classList.remove('tolerance-revealed');
+      clearHeldOpen(cell as HTMLElement);
       (cell as HTMLElement).style.removeProperty('--tolerance-blur');
 
       // Remove overlay

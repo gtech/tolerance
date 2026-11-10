@@ -6,6 +6,7 @@ import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CL
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
+import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { releaseIfStillUnscraped } from '../gateSwitch';
@@ -645,15 +646,17 @@ function applyBlur(element: HTMLElement, score: EngagementScore): void {
     }
   });
 
+  // Clicks don't reveal; holding does
   overlay.addEventListener('click', (e) => {
     if (!revealed) {
+      e.preventDefault();
       e.stopPropagation();
-      revealContent();
     }
   });
 
   overlay.appendChild(buildBlurLabel(score));
   element.appendChild(overlay);
+  attachHoldReveal(overlay, { post: element, reveal: revealContent, isRevealed: () => revealed });
 }
 
 async function init(): Promise<void> {

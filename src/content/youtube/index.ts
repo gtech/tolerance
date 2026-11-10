@@ -6,6 +6,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
+import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
@@ -411,8 +412,8 @@ function setupHoverReveal(element: HTMLElement): void {
       clearTimeout(timer);
       hoverTimers.delete(element);
     }
-    // Re-blur on mouse leave
-    element.classList.remove('tolerance-revealed');
+    // Re-blur on mouse leave, unless it was revealed by holding
+    if (!isHeldOpen(element)) element.classList.remove('tolerance-revealed');
   });
 }
 
@@ -439,6 +440,7 @@ function claimElement(video: YouTubeVideo): void {
 function resetElement(element: HTMLElement): void {
   element.querySelectorAll('.tolerance-score-badge, .tolerance-blur-overlay').forEach(n => n.remove());
   element.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', 'tolerance-sidebar-video');
+  clearHeldOpen(element);
   element.style.removeProperty('--tolerance-blur');
   element.removeAttribute(VIDEO_ID_ATTR);
   element.removeAttribute(DONE_ATTR);
@@ -700,6 +702,19 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
 
   overlay.appendChild(buildBlurLabel(score));
   video.element.appendChild(overlay);
+
+  // Press-and-hold reveal; stays revealed after the mouse leaves
+  const card = video.element;
+  clearHeldOpen(card);
+  attachHoldReveal(overlay, {
+    post: card,
+    isRevealed: () => isHeldOpen(card),
+    reveal: () => {
+      markHeldOpen(card);
+      card.classList.add('tolerance-revealed');
+      noteReveal(card);
+    },
+  });
 
   // Show onboarding tooltip on first blur (one-time); a hidden card has nowhere to show it
   if (!document.documentElement.classList.contains(HIDE_BLURRED_CLASS)) {

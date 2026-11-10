@@ -69,7 +69,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // First run only: ask how strict to be
   if (details.reason === 'install') {
-    await chrome.storage.local.set({ installedAt: Date.now() });
+    // New installs reveal by holding only; hover-reveal is opt-in from the dashboard.
+    // Written before the welcome tab opens so its strictness save can't race it.
+    const fresh = await getSettings();
+    await chrome.storage.local.set({
+      installedAt: Date.now(),
+      settings: { ...fresh, twitter: { ...fresh.twitter, hoverReveal: false } },
+    });
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
   }
 
