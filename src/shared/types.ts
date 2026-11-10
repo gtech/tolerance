@@ -192,6 +192,7 @@ export interface FacebookPost extends SocialPost {
 export interface EngagementScore {
   postId: string;
   apiScore: number; // 0-100, from OpenRouter
+  modelScore?: number; // The model's score before a topic setting changed it (set only when one did)
   apiReason?: string; // Reason from API for the score
   bucket: 'low' | 'medium' | 'high';
   factors: ScoreFactors;
@@ -252,6 +253,7 @@ export interface PostImpression {
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
   scoreFailed?: boolean;      // score is the 50 placeholder, not a real score
+  modelScore?: number;        // The model's own score, when a topic setting changed `score`
   imageSeen?: boolean;        // Image posts: whether the model saw the image (false = scored on text alone)
   blurThreshold?: number;     // Blur threshold in force when the post was shown
   blurred?: boolean;          // Whether it was blurred (trust and other exemptions can differ from the threshold)

@@ -89,6 +89,9 @@ async function applyCounterStrategies(
     caught.push({ themeId: detection.themeId, reason: score.apiReason });
 
     const original = score.apiScore;
+    // Keep what the model said: the logged history is used to measure the feed, and a
+    // topic you chose to hide would otherwise count as the feed serving you bait
+    if (score.modelScore === undefined) score.modelScore = original;
     score.apiScore = Math.max(0, Math.min(100, original + strategy.scoreModifier));
     score.bucket = scoreToBucket(score.apiScore, platform);
     detection.appliedModifier = strategy.scoreModifier;

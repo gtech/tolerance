@@ -5,7 +5,7 @@ import type { EngagementScore, PostImpression } from './types';
 // onto the impression here.
 export function impressionScoreFields(
   score: EngagementScore | undefined
-): Pick<PostImpression, 'score' | 'bucket' | 'narrativeThemeId' | 'specVersion' | 'dims' | 'scoreFailed' | 'imageSeen'> {
+): Pick<PostImpression, 'score' | 'bucket' | 'narrativeThemeId' | 'specVersion' | 'dims' | 'scoreFailed' | 'modelScore' | 'imageSeen'> {
   return {
     score: score?.apiScore ?? 50,
     bucket: score?.bucket ?? 'medium',
@@ -14,6 +14,7 @@ export function impressionScoreFields(
     dims: score?.dims,
     // Without this a failed score looks the same as a real 50
     scoreFailed: !score || score.scoreFailed ? true : undefined,
+    modelScore: score?.modelScore,
     imageSeen: score?.imageSeen,
   };
 }
