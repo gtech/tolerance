@@ -8,8 +8,9 @@ import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 export function scrapeVisiblePosts(): InstagramPost[] {
   const posts: InstagramPost[] = [];
 
-  // Instagram feed posts are in article elements, often with __igdl_id attribute
-  const articleElements = document.querySelectorAll<HTMLElement>('article');
+  // Instagram feed posts are in article elements, often with __igdl_id attribute.
+  // Only inside <main>: the Messages panel and dialogs are never read.
+  const articleElements = document.querySelectorAll<HTMLElement>('main article');
 
   for (const element of articleElements) {
     const post = parsePostElement(element);

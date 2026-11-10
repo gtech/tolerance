@@ -2,6 +2,7 @@ import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, Whitelis
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
+import { SCORE_MESSAGE_PLATFORM, canScoreFrom } from '../shared/scoring-surfaces';
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
@@ -385,8 +386,14 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
 
 async function handleMessage(
   message: MessageType,
-  _sender: chrome.runtime.MessageSender
+  sender: chrome.runtime.MessageSender
 ): Promise<unknown> {
+  // Private messages must never be scored: refuse anything not sent from a feed page
+  if (message.type in SCORE_MESSAGE_PLATFORM && !canScoreFrom(message.type, [sender.url, sender.tab?.url])) {
+    log.warn(`Refused ${message.type}: not a scorable page`);
+    return { type: 'SCORES_RESULT', scores: [] };
+  }
+
   switch (message.type) {
     case 'GET_STATE': {
       const state = await getState();
