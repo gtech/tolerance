@@ -5,6 +5,7 @@ import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { noteReveal } from '../burstCard';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
@@ -398,6 +399,7 @@ function setupHoverReveal(element: HTMLElement): void {
     // Start new timer
     const timer = setTimeout(() => {
       element.classList.add('tolerance-revealed');
+      noteReveal(element);
     }, hoverRevealDelay);
     hoverTimers.set(element, timer);
   });

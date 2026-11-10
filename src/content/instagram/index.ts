@@ -5,6 +5,7 @@ import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disco
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { noteReveal } from '../burstCard';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { GATE_POST_ATTR, GATE_DONE_ATTR, releaseIfStillUnscraped, watchGate } from '../gateSwitch';
@@ -332,6 +333,7 @@ function blurNavigationButtons(): void {
       revealTimer = setTimeout(() => {
         revealed = true;
         overlay.classList.add('revealed');
+        noteReveal(overlay);
         if (countdownInterval) clearInterval(countdownInterval);
       }, 10000);
     });
@@ -660,6 +662,7 @@ function applyBlur(element: HTMLElement): void {
   const revealContent = () => {
     revealed = true;
     overlay.classList.add('revealed');
+    noteReveal(overlay);
     // Unblock video when revealed
     const unblock = (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo;
     if (unblock) {

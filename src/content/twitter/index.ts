@@ -7,6 +7,7 @@ import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { AttentionTracker } from '../attention';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { noteReveal } from '../burstCard';
 import { anchorCacheId } from '../../shared/anchor-utils';
 import { isUnfilteredTwitterPath } from './paths';
 import { buildDebugReport, showDebugReport } from './debug';
@@ -428,6 +429,7 @@ function setupHoverReveal(element: HTMLElement): void {
     // Start new timer
     const timer = setTimeout(() => {
       element.classList.add('tolerance-revealed');
+      noteReveal(element);
     }, hoverRevealDelay);
     hoverTimers.set(element, timer);
   });

@@ -2,6 +2,9 @@ import { MessageType, EngagementScore, SessionLog, DailyNarrativeStats, Whitelis
 import { log, setLogLevel } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { syncResearchConsent } from '../shared/research-consent';
+import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
+
+watchStrictnessChanges();
 import {
   getState,
   getSettings,
@@ -61,6 +64,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // First run only: ask how strict to be
   if (details.reason === 'install') {
+    await chrome.storage.local.set({ installedAt: Date.now() });
     chrome.tabs.create({ url: chrome.runtime.getURL('welcome/welcome.html') });
   }
 
@@ -281,15 +285,28 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   // Handle SOCIAL_MEDIA_HEARTBEAT separately (comes from tracker.js, not typed in MessageType)
   if (message.type === 'SOCIAL_MEDIA_HEARTBEAT') {
     const canPrompt = (message as { canPrompt?: boolean }).canPrompt === true;
-    recordHeartbeat()
-      .then(() => checkGrounding(canPrompt))
-      .then((groundingMinutes) => {
-        sendResponse({
-          type: 'HEARTBEAT_ACK',
-          ...(groundingMinutes !== null && { grounding: { minutes: groundingMinutes } }),
-        });
-      })
-      .catch(() => sendResponse({ type: 'HEARTBEAT_ACK' }));
+    (async () => {
+      await recordHeartbeat();
+      // The first-week card takes this heartbeat's prompt slot; grounding keeps counting
+      const burst = await takeBurstCard(canPrompt);
+      const groundingMinutes = await checkGrounding(canPrompt && !burst);
+      sendResponse({
+        type: 'HEARTBEAT_ACK',
+        ...(burst && { burst }),
+        ...(groundingMinutes !== null && { grounding: { minutes: groundingMinutes } }),
+      });
+    })().catch(() => sendResponse({ type: 'HEARTBEAT_ACK' }));
+    return true;
+  }
+
+  // First-week extinction-burst card: signals from feeds, and what the user did with it
+  if (message.type === 'BURST_SIGNAL') {
+    recordBurstSignal('reveals').then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (message.type === 'BURST_EVENT') {
+    const { event, trigger } = message as unknown as { event: string; trigger?: string };
+    logBurstEvent(event, trigger).then(() => sendResponse({ ok: true }));
     return true;
   }
 

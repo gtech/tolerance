@@ -3,6 +3,9 @@
 // Used by every platform content script (via the heartbeat response) and by the
 // dashboard's "Try it now" button.
 
+import { showBurstCard } from './burstCard';
+import type { BurstCardInfo } from '../background/burst';
+
 const HOST_ID = 'tolerance-grounding-host';
 
 type ExerciseId = 'breathing' | '54321' | 'feet';
@@ -30,7 +33,11 @@ export function heartbeatMessage(): { type: 'SOCIAL_MEDIA_HEARTBEAT'; canPrompt:
 }
 
 export function handleHeartbeatResponse(response: unknown): void {
-  const grounding = (response as { grounding?: { minutes: number } } | undefined)?.grounding;
+  const { grounding, burst } = (response as { grounding?: { minutes: number }; burst?: BurstCardInfo } | undefined) ?? {};
+  if (burst) {
+    showBurstCard(burst);
+    return;
+  }
   if (grounding && groundingCanPrompt()) {
     showGroundingInvite(grounding.minutes);
   }

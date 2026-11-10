@@ -9,6 +9,7 @@ import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
+import { noteReveal } from './burstCard';
 import { setOpaque } from './opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
 import { GATE_POST_ATTR, watchGate } from './gateSwitch';
@@ -523,6 +524,7 @@ function applyBlur(post: RedditPost): void {
       overlay.classList.remove('revealing');
       overlay.classList.add('revealed');
       isRevealed = true;
+      noteReveal(overlay);
     }, (currentSettings?.twitter?.hoverRevealDelay ?? 3) * 1000); // Shared hover-reveal setting
   });
 

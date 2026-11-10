@@ -5,6 +5,7 @@ import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, discon
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
+import { noteReveal } from '../burstCard';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { releaseIfStillUnscraped } from '../gateSwitch';
@@ -618,6 +619,7 @@ function applyBlur(element: HTMLElement, score: EngagementScore): void {
   const revealContent = () => {
     revealed = true;
     overlay.classList.add('revealed');
+    noteReveal(overlay);
     const unblock = (element as HTMLElement & { _toleranceUnblockVideo?: () => void })._toleranceUnblockVideo;
     if (unblock) unblock();
   };
