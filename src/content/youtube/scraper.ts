@@ -2,6 +2,7 @@ import { YouTubeVideo } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { withAiLabel } from '../aiLabel';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
+import { isCountOrDate, parseUploadDate, parseViewCount, pickDuration } from '../../shared/youtube-parse';
 
 // Scrape video data from YouTube DOM
 // YouTube uses custom web components (ytd-*) for its UI
@@ -181,13 +182,22 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
         channel = channelLink.textContent?.trim() || '';
       }
     }
+    const isAd = isAdCard(element);
+    // Sidebar cards beside a video show the channel as plain text with no link: it is
+    // the first line of the card's metadata, above the views and date (captured
+    // November 2026). This gives the channel's display name, not its @handle, so a
+    // trusted-channel entry written as a handle won't match it.
+    if (!channel && !isAd) {
+      const first = element.querySelector('.ytContentMetadataViewModelMetadataRow .ytContentMetadataViewModelMetadataText');
+      const name = first?.textContent?.trim() || '';
+      if (name && !isCountOrDate(first?.getAttribute('aria-label') || name)) channel = name;
+    }
     // Legacy fallback selectors
     if (!channel) {
       const legacyChannel = element.querySelector('#channel-name, .ytd-channel-name, [id*="channel"]');
       channel = legacyChannel?.textContent?.trim() || '';
     }
     // An ad card has no channel link: its source is the advertiser named on the card
-    const isAd = isAdCard(element);
     if (!channel && isAd) {
       channel = element.querySelector('ad-details-line-view-model span')?.textContent?.trim() || '';
     }
@@ -206,22 +216,29 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       '.ytd-video-meta-block, ' +                  // Legacy
       '#metadata'                                  // Fallback
     );
-    const metadataText = metadataElement?.textContent || '';
+    // Current cards (November 2026) put each piece in its own element, abbreviated on
+    // screen ("36K", "2d ago") with the long form in its accessibility label
+    // ("36 thousand views", "2 days ago"). The older selectors above no longer match there.
+    const metadataParts = [...element.querySelectorAll('.ytContentMetadataViewModelMetadataText')]
+      .map(el => el.getAttribute('aria-label') || el.textContent || '');
+    const metadataText = metadataParts.length > 0 ? metadataParts.join(' · ') : (metadataElement?.textContent || '');
 
     const viewCount = parseViewCount(metadataText);
     const uploadDate = parseUploadDate(metadataText);
 
-    // Get duration - try new badge shape and legacy selectors
-    const durationElement = element.querySelector(
-      '.yt-badge-shape__text, ' +                              // New badge model
-      'badge-shape .yt-badge-shape__text, ' +                  // New badge model (nested)
+    // The length is on a badge over the thumbnail. A card can carry other badges too
+    // ("LIVE", "Sponsored"), so take the one that reads as a time.
+    const badgeTexts = [...element.querySelectorAll(
+      '.ytBadgeShapeText, ' +                                  // Current badge (2026)
+      '.yt-badge-shape__text, ' +                              // Earlier badge model
       'span.ytd-thumbnail-overlay-time-status-renderer, ' +    // Legacy
       '.badge-shape-wiz__text'                                 // Legacy fallback
-    );
-    const duration = durationElement?.textContent?.trim();
+    )].map(el => el.textContent?.trim() || '');
+    const duration = pickDuration(badgeTexts) ?? badgeTexts[0];
 
     // Check if it's a live stream
     const isLive = metadataText.toLowerCase().includes('watching') ||
+                   badgeTexts.some(t => /^live$/i.test(t)) ||
                    element.querySelector('[overlay-style="LIVE"]') !== null;
 
     // Get thumbnail URL - try new and legacy selectors
@@ -253,39 +270,6 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
   }
 }
 
-function parseViewCount(text: string): number {
-  // Patterns: "1.2M views", "123K views", "1,234 views", "No views"
-  const match = text.match(/([\d,.]+)\s*([KMB]?)\s*views?/i);
-  if (!match) return 0;
-
-  // Remove commas and parse number
-  const numStr = match[1].replace(/,/g, '');
-  const num = parseFloat(numStr);
-  const suffix = match[2].toUpperCase();
-
-  switch (suffix) {
-    case 'K': return Math.round(num * 1000);
-    case 'M': return Math.round(num * 1000000);
-    case 'B': return Math.round(num * 1000000000);
-    default: return Math.round(num);
-  }
-}
-
-function parseUploadDate(text: string): string | undefined {
-  // Patterns: "2 days ago", "3 months ago", "1 year ago", "Streamed 2 hours ago"
-  const match = text.match(/(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)/i);
-  if (match) {
-    return match[1];
-  }
-
-  // Also check for "Streamed X ago"
-  const streamMatch = text.match(/Streamed\s+(\d+\s+\w+\s+ago)/i);
-  if (streamMatch) {
-    return streamMatch[1];
-  }
-
-  return undefined;
-}
 
 // Serialize video for messaging (can't send HTMLElement)
 export function serializeVideo(video: YouTubeVideo): Omit<YouTubeVideo, 'element'> {
