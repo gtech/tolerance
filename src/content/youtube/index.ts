@@ -1054,7 +1054,8 @@ async function processVideos(): Promise<void> {
             blurred: shouldBlurScore(score),
             position: i,
             originalPosition: i,
-            subreddit: video.channel,   // The source: the channel name
+            subreddit: video.channel,   // The source: the channel name (Shorts in a shelf show none)
+            short: video.isShort ? true : undefined,
             wasReordered: false,
           });
           attentionTracker?.track(video.id, video.element);

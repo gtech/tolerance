@@ -1,6 +1,7 @@
 import { YouTubeVideo } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { withAiLabel } from '../aiLabel';
+import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 
 // Scrape video data from YouTube DOM
 // YouTube uses custom web components (ytd-*) for its UI
@@ -91,6 +92,14 @@ export function scrapeVisibleVideos(): YouTubeVideo[] {
   return videos;
 }
 
+// Whether YouTube shows this card as an ad: it carries the "Sponsored" badge and the
+// ad's own details line and buttons (seen on the home grid, November 2026), or sits in
+// one of the older ad containers.
+export const AD_CARD_SELECTOR = '.ytBadgeShapeAd, ad-details-line-view-model, ad-button-view-model, ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer';
+function isAdCard(element: HTMLElement): boolean {
+  return element.querySelector(AD_CARD_SELECTOR) !== null;
+}
+
 function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
   try {
     // Extract video ID from href - YouTube now uses multiple link structures
@@ -177,9 +186,15 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
       const legacyChannel = element.querySelector('#channel-name, .ytd-channel-name, [id*="channel"]');
       channel = legacyChannel?.textContent?.trim() || '';
     }
+    // An ad card has no channel link: its source is the advertiser named on the card
+    const isAd = isAdCard(element);
+    if (!channel && isAd) {
+      channel = element.querySelector('ad-details-line-view-model span')?.textContent?.trim() || '';
+    }
     // On channel pages, videos don't have individual channel links.
-    // Use the cached page-level channel handle.
-    if (!channel) {
+    // Use the cached page-level channel handle. (Shorts in a shelf name no channel at
+    // all, so theirs stays empty.)
+    if (!channel && !isAd) {
       channel = getPageChannelHandle() || '';
     }
 
@@ -221,7 +236,8 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
     return {
       id,
       platform: 'youtube',
-      title: withAiLabel(element, title),
+      // Marked when YouTube shows the card as an ad, so it gets the top score in code
+      title: withAiLabel(element, isAd ? `${SPONSORED_PREFIX}${title}` : title),
       channel,
       viewCount,
       uploadDate,

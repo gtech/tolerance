@@ -105,6 +105,7 @@ const BROKEN: [string, 'error' | 'warning', string, (e: Loose) => void][] = [
   ['post.threshold', 'error', 'an older post with half of the newer fields', e => { post(e, 0).blurred = true; }],
   ['post.spec-ahead', 'error', 'a post from a newer spec than the export', e => { post(e, 1).specVersion = 11; }],
   ['post.source-format', 'error', 'an X post whose source is not a handle', e => { post(e, 1).subreddit = 'someone'; }],
+  ['post.short', 'error', 'an X post marked as a Short', e => { post(e, 1).short = true; }],
   ['post.dwell', 'error', 'negative time on screen', e => { post(e, 1).dwellMs = -1; }],
   ['post.dwell', 'error', 'time on screen with a part missing', e => { delete post(e, 1).viewportEnters; }],
   ['post.image-seen', 'error', 'imageSeen that is not true or false', e => { post(e, 1).imageSeen = 'yes'; }],
@@ -178,6 +179,13 @@ describe('specific cases', () => {
     const f = goodExport();
     f.postContent.push({ postId: 'yt1', platform: 'youtube', text: `${SPONSORED_PREFIX}Watch this`, author: 'A Channel', timestamp: T0 + 3000 });
     expect(checkExport(f).findings).toEqual([]);
+  });
+
+  it('accepts a YouTube Short with no channel, which a shelf does not show', () => {
+    const e = goodExport();
+    post(e, 2).subreddit = '';
+    post(e, 2).short = true;
+    expect(checkExport(e).findings).toEqual([]);
   });
 
   it('accepts a gallery described without the single-image flag', () => {

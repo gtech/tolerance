@@ -111,7 +111,9 @@ export function checkExport(raw: unknown): ExportReport {
         flag('post.after-session-end', 'warning', 'Post is dated after its session ended (possible if the clock changed)', id);
       }
       if (tooLate(p.timestamp)) flag('export.future', 'error', 'A record is dated after the export was made', id);
-      if (!p.subreddit) flag('post.source-empty', 'warning', 'Post has no source (subreddit, account or channel); the scraper found none', id);
+      // A YouTube Short in a shelf names no channel on the page, so an empty source is right for it
+      if (!p.subreddit && p.short !== true) flag('post.source-empty', 'warning', 'Post has no source (subreddit, account or channel); the scraper found none', id);
+      if (p.short !== undefined && (p.short !== true || p.platform !== 'youtube')) flag('post.short', 'error', 'Only a YouTube post can be marked as a Short, and the mark is only ever true', id);
 
       const key = `${id}@${p.timestamp}`;
       if (seenAt.has(key)) flag('post.duplicate', 'warning', 'The same post was logged twice at the same instant in one session', id);
