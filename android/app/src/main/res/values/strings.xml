@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tolerance</string>
+    <string name="accessibility_service_description">Tolerance reads social media posts to score them for manipulation tactics and progressively blurs manipulative content. It only accesses content from supported social media apps.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Welcome to Tolerance</string>
+    <string name="onboarding_subtitle">Score social media for manipulation</string>
+    <string name="onboarding_explain">Tolerance analyzes posts in your social media feeds for psychological manipulation tactics like outrage bait, curiosity gaps, and tribal triggers.\n\nManipulative content gets progressively blurred the longer you scroll, helping you break free from doom-scrolling.</string>
+    <string name="onboarding_permission_title">Accessibility Permission</string>
+    <string name="onboarding_permission_explain">Tolerance needs accessibility access to read post content from social media apps. It only reads from Twitter, Reddit, YouTube, and Instagram.\n\nNo data is stored on any server. Scoring happens via OpenRouter API and results are cached locally.</string>
+    <string name="onboarding_enable_service">Enable Accessibility Service</string>
+    <string name="onboarding_open_settings">Open Settings</string>
+    <string name="onboarding_service_enabled">Service Enabled</string>
+    <string name="onboarding_continue">Continue to Settings</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Tolerance Settings</string>
+    <string name="settings_api_section">API Configuration</string>
+    <string name="settings_api_tier_free">Free Tier (built-in key)</string>
+    <string name="settings_api_tier_own">Own OpenRouter Key</string>
+    <string name="settings_api_key_hint">Enter OpenRouter API key</string>
+    <string name="settings_platforms_section">Platforms</string>
+    <string name="settings_boredom_section">Progressive Boredom</string>
+    <string name="settings_boredom_enabled">Enable progressive boredom</string>
+    <string name="settings_phase_timing">Phase Timing</string>
+    <string name="settings_blur_thresholds">Blur Thresholds</string>
+    <string name="settings_quality_mode">Quality Mode</string>
+    <string name="settings_quality_mode_desc">Blur everything above score 20 (show only genuine content)</string>
+
+    <!-- Notifications -->
+    <string name="notification_channel_name">Tolerance Service</string>
+    <string name="notification_channel_description">Tolerance accessibility service status</string>
+    <string name="notification_phase_channel_name">Phase Changes</string>
+    <string name="notification_service_running">Tolerance is monitoring social media</string>
+    <string name="notification_phase_reduced">Entering reduced phase — high-engagement content now blurred</string>
+    <string name="notification_phase_wind_down">Wind-down phase — more content blurred, consider taking a break</string>
+    <string name="notification_phase_minimal">Minimal phase — most manipulative content is blurred</string>
+</resources>

@@ -1,0 +1,17 @@
+# The repo root ignores data/ (exports); this is the app's database package
+!/app/src/main/java/lol/tolerance/android/data/
+*.iml
+.gradle
+/local.properties
+/.idea
+/build
+/app/build
+/app/release
+*.apk
+*.aab
+*.jks
+*.keystore
+# Release signing key location and passwords
+keystore.properties
+.DS_Store
+*.log

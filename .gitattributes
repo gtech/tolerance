@@ -1,0 +1,2 @@
+# Keep the Android app out of the extension's source zip (git archive, used for Mozilla review)
+android export-ignore

@@ -134,6 +134,20 @@ pnpm dev        # Watch mode
 pnpm test       # Run tests (vitest)
 ```
 
+## Android app
+
+The Android app lives in [`android/`](android/). It is a separate Kotlin project that reads feed posts through an accessibility service and covers them the way the extension blurs them. It is in beta for TikTok, X and YouTube.
+
+```bash
+cd android
+./gradlew testFullDebugUnitTest   # unit tests
+./gradlew assembleFullDebug       # debug APK
+```
+
+What the accessibility service is allowed to see is narrow on purpose: only the social apps switched on in the app, only items laid out as feed posts, and no text entry. `MessagingScreensTest` runs every extractor over captures of message screens (X and TikTok so far) and fails if any of them returns a post. The captures in `android/app/src/test/resources/fixtures/` have had all text replaced by placeholders with `android/scripts/sanitize_dump.py`.
+
+The browser extension's source zip does not include this folder.
+
 ## Source Code Submission (for Mozilla Add-ons reviewers)
 
 This extension is built using esbuild which bundles and minifies the source code.
