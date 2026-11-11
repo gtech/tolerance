@@ -6,7 +6,7 @@ import { saveStrictness } from '../shared/strictness-settings';
 
 const HOST_ID = 'tolerance-burst-host';
 
-function send(message: Record<string, unknown>): void {
+export function send(message: Record<string, unknown>): void {
   try {
     chrome.runtime.sendMessage(message, () => {
       if (chrome.runtime.lastError) { /* silent */ }
@@ -25,7 +25,8 @@ export function noteReveal(post: Element): void {
   send({ type: 'BURST_SIGNAL', signal: 'reveals' });
 }
 
-const STYLES = `
+// Shared with the week-one card (weekCard.ts)
+export const CARD_STYLES = `
   :host { all: initial; }
   .card {
     position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;
@@ -54,7 +55,7 @@ const STYLES = `
   .btn:hover { filter: brightness(0.96); }
 `;
 
-function el(tag: string, className: string, text?: string): HTMLElement {
+export function el(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
   if (text) node.textContent = text;
@@ -68,7 +69,7 @@ export function showBurstCard(info: BurstCardInfo): void {
   host.id = HOST_ID;
   const root = host.attachShadow({ mode: 'open' });
   const style = document.createElement('style');
-  style.textContent = STYLES;
+  style.textContent = CARD_STYLES;
   const card = el('div', 'card');
   card.setAttribute('role', 'status');
   root.append(style, card);

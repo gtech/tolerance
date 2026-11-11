@@ -5,6 +5,8 @@
 
 import { showBurstCard } from './burstCard';
 import type { BurstCardInfo } from '../background/burst';
+import { showWeekCard } from './weekCard';
+import type { WeekCardInfo } from '../background/weekReview';
 
 const HOST_ID = 'tolerance-grounding-host';
 
@@ -33,9 +35,14 @@ export function heartbeatMessage(): { type: 'SOCIAL_MEDIA_HEARTBEAT'; canPrompt:
 }
 
 export function handleHeartbeatResponse(response: unknown): void {
-  const { grounding, burst } = (response as { grounding?: { minutes: number }; burst?: BurstCardInfo } | undefined) ?? {};
+  const { grounding, burst, weekReview } =
+    (response as { grounding?: { minutes: number }; burst?: BurstCardInfo; weekReview?: WeekCardInfo } | undefined) ?? {};
   if (burst) {
     showBurstCard(burst);
+    return;
+  }
+  if (weekReview) {
+    showWeekCard(weekReview);
     return;
   }
   if (grounding && groundingCanPrompt()) {

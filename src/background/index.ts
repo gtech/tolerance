@@ -6,6 +6,8 @@ import { syncResearchConsent } from '../shared/research-consent';
 import { SCORE_MESSAGE_PLATFORM, canScoreFrom } from '../shared/scoring-surfaces';
 import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow, getScrapeHealth } from './scrapeHealth';
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
+import { takeWeekCard, recordWeekOutcome, buildWeekCard } from './weekReview';
+import type { WeekReviewOutcome } from '../shared/week-review';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
 watchStrictnessChanges();
@@ -311,10 +313,13 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
       await recordHeartbeat();
       // The first-week card takes this heartbeat's prompt slot; grounding keeps counting
       const burst = await takeBurstCard(canPrompt);
-      const groundingMinutes = await checkGrounding(canPrompt && !burst);
+      // The week-one card comes after the first week, so the two never compete
+      const weekReview = burst ? null : await takeWeekCard(canPrompt);
+      const groundingMinutes = await checkGrounding(canPrompt && !burst && !weekReview);
       sendResponse({
         type: 'HEARTBEAT_ACK',
         ...(burst && { burst }),
+        ...(weekReview && { weekReview }),
         ...(groundingMinutes !== null && { grounding: { minutes: groundingMinutes } }),
       });
     })().catch(() => sendResponse({ type: 'HEARTBEAT_ACK' }));
@@ -329,6 +334,17 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   if (message.type === 'BURST_EVENT') {
     const { event, trigger } = message as unknown as { event: string; trigger?: string };
     logBurstEvent(event, trigger).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+
+  // Week-one card: what the person did with it, and the dashboard's preview of it
+  if (message.type === 'WEEK_REVIEW_OUTCOME') {
+    const { outcome } = message as unknown as { outcome: WeekReviewOutcome };
+    recordWeekOutcome(outcome).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  if (message.type === 'GET_WEEK_CARD_PREVIEW') {
+    buildWeekCard().then(card => sendResponse({ card })).catch(() => sendResponse({ card: null }));
     return true;
   }
 

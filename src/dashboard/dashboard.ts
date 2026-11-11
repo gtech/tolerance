@@ -5,6 +5,8 @@ import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
+import { showWeekCard } from '../content/weekCard';
+import type { WeekCardInfo } from '../background/weekReview';
 import { getAllSessions, clearAllStores, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
 import { loadUsageChart } from '../shared/usage-chart';
@@ -63,6 +65,7 @@ async function init(): Promise<void> {
   await setupFacebookAdsSetting();
   await setupAiLabelSetting();
   await setupScrapeHealth();
+  setupWeekCardPreview();
   await setupSubscriptionsOnly();
   await setupRubricEditor();
   setupStrictnessSlider();
@@ -481,6 +484,14 @@ async function setupGroundingSettings(): Promise<void> {
   toggle.addEventListener('change', save);
   select.addEventListener('change', save);
   tryButton?.addEventListener('click', () => showGroundingInvite(undefined, { preview: true }));
+}
+
+// Developer: show the week-one card here, with this browser's numbers
+function setupWeekCardPreview(): void {
+  document.getElementById('week-card-preview')?.addEventListener('click', async () => {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_WEEK_CARD_PREVIEW' }) as { card: WeekCardInfo | null } | undefined;
+    if (response?.card) showWeekCard({ ...response.card, preview: true });
+  });
 }
 
 // ==========================================
