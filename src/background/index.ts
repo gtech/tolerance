@@ -8,6 +8,7 @@ import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow,
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
 import { takeWeekCard, recordWeekOutcome, buildWeekCard } from './weekReview';
 import type { WeekReviewOutcome } from '../shared/week-review';
+import { syncClaudeScript } from '../shared/claude-access';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
 watchStrictnessChanges();
@@ -155,7 +156,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Retry a research opt-in/out that didn't reach the server
 chrome.runtime.onStartup?.addListener(() => {
   syncResearchConsent();
+  refreshClaudeScript();
 });
+
+// claude.ai is an optional site: its content script exists only while access is granted
+function refreshClaudeScript(): void {
+  syncClaudeScript().catch(e => log.debug(' Could not sync the claude.ai script', e));
+}
+chrome.runtime.onInstalled.addListener(refreshClaudeScript);
+chrome.permissions?.onAdded.addListener(refreshClaudeScript);
+chrome.permissions?.onRemoved.addListener(refreshClaudeScript);
 
 // Handle context menu clicks for author whitelisting
 // Guard for Firefox where contextMenus may not be immediately available

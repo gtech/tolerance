@@ -13,6 +13,7 @@ import { loadUsageChart } from '../shared/usage-chart';
 import { getSecrets, setSecrets, withoutSecrets } from '../shared/secrets';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
+import { hasClaudeAccess, requestClaudeAccess, removeClaudeAccess } from '../shared/claude-access';
 import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
@@ -793,20 +794,15 @@ function populateSettings(settings: Settings): void {
 
   // Claude filter toggle
   const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
-  const claudeFilterStatus = document.getElementById('claude-filter-status');
   if (claudeFilterEnabled) {
-    const enabled = settings.claudeFilterEnabled ?? false;
-    claudeFilterEnabled.checked = enabled;
-    if (claudeFilterStatus) {
-      claudeFilterStatus.textContent = enabled ? 'Enabled' : 'Disabled';
-      claudeFilterStatus.style.color = enabled ? '#7dcea0' : '#888';
-    }
+    claudeFilterEnabled.checked = settings.claudeFilterEnabled ?? false;
   }
 
   const claudeHideStreaming = document.getElementById('claude-hide-streaming') as HTMLInputElement;
   if (claudeHideStreaming) {
     claudeHideStreaming.checked = settings.claudeFilterHideWhileStreaming ?? false;
   }
+  refreshClaudeStatus();
 
   // Claude filter threshold sliders
   const claudeThresholds = settings.claudeFilterThresholds || {
@@ -1294,19 +1290,23 @@ function setupEventListeners(): void {
   }
 
   // Claude filter toggle
-  const claudeFilterEnabled = document.getElementById('claude-filter-enabled') as HTMLInputElement;
-  if (claudeFilterEnabled) {
-    claudeFilterEnabled.addEventListener('change', () => {
-      const statusEl = document.getElementById('claude-filter-status');
-      if (statusEl) {
-        statusEl.textContent = claudeFilterEnabled.checked ? 'Enabled' : 'Disabled';
-        statusEl.style.color = claudeFilterEnabled.checked ? '#7dcea0' : '#888';
-      }
-      saveSettings();
+  // claude.ai is an optional site: switching a Claude feature on asks the browser for
+  // access, and switching the last one off gives it back
+  const claudeInputs = ['claude-filter-enabled', 'claude-hide-streaming']
+    .map(id => document.getElementById(id) as HTMLInputElement | null)
+    .filter((input): input is HTMLInputElement => !!input);
+  for (const input of claudeInputs) {
+    input.addEventListener('change', () => {
+      // Asked first, before anything is awaited: the prompt only shows straight from the user's action
+      const access = input.checked ? requestClaudeAccess() : Promise.resolve(true);
+      access.then(async granted => {
+        if (!granted) input.checked = false;
+        if (!claudeInputs.some(i => i.checked)) await removeClaudeAccess();
+        await refreshClaudeStatus();
+        saveSettings();
+      });
     });
   }
-
-  document.getElementById('claude-hide-streaming')?.addEventListener('change', () => saveSettings());
 
   // Claude filter threshold sliders - live update display
   const claudeThresholdSliders = ['claude-skip', 'claude-gentle', 'claude-medium', 'claude-strong'];
@@ -1404,6 +1404,22 @@ function setupEventListeners(): void {
       await loadGlobalSession();
     });
   }
+}
+
+// Status beside the Claude filter switch, including the case where a Claude feature is
+// on but the browser no longer grants claude.ai (e.g. the user revoked it)
+async function refreshClaudeStatus(): Promise<void> {
+  const statusEl = document.getElementById('claude-filter-status');
+  const filterOn = (document.getElementById('claude-filter-enabled') as HTMLInputElement | null)?.checked ?? false;
+  const hideOn = (document.getElementById('claude-hide-streaming') as HTMLInputElement | null)?.checked ?? false;
+  if (!statusEl) return;
+  if ((filterOn || hideOn) && !(await hasClaudeAccess())) {
+    statusEl.textContent = 'Needs access to claude.ai: switch off and on again';
+    statusEl.style.color = '#e67e22';
+    return;
+  }
+  statusEl.textContent = filterOn ? 'Enabled' : 'Disabled';
+  statusEl.style.color = filterOn ? '#7dcea0' : '#888';
 }
 
 async function saveSettings(): Promise<void> {
