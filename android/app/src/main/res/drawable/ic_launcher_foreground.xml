@@ -1,15 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The Tolerance logo's four fading bars, traced from icons/icon128.png and scaled so the
+     logo's square fills the part of an adaptive icon the launcher shows -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L54,78 M30,54 L78,54"
+        android:pathData="M37.5,39.75 L66.75,39.75"
         android:strokeWidth="6"
+        android:strokeLineCap="round"
         android:strokeColor="#FFFFFF"/>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M42,42 L66,42 L66,66 L42,66 Z"/>
+        android:pathData="M37.5,50 L58.5,50"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeColor="#D2D1DB"/>
+    <path
+        android:pathData="M37.5,60.25 L70.5,60.25"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeColor="#8F8DA5"/>
+    <path
+        android:pathData="M37.5,70.5 L54,70.5"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeColor="#565478"/>
 </vector>
