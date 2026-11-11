@@ -8,7 +8,7 @@ import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow,
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
 import { takeWeekCard, recordWeekOutcome, buildWeekCard } from './weekReview';
 import type { WeekReviewOutcome } from '../shared/week-review';
-import { syncClaudeScript } from '../shared/claude-access';
+import { syncOptionalScripts } from '../shared/optional-sites';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
 
 watchStrictnessChanges();
@@ -156,16 +156,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Retry a research opt-in/out that didn't reach the server
 chrome.runtime.onStartup?.addListener(() => {
   syncResearchConsent();
-  refreshClaudeScript();
+  refreshOptionalScripts();
 });
 
-// claude.ai is an optional site: its content script exists only while access is granted
-function refreshClaudeScript(): void {
-  syncClaudeScript().catch(e => log.debug(' Could not sync the claude.ai script', e));
+// claude.ai and TikTok are optional sites: their content scripts exist only while access is granted
+function refreshOptionalScripts(): void {
+  syncOptionalScripts().catch(e => log.debug(' Could not sync optional site scripts', e));
 }
-chrome.runtime.onInstalled.addListener(refreshClaudeScript);
-chrome.permissions?.onAdded.addListener(refreshClaudeScript);
-chrome.permissions?.onRemoved.addListener(refreshClaudeScript);
+chrome.runtime.onInstalled.addListener(refreshOptionalScripts);
+chrome.permissions?.onAdded.addListener(refreshOptionalScripts);
+chrome.permissions?.onRemoved.addListener(refreshOptionalScripts);
 
 // Handle context menu clicks for author whitelisting
 // Guard for Firefox where contextMenus may not be immediately available

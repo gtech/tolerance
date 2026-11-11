@@ -13,7 +13,7 @@ import { loadUsageChart } from '../shared/usage-chart';
 import { getSecrets, setSecrets, withoutSecrets } from '../shared/secrets';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
-import { hasClaudeAccess, requestClaudeAccess, removeClaudeAccess } from '../shared/claude-access';
+import { CLAUDE_SITE, TIKTOK_SITE, hasAccess, requestAccess, removeAccess, requestEndpointAccess } from '../shared/optional-sites';
 import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
@@ -1251,7 +1251,11 @@ function setupEventListeners(): void {
   const trackCostsInput = document.getElementById('track-costs') as HTMLInputElement;
   const trackCostsStatus = document.getElementById('track-costs-status');
 
-  if (customEndpointInput) customEndpointInput.addEventListener('change', saveSettings);
+  // A provider's address is an optional site: ask the browser for it when it is entered.
+  // (Test Connection asks too, in case this change didn't count as a user action.)
+  if (customEndpointInput) customEndpointInput.addEventListener('change', () => {
+    requestEndpointAccess((customEndpointInput as HTMLInputElement).value).then(() => saveSettings());
+  });
   if (customApiKeyInput) customApiKeyInput.addEventListener('change', saveSettings);
   if (customTextModelInput) customTextModelInput.addEventListener('change', saveSettings);
   if (customVisionModelInput) customVisionModelInput.addEventListener('change', saveSettings);
@@ -1298,13 +1302,24 @@ function setupEventListeners(): void {
   for (const input of claudeInputs) {
     input.addEventListener('change', () => {
       // Asked first, before anything is awaited: the prompt only shows straight from the user's action
-      const access = input.checked ? requestClaudeAccess() : Promise.resolve(true);
+      const access = input.checked ? requestAccess(CLAUDE_SITE.origins) : Promise.resolve(true);
       access.then(async granted => {
         if (!granted) input.checked = false;
-        if (!claudeInputs.some(i => i.checked)) await removeClaudeAccess();
+        if (!claudeInputs.some(i => i.checked)) await removeAccess(CLAUDE_SITE.origins);
         await refreshClaudeStatus();
         saveSettings();
       });
+    });
+  }
+
+  // TikTok is an optional site too. There is no setting behind this switch: it shows
+  // whether the browser grants TikTok, and the time counter runs while it does.
+  const tiktokInput = document.getElementById('platform-tiktok') as HTMLInputElement | null;
+  if (tiktokInput) {
+    hasAccess(TIKTOK_SITE.origins).then(granted => { tiktokInput.checked = granted; });
+    tiktokInput.addEventListener('change', () => {
+      const change = tiktokInput.checked ? requestAccess(TIKTOK_SITE.origins) : removeAccess(TIKTOK_SITE.origins);
+      change.then(async () => { tiktokInput.checked = await hasAccess(TIKTOK_SITE.origins); });
     });
   }
 
@@ -1413,7 +1428,7 @@ async function refreshClaudeStatus(): Promise<void> {
   const filterOn = (document.getElementById('claude-filter-enabled') as HTMLInputElement | null)?.checked ?? false;
   const hideOn = (document.getElementById('claude-hide-streaming') as HTMLInputElement | null)?.checked ?? false;
   if (!statusEl) return;
-  if ((filterOn || hideOn) && !(await hasClaudeAccess())) {
+  if ((filterOn || hideOn) && !(await hasAccess(CLAUDE_SITE.origins))) {
     statusEl.textContent = 'Needs access to claude.ai: switch off and on again';
     statusEl.style.color = '#e67e22';
     return;
@@ -2283,6 +2298,11 @@ async function testEndpoint(): Promise<void> {
     return;
   }
 
+  // Ask the browser for this address first, before anything is awaited (the prompt only
+  // shows straight from the click). If it is declined the test still runs, and passes
+  // only if the server accepts requests from browser extensions.
+  const access = requestEndpointAccess(endpoint);
+
   // Update button state
   btn.disabled = true;
   btn.textContent = 'Testing...';
@@ -2292,6 +2312,7 @@ async function testEndpoint(): Promise<void> {
   statusEl.textContent = 'Connecting to endpoint...';
 
   try {
+    await access;
     const result = await chrome.runtime.sendMessage({
       type: 'TEST_ENDPOINT',
       endpoint,

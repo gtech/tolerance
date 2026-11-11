@@ -28,19 +28,8 @@
     "scripting"
   ],
   "optional_host_permissions": [
-    "*://claude.ai/*"
-  ],
-  "host_permissions": [
-    "*://old.reddit.com/*",
-    "*://www.reddit.com/*",
-    "*://reddit.com/*",
-    "*://twitter.com/*",
-    "*://x.com/*",
-    "*://www.youtube.com/*",
-    "*://www.instagram.com/*",
-    "*://www.facebook.com/*",
+    "*://claude.ai/*",
     "*://www.tiktok.com/*",
-    "*://openrouter.ai/*",
     "*://api.openai.com/*",
     "*://api.anthropic.com/*",
     "*://api.groq.com/*",
@@ -51,6 +40,19 @@
     "*://api.cohere.ai/*",
     "*://generativelanguage.googleapis.com/*",
     "*://api-inference.huggingface.co/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "host_permissions": [
+    "*://old.reddit.com/*",
+    "*://www.reddit.com/*",
+    "*://reddit.com/*",
+    "*://twitter.com/*",
+    "*://x.com/*",
+    "*://www.youtube.com/*",
+    "*://www.instagram.com/*",
+    "*://www.facebook.com/*",
+    "*://openrouter.ai/*",
     "*://*.tolerance.lol/*"
   ],
   "background": {
@@ -103,8 +105,7 @@
     },
     {
       "matches": [
-        "*://www.facebook.com/*",
-        "*://www.tiktok.com/*"
+        "*://www.facebook.com/*"
       ],
       "js": [
         "tracker.js"
