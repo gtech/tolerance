@@ -14,6 +14,7 @@ import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../ho
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
+import { createHideBudget } from '../../shared/hide-budget';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -200,6 +201,17 @@ function applyHideMode(settings: Settings | null): void {
   document.documentElement.classList.toggle(HIDE_BLURRED_CLASS, settings?.twitter?.hideBlurredYouTube ?? false);
 }
 
+// Hiding makes YouTube load more videos, which are scored and mostly hidden in turn.
+// Past the budget a video is blurred in place instead, so the screen fills and loading stops.
+const KEEP_VISIBLE_CLASS = 'tolerance-yt-keep-visible';
+const hideBudget = createHideBudget();
+function spendHideBudget(card: HTMLElement): void {
+  if (!document.documentElement.classList.contains(HIDE_BLURRED_CLASS)) return;
+  if (hideBudget.take(Date.now())) return;
+  card.classList.add(KEEP_VISIBLE_CLASS);
+  log.debug(' Hide budget used up, blurring in place');
+}
+
 // Hide Shorts (Settings: "Hide YouTube Shorts")
 function shortsHidden(): boolean {
   return currentSettings?.hideYouTubeShorts !== false && currentSettings?.platforms?.youtube !== false;
@@ -367,7 +379,7 @@ function injectStyles(): void {
 
     /* Hide mode: a video blurred for its score leaves the page and the grid
        closes up. Cards still being scored stay blurred, so nothing flashes. */
-    html.${HIDE_BLURRED_CLASS} .tolerance-blurred {
+    html.${HIDE_BLURRED_CLASS} .tolerance-blurred:not(.${KEEP_VISIBLE_CLASS}) {
       display: none !important;
     }
 
@@ -445,7 +457,7 @@ function claimElement(video: YouTubeVideo): void {
 // Strip everything we added to a card (badge, overlay, blur state)
 function resetElement(element: HTMLElement): void {
   element.querySelectorAll('.tolerance-score-badge, .tolerance-blur-overlay').forEach(n => n.remove());
-  element.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', 'tolerance-sidebar-video');
+  element.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', 'tolerance-sidebar-video', KEEP_VISIBLE_CLASS);
   clearHeldOpen(element);
   element.style.removeProperty('--tolerance-blur');
   element.removeAttribute(VIDEO_ID_ATTR);
@@ -679,6 +691,7 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
 
   claimElement(video);
   video.element.style.setProperty('--tolerance-blur', `${blurIntensity}px`);
+  spendHideBudget(video.element);
   video.element.classList.add('tolerance-blurred');
 
   // Set up timed hover reveal
