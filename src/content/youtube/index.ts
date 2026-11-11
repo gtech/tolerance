@@ -719,7 +719,15 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
     e.stopPropagation();
   });
 
-  overlay.appendChild(buildBlurLabel(score));
+  const label = buildBlurLabel(score);
+  if (video.element.classList.contains(KEEP_VISIBLE_CLASS)) {
+    // Says why this one is blurred when the setting is to hide
+    const note = document.createElement('div');
+    note.textContent = 'Hide limit reached, blurring for a few minutes';
+    note.style.cssText = 'font-size: 10px; font-weight: 400; opacity: 0.85; margin-top: 2px;';
+    label.appendChild(note);
+  }
+  overlay.appendChild(label);
   video.element.appendChild(overlay);
 
   // Press-and-hold reveal; stays revealed after the mouse leaves
