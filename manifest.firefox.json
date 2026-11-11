@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tolerance: Doomscroll & Clickbait Blocker",
   "short_name": "Tolerance",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "A digital detox without blocking: blurs clickbait, rage bait, AI slop and ads on Facebook, YouTube, Instagram, X & Reddit.",
   "browser_specific_settings": {
     "gecko": {
