@@ -31,9 +31,5 @@
     <!-- Notifications -->
     <string name="notification_channel_name">Tolerance Service</string>
     <string name="notification_channel_description">Tolerance accessibility service status</string>
-    <string name="notification_phase_channel_name">Phase Changes</string>
     <string name="notification_service_running">Tolerance is monitoring social media</string>
-    <string name="notification_phase_reduced">Entering reduced phase — high-engagement content now blurred</string>
-    <string name="notification_phase_wind_down">Wind-down phase — more content blurred, consider taking a break</string>
-    <string name="notification_phase_minimal">Minimal phase — most manipulative content is blurred</string>
 </resources>

@@ -77,7 +77,7 @@ fun SettingsScreen() {
     var hideAi by remember { pref(ToleranceAccessibilityService.PREF_HIDE_AI, false) }
     var hideShorts by remember { pref(ToleranceAccessibilityService.PREF_HIDE_SHORTS, false) }
 
-    // Phase changes and running out of scoring credit are told by notification; Android 13+
+    // Running out of scoring credit and new versions are told by notification; Android 13+
     // needs permission for that. Asked once.
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {

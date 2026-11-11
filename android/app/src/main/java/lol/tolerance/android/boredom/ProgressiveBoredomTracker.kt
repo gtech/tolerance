@@ -1,15 +1,8 @@
 package lol.tolerance.android.boredom
 
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.util.Log
-import androidx.core.app.NotificationCompat
-import lol.tolerance.android.R
-import lol.tolerance.android.ToleranceApp
-import lol.tolerance.android.ui.settings.SettingsActivity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -159,36 +152,8 @@ class ProgressiveBoredomTracker(private val context: Context) {
         if (phaseOrder.indexOf(to.label) > phaseOrder.indexOf(maxPhase)) {
             prefs.edit().putString(KEY_MAX_PHASE, to.label).apply()
         }
-
-        // Send notification for escalating phases
-        if (to.ordinal > from.ordinal) {
-            sendPhaseNotification(to)
-        }
-    }
-
-    private fun sendPhaseNotification(phase: Phase) {
-        val (title, message) = when (phase) {
-            Phase.REDUCED -> "Reduced Phase" to context.getString(R.string.notification_phase_reduced)
-            Phase.WIND_DOWN -> "Wind-Down Phase" to context.getString(R.string.notification_phase_wind_down)
-            Phase.MINIMAL -> "Minimal Phase" to context.getString(R.string.notification_phase_minimal)
-            Phase.NORMAL -> return // No notification for normal
-        }
-
-        val intent = Intent(context, SettingsActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent, PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(context, ToleranceApp.CHANNEL_PHASE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
-
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID_PHASE, notification)
+        // No notification: the phase shows in settings, and being told mid-scroll was more
+        // annoying than useful
     }
 
     companion object {
@@ -209,8 +174,6 @@ class ProgressiveBoredomTracker(private val context: Context) {
         private const val KEY_THRESHOLD_NORMAL = "threshold_normal"
         private const val KEY_THRESHOLD_REDUCED = "threshold_reduced"
         private const val KEY_THRESHOLD_WIND_DOWN = "threshold_wind_down"
-
-        private const val NOTIFICATION_ID_PHASE = 2001
 
         /**
          * Get today's date string, with 4am reset boundary.

@@ -28,12 +28,6 @@ class ToleranceApp : Application() {
             description = getString(R.string.notification_channel_description)
         }
 
-        val phaseChannel = NotificationChannel(
-            CHANNEL_PHASE,
-            getString(R.string.notification_phase_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
-
         val accountChannel = NotificationChannel(
             CHANNEL_ACCOUNT,
             "Scoring credits",
@@ -51,14 +45,15 @@ class ToleranceApp : Application() {
         }
 
         manager.createNotificationChannel(serviceChannel)
-        manager.createNotificationChannel(phaseChannel)
+        // Phase-change notifications are gone; drop their channel from earlier installs
+        manager.deleteNotificationChannel(CHANNEL_PHASE_REMOVED)
         manager.createNotificationChannel(accountChannel)
         if (BuildConfig.GITHUB_UPDATES) manager.createNotificationChannel(updatesChannel)
     }
 
     companion object {
         const val CHANNEL_SERVICE = "tolerance_service"
-        const val CHANNEL_PHASE = "tolerance_phase"
+        private const val CHANNEL_PHASE_REMOVED = "tolerance_phase"
         const val CHANNEL_ACCOUNT = "tolerance_account"
         const val CHANNEL_UPDATES = "tolerance_updates"
 
