@@ -630,9 +630,7 @@ private data class PlatformEntry(val key: String, val name: String, val note: St
 private val PLATFORMS = listOf(
     PlatformEntry("twitter", "Twitter / X", null),
     PlatformEntry("tiktok", "TikTok", "For You only. Creators you follow and the Following tab are never covered."),
-    PlatformEntry("reddit", "Reddit", null),
     PlatformEntry("youtube", "YouTube", null),
-    PlatformEntry("instagram", "Instagram", null),
 )
 
 // The progress bar's last segment (Minimal) is drawn this long

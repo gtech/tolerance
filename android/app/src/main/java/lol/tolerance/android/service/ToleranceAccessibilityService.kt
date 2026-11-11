@@ -48,11 +48,13 @@ class ToleranceAccessibilityService : AccessibilityService() {
     private lateinit var prefs: SharedPreferences
 
     private val tikTok = TikTokExtractor()
+    // The apps Tolerance reads. An app goes in here only once its extractor matches posts by
+    // the app's own markers and MessagingScreensTest covers its message screens. Reddit and
+    // Instagram have neither yet (their extractors are loose text patterns), so they are
+    // treated like any other app: never read.
     private val extractors = mapOf(
         Platform.TWITTER to TwitterExtractor(),
-        Platform.REDDIT to RedditExtractor(),
         Platform.YOUTUBE to YouTubeExtractor(),
-        Platform.INSTAGRAM to InstagramExtractor(),
         Platform.TIKTOK to tikTok,
     )
 
@@ -111,7 +113,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val packageName = event.packageName?.toString() ?: return
-        val platform = Platform.fromPackage(packageName)
+        val platform = Platform.fromPackage(packageName)?.takeIf { it in extractors }
 
         // Non-monitored app — only clear on a genuine app switch (new Activity),
         // ignore system UI, keyboard, notification, and other background events.
