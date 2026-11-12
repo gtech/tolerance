@@ -137,7 +137,7 @@ private fun OnboardingScreen(
                     "Feeds are built from quick hits: posts that grab your attention for almost no effort " +
                         "and leave nothing behind. Tolerance scores each post for that cheap payoff and covers " +
                         "the worst of it, more the longer you scroll, so stopping gets easier.\n\n" +
-                        "It works in X, TikTok and YouTube."
+                        "It works in Twitter, TikTok and YouTube."
                 )
                 PrimaryButton("Next", { page = Page.SETUP }, Modifier.fillMaxWidth())
             }
@@ -176,7 +176,7 @@ private fun OnboardingScreen(
             Page.PERMISSION -> {
                 Heading("Accessibility permission")
                 Body(
-                    "Tolerance needs accessibility access to read posts in X, TikTok and " +
+                    "Tolerance needs accessibility access to read posts in Twitter, TikTok and" +
                         "YouTube, and to draw covers over them. It ignores every other app.\n\n" +
                         "Post text is sent to the scoring API (OpenRouter) and scores are cached on your device."
                 )

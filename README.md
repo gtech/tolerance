@@ -17,7 +17,7 @@ A browser extension that scores content by how hard it's trying to manipulate yo
 ## Supported platforms
 
 - Reddit (old.reddit.com is better)
-- Twitter/X
+- Twitter
 - YouTube
 - Instagram
 - Facebook (Chrome only; on Firefox, Tolerance only tracks time there)
@@ -136,7 +136,7 @@ pnpm test       # Run tests (vitest)
 
 ## Android app
 
-The Android app lives in [`android/`](android/). It is a separate Kotlin project that reads feed posts through an accessibility service and covers them the way the extension blurs them. It is in beta for TikTok, X and YouTube.
+The Android app lives in [`android/`](android/). It is a separate Kotlin project that reads feed posts through an accessibility service and covers them the way the extension blurs them. It is in beta for TikTok, Twitter and YouTube.
 
 ```bash
 cd android
@@ -144,7 +144,7 @@ cd android
 ./gradlew assembleFullDebug       # debug APK
 ```
 
-What the accessibility service is allowed to see is narrow on purpose: only the social apps switched on in the app, only items laid out as feed posts, and no text entry. `MessagingScreensTest` runs every extractor over captures of message screens (X and TikTok so far) and fails if any of them returns a post. The captures in `android/app/src/test/resources/fixtures/` have had all text replaced by placeholders with `android/scripts/sanitize_dump.py`.
+What the accessibility service is allowed to see is narrow on purpose: only the social apps switched on in the app, only items laid out as feed posts, and no text entry. `MessagingScreensTest` runs every extractor over captures of message screens (Twitter and TikTok so far) and fails if any of them returns a post. The captures in `android/app/src/test/resources/fixtures/` have had all text replaced by placeholders with `android/scripts/sanitize_dump.py`.
 
 The browser extension's source zip does not include this folder.
 
@@ -194,7 +194,7 @@ src/
 │   ├── provisioning.ts # Free tier key provisioning
 │   └── rewriter.ts     # Claude filter rewrites
 ├── content/            # Reddit content script, plus shared attention/grounding UI
-│   ├── twitter/        # Twitter/X (early.ts = page-load gate, debug.ts = debug report)
+│   ├── twitter/        # Twitter (early.ts = page-load gate, debug.ts = debug report)
 │   ├── youtube/        # YouTube
 │   ├── facebook/       # Facebook
 │   ├── instagram/      # Instagram

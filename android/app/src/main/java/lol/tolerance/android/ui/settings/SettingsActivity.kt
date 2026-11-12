@@ -628,7 +628,7 @@ private fun MinutesField(label: String, value: String, onChange: (String) -> Uni
 private data class PlatformEntry(val key: String, val name: String, val note: String?)
 
 private val PLATFORMS = listOf(
-    PlatformEntry("twitter", "Twitter / X", null),
+    PlatformEntry("twitter", "Twitter", null),
     PlatformEntry("tiktok", "TikTok", "For You only. Creators you follow and the Following tab are never covered."),
     PlatformEntry("youtube", "YouTube", null),
 )

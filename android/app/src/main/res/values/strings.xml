@@ -8,7 +8,7 @@
     <string name="onboarding_subtitle">Score social media for manipulation</string>
     <string name="onboarding_explain">Tolerance analyzes posts in your social media feeds for psychological manipulation tactics like outrage bait, curiosity gaps, and tribal triggers.\n\nManipulative content gets progressively blurred the longer you scroll, helping you break free from doom-scrolling.</string>
     <string name="onboarding_permission_title">Accessibility Permission</string>
-    <string name="onboarding_permission_explain">Tolerance needs accessibility access to read post content from social media apps. It only reads from X, TikTok and YouTube.\n\nNo data is stored on any server. Scoring happens via OpenRouter API and results are cached locally.</string>
+    <string name="onboarding_permission_explain">Tolerance needs accessibility access to read post content from social media apps. It only reads from Twitter, TikTok and YouTube.\n\nNo data is stored on any server. Scoring happens via OpenRouter API and results are cached locally.</string>
     <string name="onboarding_enable_service">Enable Accessibility Service</string>
     <string name="onboarding_open_settings">Open Settings</string>
     <string name="onboarding_service_enabled">Service Enabled</string>

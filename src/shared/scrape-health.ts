@@ -124,7 +124,7 @@ export function addToDay(
 }
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
-const SITE: Record<HealthPlatform, string> = { reddit: 'Reddit', twitter: 'X', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook' };
+const SITE: Record<HealthPlatform, string> = { reddit: 'Reddit', twitter: 'Twitter', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook' };
 
 // What looks broken on one day, given the days before it
 export function evaluateDay(history: HealthHistory, day: string): HealthAlert[] {

@@ -103,7 +103,7 @@ describe('evaluateDay', () => {
     h['2026-11-10'] = day('twitter', 'author', 60, 0.6);
     const alerts = evaluateDay(h, '2026-11-10');
     expect(alerts[0]).toMatchObject({ field: 'author', kind: 'drop' });
-    expect(alerts[0].message).toBe('X: author found on 60% of 60 posts, down from 99%.');
+    expect(alerts[0].message).toBe('Twitter: author found on 60% of 60 posts, down from 99%.');
   });
 
   it('watches a field with no floor only for a fall', () => {

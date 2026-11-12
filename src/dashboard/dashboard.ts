@@ -1215,7 +1215,7 @@ function setupEventListeners(): void {
   // Platform toggles
   for (const [id, name] of [
     ['platform-reddit', 'Reddit'],
-    ['platform-twitter', 'Twitter/X'],
+    ['platform-twitter', 'Twitter'],
     ['platform-youtube', 'YouTube'],
     ['platform-instagram', 'Instagram'],
     ['platform-facebook', 'Facebook'],
@@ -2644,7 +2644,7 @@ function renderWhitelist(whitelist: WhitelistEntry[]): void {
   }
 
   const platformLabels: Record<string, string> = {
-    twitter: 'Twitter/X',
+    twitter: 'Twitter',
     reddit: 'Reddit',
     instagram: 'Instagram',
     youtube: 'YouTube',

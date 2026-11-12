@@ -164,7 +164,7 @@ export function checkExport(raw: unknown): ExportReport {
         if (!hasSpec && !failed) flag('post.spec', 'warning', 'Post has neither a scoring spec version nor a failed-score flag, so its score can\'t be placed', id);
         if (hasSpec && num(specNow) && specNow >= 1 && (p.specVersion as number) > specNow) flag('post.spec-ahead', 'error', 'Post claims a newer scoring spec than the extension that exported it', id);
         if (hasSpec && !failed && p.dims === undefined) flag('post.dims-missing', 'warning', 'Scored post has no sub-scores (the model left them out)', id);
-        if (p.platform === 'twitter' && p.subreddit && !p.subreddit.startsWith('@')) flag('post.source-format', 'error', 'An X post\'s source should be an @handle', id);
+        if (p.platform === 'twitter' && p.subreddit && !p.subreddit.startsWith('@')) flag('post.source-format', 'error', 'A Twitter post\'s source should be an @handle', id);
       } else if (p.blurThreshold !== undefined || p.blurred !== undefined) {
         flag('post.threshold', 'error', 'Post is missing the blur threshold in force or whether it was blurred', id);
       }
