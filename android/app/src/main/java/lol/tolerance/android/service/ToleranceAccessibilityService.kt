@@ -1,6 +1,7 @@
 package lol.tolerance.android.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Rect
 import android.os.Handler
@@ -102,6 +103,19 @@ class ToleranceAccessibilityService : AccessibilityService() {
         boredomTracker = ProgressiveBoredomTracker(this)
         mediaMute = MediaMute(this)
         prefs = getSharedPreferences("tolerance_prefs", MODE_PRIVATE)
+
+        // Switched on from the onboarding tutorial: bring the app back, so the user isn't
+        // left in Android's settings wondering what's next. Once only.
+        if (prefs.getBoolean(PREF_RETURN_AFTER_ENABLE, false)) {
+            prefs.edit().remove(PREF_RETURN_AFTER_ENABLE).apply()
+            packageManager.getLaunchIntentForPackage(packageName)?.let {
+                try {
+                    startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Couldn't return to onboarding", e)
+                }
+            }
+        }
 
         scope.launch {
             if (!keyStore.isConfigured()) {
@@ -486,6 +500,8 @@ class ToleranceAccessibilityService : AccessibilityService() {
         private const val TIKTOK_LIVE_ACTIVITY = ".LivePlayActivity"
 
         // Shared with Settings and onboarding (tolerance_prefs)
+        /** Set by onboarding when it sends the user to Android's settings to switch us on. */
+        const val PREF_RETURN_AFTER_ENABLE = "return_after_enable"
         const val PREF_HIDE_LIVE = "tiktok_hide_live"
         const val PREF_HIDE_AI = "hide_ai_labeled"
         const val PREF_HIDE_SHORTS = "youtube_hide_shorts"
