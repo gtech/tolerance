@@ -343,7 +343,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
             "${covers.count { it is OverlayManager.Cover.Unidentified }} unidentified, " +
             "${covers.count { it is OverlayManager.Cover.Ad }} ads, " +
             "${covers.count { it is OverlayManager.Cover.Live }} live (threshold $threshold)")
-        overlayManager.render(covers)
+        overlayManager.render(covers + scoreTags(posts, covers))
         // Covered full-screen video still plays with sound: any covered TikTok, or the
         // Shorts player (feed thumbnails autoplay muted)
         mediaMute.set(
@@ -351,6 +351,22 @@ class ToleranceAccessibilityService : AccessibilityService() {
                 covers.any { it is OverlayManager.Cover.Shorts && it.player }
         )
         if (lastPlatform == Platform.TIKTOK) showVideoScore(posts)
+    }
+
+    /**
+     * Score tags for the scored posts in a Twitter feed that [covers] leaves visible. Not on
+     * a post's own page, where nothing is scored.
+     */
+    private fun scoreTags(posts: List<PostData>, covers: List<OverlayManager.Cover>): List<OverlayManager.Cover> {
+        if (lastPlatform != Platform.TWITTER || onReadingScreen || !prefs.getBoolean(PREF_TWITTER_SCORES, true)) {
+            return emptyList()
+        }
+        val covered = covers.mapTo(HashSet()) { it.contentHash }
+        return posts.mapNotNull { post ->
+            val bounds = post.screenBounds ?: return@mapNotNull null
+            if (post.isPartial || post.handledAsAd || post.contentHash in covered) return@mapNotNull null
+            scoreCache[post.contentHash]?.let { OverlayManager.Cover.Tag(post.contentHash, bounds, it.score.toString()) }
+        }
     }
 
     /** Score tag for the video filling the screen: its score, "…" while scoring, "?" if it failed. */
@@ -505,6 +521,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
         const val PREF_HIDE_LIVE = "tiktok_hide_live"
         const val PREF_HIDE_AI = "hide_ai_labeled"
         const val PREF_HIDE_SHORTS = "youtube_hide_shorts"
+        const val PREF_TWITTER_SCORES = "twitter_score_tags"
         const val PREF_SCORE_TAG = "tiktok_score_tag"
         const val SCORE_TAG_TOP = "top"
         const val SCORE_TAG_MIDDLE = "middle"

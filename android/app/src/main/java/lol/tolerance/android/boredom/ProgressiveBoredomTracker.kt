@@ -41,8 +41,6 @@ class ProgressiveBoredomTracker(private val context: Context) {
      */
     fun recordActivity() {
         val now = System.currentTimeMillis()
-        ensureDailyReset()
-
         val elapsed = now - lastActivityTimestamp
 
         // Only count continuous activity (gap < 2 minutes)
@@ -89,8 +87,11 @@ class ProgressiveBoredomTracker(private val context: Context) {
         prefs.edit().putInt(KEY_STRICTNESS, level.coerceIn(1, Strictness.PRESETS.size)).apply()
     }
 
-    fun getTotalMinutes(): Double =
-        prefs.getFloat(KEY_TOTAL_MINUTES, 0f).toDouble()
+    /** Today's minutes: yesterday's count is cleared first, so Settings never shows it. */
+    fun getTotalMinutes(): Double {
+        ensureDailyReset()
+        return prefs.getFloat(KEY_TOTAL_MINUTES, 0f).toDouble()
+    }
 
     private fun setTotalMinutes(minutes: Double) {
         prefs.edit().putFloat(KEY_TOTAL_MINUTES, minutes.toFloat()).apply()
@@ -133,7 +134,7 @@ class ProgressiveBoredomTracker(private val context: Context) {
         val today = getTodayDateString()
         val storedDate = prefs.getString(KEY_RESET_DATE, null)
         if (storedDate != today) {
-            Log.d(TAG, "Daily reset: $storedDate -> $today (${getTotalMinutes()} min)")
+            Log.d(TAG, "Daily reset: $storedDate -> $today (${prefs.getFloat(KEY_TOTAL_MINUTES, 0f)} min)")
             prefs.edit()
                 .putString(KEY_RESET_DATE, today)
                 .putFloat(KEY_TOTAL_MINUTES, 0f)

@@ -48,19 +48,31 @@ import lol.tolerance.android.ui.theme.*
 import kotlin.math.ceil
 
 class SettingsActivity : ComponentActivity() {
+    // Counts returns to this screen. It stays alive in the background for days, so what the
+    // service changes meanwhile (today's minutes, the phase) is read again on each return.
+    private var resumes by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             ToleranceTheme {
-                SettingsScreen()
+                SettingsScreen(resumes)
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        resumes++
+    }
 }
 
-/** Laid out like the extension dashboard: one card per concern, most-used first. */
+/**
+ * Laid out like the extension dashboard: one card per concern, most-used first.
+ * @param resumes changes each time the screen comes back to the front
+ */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(resumes: Int = 0) {
     val context = LocalContext.current
     val keyStore = remember { KeyStore.getInstance(context) }
     val boredomTracker = remember { ProgressiveBoredomTracker(context) }
@@ -109,8 +121,8 @@ fun SettingsScreen() {
         HorizontalDivider(color = ToleranceColors.Hairline)
 
         if (BuildConfig.GITHUB_UPDATES) UpdateCard()
-        BoredomCard(boredomTracker)
-        StrictnessCard(boredomTracker)
+        BoredomCard(boredomTracker, resumes)
+        StrictnessCard(boredomTracker, resumes)
         TopicsCard(topicStore)
 
         FeatureToggleCard(
@@ -199,10 +211,10 @@ private fun UpdateCard() {
 // --- Progressive boredom ---
 
 @Composable
-private fun BoredomCard(tracker: ProgressiveBoredomTracker) {
+private fun BoredomCard(tracker: ProgressiveBoredomTracker, resumes: Int) {
     var enabled by remember { mutableStateOf(tracker.isEnabled()) }
-    val phase = remember(enabled) { tracker.getCurrentPhase() }
-    val minutes = remember { tracker.getTotalMinutes() }
+    val phase = remember(enabled, resumes) { tracker.getCurrentPhase() }
+    val minutes = remember(resumes) { tracker.getTotalMinutes() }
     val saved = remember { tracker.getPhaseThresholds() }
     var normal by remember { mutableStateOf(saved.normal.toInt().toString()) }
     var reduced by remember { mutableStateOf(saved.reduced.toInt().toString()) }
@@ -276,10 +288,10 @@ private fun PhaseBadge(phase: Phase) {
 // --- Strictness ---
 
 @Composable
-private fun StrictnessCard(tracker: ProgressiveBoredomTracker) {
+private fun StrictnessCard(tracker: ProgressiveBoredomTracker, resumes: Int) {
     var level by remember { mutableIntStateOf(tracker.getStrictness()) }
     val preset = Strictness.preset(level)
-    val phase = remember { tracker.getCurrentPhase() }
+    val phase = remember(resumes) { tracker.getCurrentPhase() }
     val threshold = preset.thresholds.forPhase(phase)
 
     DashboardCard("Blur Thresholds") {
@@ -382,10 +394,19 @@ private fun ScoreTagCard(prefs: android.content.SharedPreferences) {
     var position by remember {
         mutableStateOf(prefs.getString(ToleranceAccessibilityService.PREF_SCORE_TAG, ToleranceAccessibilityService.SCORE_TAG_MIDDLE))
     }
-    DashboardCard("TikTok Score Tag") {
+    var twitter by remember {
+        mutableStateOf(prefs.getBoolean(ToleranceAccessibilityService.PREF_TWITTER_SCORES, true))
+    }
+    DashboardCard("Score Tags") {
+        SettingRow("Twitter", "A small tag at the left edge of each uncovered post, showing its score.") {
+            DashboardSwitch(twitter) {
+                twitter = it
+                prefs.edit().putBoolean(ToleranceAccessibilityService.PREF_TWITTER_SCORES, it).apply()
+            }
+        }
         Text(
-            "A small tag on the left edge showing each video's score.",
-            color = ToleranceColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp),
+            "TikTok: a tag on the left edge showing each video's score.",
+            color = ToleranceColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(

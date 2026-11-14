@@ -86,6 +86,16 @@ class OverlayManager(private val context: Context) {
             override val contentHash: String,
             override val bounds: ScreenBounds,
         ) : Cover
+
+        /**
+         * Not a cover: a small score tag at the left edge of a post left visible, so its
+         * score can be seen. [bounds] are the post's.
+         */
+        data class Tag(
+            override val contentHash: String,
+            override val bounds: ScreenBounds,
+            val label: String,
+        ) : Cover
     }
 
     private class CoverWindow(
@@ -157,41 +167,46 @@ class OverlayManager(private val context: Context) {
             }
             return
         }
-        val view = TextView(context).apply {
-            this.text = text
-            textSize = 14f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            minWidth = dpToPx(32f).toInt()
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(SCORE_TAG_COLOR)
-                // Rounded on the screen side only, so it reads as attached to the edge
-                val r = dpToPx(12f)
-                cornerRadii = floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
-            }
-            val pad = dpToPx(8f).toInt()
-            setPadding(pad, pad / 2, pad, pad / 2)
-        }
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = videoBounds.left
-            this.y = y
-        }
+        val view = createTagView(text, textSp = 14f, padDp = 8f, minWidthDp = 32f)
         try {
-            windowManager.addView(view, params)
+            windowManager.addView(view, tagWindowParams(videoBounds.left, y))
             scoreTag = view
         } catch (e: Exception) {
             Log.w(TAG, "Failed to show score tag", e)
         }
+    }
+
+    /** A gray tag that reads as attached to the screen's left edge. */
+    private fun createTagView(text: String, textSp: Float, padDp: Float, minWidthDp: Float): TextView =
+        TextView(context).apply {
+            this.text = text
+            textSize = textSp
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            minWidth = dpToPx(minWidthDp).toInt()
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(SCORE_TAG_COLOR)
+                // Rounded on the screen side only
+                val r = dpToPx(12f)
+                cornerRadii = floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f)
+            }
+            val pad = dpToPx(padDp).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+        }
+
+    private fun tagWindowParams(x: Int, y: Int) = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
+        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT,
+    ).apply {
+        gravity = Gravity.TOP or Gravity.START
+        this.x = x
+        this.y = y
     }
 
     private fun removeScoreTag() {
@@ -238,11 +253,8 @@ class OverlayManager(private val context: Context) {
     fun render(next: List<Cover>) {
         val nextByHash = next.associateBy { it.contentHash }
 
-        // Covers for posts that are gone or whose state changed (pending → scored)
-        val stale = covers.filter { (hash, window) ->
-            val wanted = nextByHash[hash]
-            wanted == null || wanted::class != window.cover::class || wanted.bounds != window.cover.bounds
-        }.values.toList()
+        // Covers for posts that are gone, moved, or whose state changed (pending → scored)
+        val stale = covers.filter { (hash, window) -> nextByHash[hash] != window.cover }.values.toList()
         stale.forEach { covers.remove(it.cover.contentHash) }
 
         val added = next.filter { it.contentHash !in covers }
@@ -397,6 +409,7 @@ class OverlayManager(private val context: Context) {
     private fun addCover(cover: Cover): View? {
         return try {
             val view = when (cover) {
+                is Cover.Tag -> return addPostTag(cover)
                 is Cover.Scored -> createCoverView(cover.score.score.toString(), cover.score.reason)
                 is Cover.Pending -> createCoverView(PENDING_LABEL, "")
                 is Cover.Unidentified -> createCoverView(UNIDENTIFIED_LABEL, "")
@@ -414,6 +427,20 @@ class OverlayManager(private val context: Context) {
             Log.w(TAG, "Failed to add cover", e)
             null
         }
+    }
+
+    /**
+     * The tag's view, or null when the visible part of the post is too short to hold it.
+     * Throws like addView; [addCover] catches.
+     */
+    private fun addPostTag(tag: Cover.Tag): View? {
+        val y = tag.bounds.top + dpToPx(POST_TAG_OFFSET_DP).toInt()
+        if (y + dpToPx(POST_TAG_HEIGHT_DP).toInt() > tag.bounds.bottom) return null
+        val view = createTagView(tag.label, textSp = 11f, padDp = 6f, minWidthDp = 0f)
+        val params = tagWindowParams(tag.bounds.left, y)
+        windowManager.addView(view, params)
+        covers[tag.contentHash] = CoverWindow(tag, view, params)
+        return view
     }
 
     private fun removeCover(contentHash: String) {
@@ -543,5 +570,9 @@ class OverlayManager(private val context: Context) {
         // spot is clear of them and of the caption
         private const val SCORE_TAG_TOP = 0.13f
         private const val SCORE_TAG_MIDDLE = 0.4f
+        // A post's tag sits this far below its top: under the avatar, in the empty margin
+        // (a "reposted" line pushes the avatar down to about 72dp)
+        private const val POST_TAG_OFFSET_DP = 76f
+        private const val POST_TAG_HEIGHT_DP = 24f
     }
 }
