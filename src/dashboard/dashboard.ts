@@ -6,6 +6,7 @@ import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
 import { renderTopics, setupTopics } from './topics';
 import { showGroundingInvite } from '../content/grounding';
 import { showWeekCard } from '../content/weekCard';
+import { showStepUpCard } from '../content/stepUpCard';
 import type { WeekCardInfo } from '../background/weekReview';
 import { getAllSessions, clearAllStores, getCalibrationData, getAllPostContent } from '../background/storage';
 import { activeRubric, rubricHash, RUBRIC, SCORING_SPEC_VERSION } from '../shared/scoring-spec';
@@ -493,6 +494,7 @@ function setupWeekCardPreview(): void {
     const response = await chrome.runtime.sendMessage({ type: 'GET_WEEK_CARD_PREVIEW' }) as { card: WeekCardInfo | null } | undefined;
     if (response?.card) showWeekCard({ ...response.card, preview: true });
   });
+  document.getElementById('step-up-card-preview')?.addEventListener('click', () => showStepUpCard({ preview: true }));
 }
 
 // ==========================================

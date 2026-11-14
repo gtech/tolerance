@@ -7,6 +7,8 @@ import { SCORE_MESSAGE_PLATFORM, canScoreFrom } from '../shared/scoring-surfaces
 import { recordScrapeHealth, runDailyScrapeHealthCheck, runScrapeHealthCheckNow, getScrapeHealth } from './scrapeHealth';
 import { takeBurstCard, recordBurstSignal, logBurstEvent, watchStrictnessChanges } from './burst';
 import { takeWeekCard, recordWeekOutcome, buildWeekCard } from './weekReview';
+import { takeStepUpCard, recordStepUpOutcome } from './stepUp';
+import type { StepUpOutcome } from '../shared/step-up';
 import type { WeekReviewOutcome } from '../shared/week-review';
 import { syncOptionalScripts } from '../shared/optional-sites';
 import { updateUninstallUrl, watchForUninstallUrlChanges } from './uninstall-url';
@@ -325,11 +327,14 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
       const burst = await takeBurstCard(canPrompt);
       // The week-one card comes after the first week, so the two never compete
       const weekReview = burst ? null : await takeWeekCard(canPrompt);
-      const groundingMinutes = await checkGrounding(canPrompt && !burst && !weekReview);
+      // Stepping strictness up waits until both of those are out of the way
+      const stepUp = burst || weekReview ? null : await takeStepUpCard(canPrompt);
+      const groundingMinutes = await checkGrounding(canPrompt && !burst && !weekReview && !stepUp);
       sendResponse({
         type: 'HEARTBEAT_ACK',
         ...(burst && { burst }),
         ...(weekReview && { weekReview }),
+        ...(stepUp && { stepUp }),
         ...(groundingMinutes !== null && { grounding: { minutes: groundingMinutes } }),
       });
     })().catch(() => sendResponse({ type: 'HEARTBEAT_ACK' }));
@@ -351,6 +356,12 @@ chrome.runtime.onMessage.addListener((message: MessageType | { type: string }, s
   if (message.type === 'WEEK_REVIEW_OUTCOME') {
     const { outcome } = message as unknown as { outcome: WeekReviewOutcome };
     recordWeekOutcome(outcome).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  // Step-up card: what the person did with it
+  if (message.type === 'STEP_UP_OUTCOME') {
+    const { outcome } = message as unknown as { outcome: StepUpOutcome };
+    recordStepUpOutcome(outcome).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
   }
   if (message.type === 'GET_WEEK_CARD_PREVIEW') {

@@ -7,6 +7,8 @@ import { showBurstCard } from './burstCard';
 import type { BurstCardInfo } from '../background/burst';
 import { showWeekCard } from './weekCard';
 import type { WeekCardInfo } from '../background/weekReview';
+import { showStepUpCard } from './stepUpCard';
+import type { StepUpCardInfo } from '../background/stepUp';
 
 const HOST_ID = 'tolerance-grounding-host';
 
@@ -35,14 +37,18 @@ export function heartbeatMessage(): { type: 'SOCIAL_MEDIA_HEARTBEAT'; canPrompt:
 }
 
 export function handleHeartbeatResponse(response: unknown): void {
-  const { grounding, burst, weekReview } =
-    (response as { grounding?: { minutes: number }; burst?: BurstCardInfo; weekReview?: WeekCardInfo } | undefined) ?? {};
+  const { grounding, burst, weekReview, stepUp } =
+    (response as { grounding?: { minutes: number }; burst?: BurstCardInfo; weekReview?: WeekCardInfo; stepUp?: StepUpCardInfo } | undefined) ?? {};
   if (burst) {
     showBurstCard(burst);
     return;
   }
   if (weekReview) {
     showWeekCard(weekReview);
+    return;
+  }
+  if (stepUp) {
+    showStepUpCard(stepUp);
     return;
   }
   if (grounding && groundingCanPrompt()) {
