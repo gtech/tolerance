@@ -67,7 +67,7 @@ Tolerance uses AI to score content. In the dashboard, choose one of:
 - **Your own key.** Get one from [tolerance.lol/account.html](https://tolerance.lol/account.html) or directly from [OpenRouter](https://openrouter.ai/) (Keys → Create Key, then add credits; $5 is plenty to start), and paste it into the dashboard.
 - **A custom endpoint.** Any OpenAI-compatible chat completions URL, including a local one such as Ollama (`http://localhost:11434/v1/chat/completions`).
 
-Posts are scored by `qwen/qwen3.7-flash` with thinking off (text, images and video thumbnails; Instagram reels use `google/gemini-2.5-flash-lite`). You can name a different OpenRouter model in the dashboard under Scoring Provider. With a custom endpoint, you choose the text and vision models yourself.
+Posts are scored by `deepseek/deepseek-v4.1-flash-1017` with thinking off, on its cheapest provider (text, images and video thumbnails; Instagram reels use `google/gemini-2.5-flash-lite`). You can name a different OpenRouter model in the dashboard under Scoring Provider. With a custom endpoint, you choose the text and vision models yourself.
 
 **Cost:** ~$1-2/month typical usage.
 

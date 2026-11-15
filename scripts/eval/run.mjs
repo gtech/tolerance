@@ -16,7 +16,8 @@ const root = join(here, '..', '..');
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
 const legacy = args.includes('--legacy');
-const model = opt('--model', 'qwen/qwen3.7-flash'); // the extension's default (run with --no-reasoning)
+const model = opt('--model', 'deepseek/deepseek-v4.1-flash-1017'); // the extension's default (run with --no-reasoning --sort price)
+const sort = opt('--sort', ''); // OpenRouter provider routing: price, throughput or latency
 const runs = Number(opt('--runs', '1'));
 const batchSize = Number(opt('--batch', '10'));
 const single = args.includes('--single'); // one call per text post (Twitter did this before batching)
@@ -95,6 +96,7 @@ async function call(prompt, image) {
       max_tokens: image ? 800 : 4000,
       ...(image ? {} : { response_format: { type: 'json_object' } }),
       ...(model === 'openai/gpt-oss-120b' ? { provider: { order: ['groq', 'cerebras'], allow_fallbacks: true } } : {}),
+      ...(sort ? { provider: { sort } } : {}),
       ...(noReasoning ? { reasoning: { enabled: false } } : {}),
     }),
   });

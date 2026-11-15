@@ -16,14 +16,28 @@ import type { ApiProviderConfig } from './types';
 // range, the same as Haiku on the same day, at $0.03/$0.13 per million tokens against
 // $0.10/$0.50. Slower: 10-post batches ~6.9s vs ~3.6s, images ~4.0s vs ~2.6s. With
 // thinking on it spends the whole token budget thinking and returns nothing.
-export const DEFAULT_TEXT_MODEL = 'qwen/qwen3.7-flash';
+// DeepSeek v4.1 Flash with thinking off replaced Qwen the same day, because Qwen felt
+// slow in use: 52/53 in range, 10-post batches ~2.3s, images ~1.3s, on the cheapest
+// provider ($0.02/$0.108 per million tokens). About fifty providers serve it at up to
+// 15x that price, and OpenRouter's own choice landed on a $0.30/$1.20 one, so requests
+// ask for the cheapest (CHEAPEST_PROVIDER_MODELS). The fastest providers answer a
+// batch in ~0.35s, but at ~13x the cost (~$0.11 against ~$0.008 per 1000 posts).
+export const DEFAULT_TEXT_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 // Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
 // the rest at 0-40% uptime); images now go to the same model as text
-export const DEFAULT_IMAGE_MODEL = 'qwen/qwen3.7-flash';
+export const DEFAULT_IMAGE_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 export const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
 
 // Models that think by default; scoring doesn't need it, so it's turned off
-export const THINKING_OFF_MODELS = new Set(['qwen/qwen3.7-flash', 'anthropic/claude-haiku-5.5', 'openai/gpt-6-luna']);
+export const THINKING_OFF_MODELS = new Set([
+  'deepseek/deepseek-v4.1-flash-1017',
+  'qwen/qwen3.7-flash',
+  'anthropic/claude-haiku-5.5',
+  'openai/gpt-6-luna',
+]);
+
+// Models whose providers differ widely in price: OpenRouter is asked for the cheapest
+export const CHEAPEST_PROVIDER_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1017']);
 
 export interface ScoringModels {
   textModel: string;

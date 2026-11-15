@@ -10,7 +10,7 @@ import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
 import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
-import { DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, scoringModels } from '../shared/provider-models';
+import { CHEAPEST_PROVIDER_MODELS, DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, scoringModels } from '../shared/provider-models';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
@@ -107,6 +107,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'anthropic/claude-haiku-5.5': { input: 0.1, output: 0.5 },
   'qwen/qwen3.7-flash': { input: 0.03, output: 0.13 },
+  'deepseek/deepseek-v4.1-flash-1017': { input: 0.02, output: 0.108 }, // the cheapest provider's price
 };
 
 // The default models, and why each was chosen, are in shared/provider-models.ts
@@ -980,6 +981,9 @@ async function callApi(
           order: ['groq', 'cerebras'],
           allow_fallbacks: true,
         };
+      }
+      if (CHEAPEST_PROVIDER_MODELS.has(model)) {
+        requestBody.provider = { sort: 'price' };
       }
       if (THINKING_OFF_MODELS.has(model)) {
         requestBody.reasoning = { enabled: false };

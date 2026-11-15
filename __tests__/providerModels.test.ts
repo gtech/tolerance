@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, scoringModels } from '../src/shared/provider-models';
+import { CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, scoringModels } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -11,6 +11,11 @@ describe('scoring models', () => {
   it('turns thinking off for the default model', () => {
     expect(THINKING_OFF_MODELS.has(DEFAULT_TEXT_MODEL)).toBe(true);
     expect(THINKING_OFF_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
+  });
+
+  it('asks for the cheapest provider of the default model', () => {
+    expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_TEXT_MODEL)).toBe(true);
+    expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
   });
 
   it('uses the OpenRouter model for text and images', () => {
