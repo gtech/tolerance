@@ -17,6 +17,8 @@ import lol.tolerance.android.api.KeyStore
 import lol.tolerance.android.api.UpdateChecker
 import lol.tolerance.android.api.ProvisioningClient
 import lol.tolerance.android.boredom.ProgressiveBoredomTracker
+import lol.tolerance.android.boredom.RankCover
+import lol.tolerance.android.boredom.RecentScores
 import lol.tolerance.android.boredom.Strictness
 import lol.tolerance.android.extraction.*
 import lol.tolerance.android.scoring.ScoringService
@@ -64,6 +66,11 @@ class ToleranceAccessibilityService : AccessibilityService() {
     private val scoringInFlight = HashSet<String>()
     private val unscorable = boundedMap<Unit>()   // attempted, no score came back — don't retry
     private val pendingSince = boundedMap<Long>() // first seen unscored (uptime), for the timeout
+    // TikTok videos: the threshold a cover was decided at, and the decision (see isScoreCovered)
+    private val rankDecisions = boundedMap<Pair<Int, Boolean>>()
+    // TikTok videos in delay mode: when each one's wait ends (uptime)
+    private val heldUntil = boundedMap<Long>()
+    private lateinit var recentTikTokScores: RecentScores
     // Topic set the scores above were made with; a change makes them stale
     private var scoredTopicsKey = ""
 
@@ -76,6 +83,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
     // Scroll state. Main thread only.
     private var scrolling = false
     private var scrollGeneration = 0
+    private var scrollStartedAt = 0L // uptime
     private val settleRunnable = Runnable { onScrollSettled() }
 
     // Identify pass state. Main thread only.
@@ -103,6 +111,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
         boredomTracker = ProgressiveBoredomTracker(this)
         mediaMute = MediaMute(this)
         prefs = getSharedPreferences("tolerance_prefs", MODE_PRIVATE)
+        recentTikTokScores = RecentScores(prefs, "tiktok_recent_scores")
 
         // Switched on from the onboarding tutorial: bring the app back, so the user isn't
         // left in Android's settings wondering what's next. Once only.
@@ -221,6 +230,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
     private fun startScroll(bounds: ScreenBounds?, cause: String) {
         Log.d(TAG, "Scroll start (blur ${if (isBlurActive()) "on" else "off"}) $cause")
         scrolling = true
+        scrollStartedAt = SystemClock.uptimeMillis()
         scrollGeneration++
         overlayManager.beginScroll(
             bounds,
@@ -303,6 +313,14 @@ class ToleranceAccessibilityService : AccessibilityService() {
     }
 
     private fun render(posts: List<PostData>) {
+        // Posts with nothing to send the model carry their score with them
+        for (post in posts) {
+            val score = post.defaultScore ?: continue
+            if (post.contentHash !in scoreCache) {
+                scoreCache[post.contentHash] =
+                    ScoringService.PostScore(post.id, post.contentHash, score, "Image or video with no text.")
+            }
+        }
         // A post the user opened is theirs to read — only ads get covered there
         val blurActive = isBlurActive() && !onReadingScreen
         val untilScored = coversUnscored()
@@ -328,11 +346,15 @@ class ToleranceAccessibilityService : AccessibilityService() {
             // Like ads: the user's call, in every phase and from followed creators too
             if (post.isAiLabeled && isAiHidden()) return@mapNotNull OverlayManager.Cover.Ai(hash, bounds)
             if (!blurActive || post.isChosen) return@mapNotNull null
+            // TikTok's delay mode: nothing is scored; every video waits its turn
+            if (delaysTikTok()) {
+                return@mapNotNull if (isHeldBack(hash, now)) OverlayManager.Cover.Delay(hash, bounds) else null
+            }
 
             val score = scoreCache[hash]
             when {
                 score != null ->
-                    if (Strictness.isCovered(score.score, threshold)) OverlayManager.Cover.Scored(hash, bounds, score) else null
+                    if (isScoreCovered(post, score.score, threshold)) OverlayManager.Cover.Scored(hash, bounds, score) else null
                 !untilScored || hash in unscorable -> null
                 isPendingExpired(hash, now) -> null
                 else -> OverlayManager.Cover.Pending(hash, bounds)
@@ -351,6 +373,46 @@ class ToleranceAccessibilityService : AccessibilityService() {
                 covers.any { it is OverlayManager.Cover.Shorts && it.player }
         )
         if (lastPlatform == Platform.TIKTOK) showVideoScore(posts)
+    }
+
+    /**
+     * TikTok in delay mode (the default): its captions say too little to score, so each For
+     * You video is held under a cover for a wait that grows through the day (see [FeedDelay]).
+     * The scored mode is kept for the day richer data makes scoring worth it.
+     */
+    private fun delaysTikTok(): Boolean =
+        lastPlatform == Platform.TIKTOK &&
+            prefs.getString(PREF_TIKTOK_MODE, TIKTOK_MODE_DELAY) != TIKTOK_MODE_SCORED
+
+    /**
+     * Whether a video is still waiting. Its wait is fixed when it first appears, so a video
+     * doesn't get a second one when the user swipes back to it.
+     */
+    private fun isHeldBack(hash: String, now: Long): Boolean {
+        // Counted from the swipe that brought the video in: reading TikTok's screen after a
+        // swipe takes about a second, which would otherwise be added to every wait
+        val from = if (now - scrollStartedAt < MAX_IDENTIFY_LAG_MS) scrollStartedAt else now
+        val until = heldUntil[hash] ?: (from + boredomTracker.getCurrentFeedDelayMs()).also { until ->
+            heldUntil[hash] = until
+            // Lift the cover when the wait ends
+            if (until > now) handler.postDelayed({ if (!scrolling) requestIdentify() }, until - now + 20)
+        }
+        return now < until
+    }
+
+    /**
+     * TikTok's scores bunch at 7 and 8, so there the threshold picks a share of recent videos
+     * (see [RankCover]). Everywhere else a score is compared with the threshold directly.
+     */
+    private fun isScoreCovered(post: PostData, score: Int, threshold: Int): Boolean {
+        if (post.platform != Platform.TIKTOK) return Strictness.isCovered(score, threshold)
+        // Decided once per video and threshold: the recent scores move as new ones come
+        // in, and a video being watched mustn't gain or lose its cover from that
+        val earlier = rankDecisions[post.contentHash]
+        if (earlier != null && earlier.first == threshold) return earlier.second
+        val covered = RankCover.isCovered(score, post.contentHash, recentTikTokScores.list(), threshold)
+        rankDecisions[post.contentHash] = threshold to covered
+        return covered
     }
 
     /**
@@ -376,6 +438,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
         val text = when {
             video == null || position == SCORE_TAG_OFF -> null
             video.handledAsAd -> "Ad"
+            delaysTikTok() -> null // nothing is scored
             video.isLive -> null // covered, or deliberately left alone
             else -> scoreCache[video.contentHash]?.score?.toString()
                 ?: if (video.contentHash in unscorable) "?" else "…"
@@ -397,6 +460,7 @@ class ToleranceAccessibilityService : AccessibilityService() {
     // --- Score ---
 
     private fun scoreMissing(posts: List<PostData>) {
+        if (delaysTikTok()) return
         // Topics changed in Settings: scores made against the old set are stale
         val topicsKey = topicStore.key()
         if (topicsKey != scoredTopicsKey) {
@@ -427,6 +491,9 @@ class ToleranceAccessibilityService : AccessibilityService() {
                 Log.i(TAG, "Got ${outcome.scores.size} scores back: ${outcome.scores.map { it.score }}" +
                     if (outcome.keyRefused) " (key refused)" else "")
                 for (score in outcome.scores) scoreCache[score.contentHash] = score
+                if (missing.first().platform == Platform.TIKTOK) {
+                    for (score in outcome.scores) recentTikTokScores.add(score.score)
+                }
                 refused = outcome.keyRefused
                 newlyRefused = outcome.newlyRefused
             } catch (e: Exception) {
@@ -455,7 +522,8 @@ class ToleranceAccessibilityService : AccessibilityService() {
      * scrim on every scroll.
      */
     private fun isBlurActive(): Boolean =
-        coversUnscored() || boredomTracker.getCurrentBlurThreshold() < Strictness.MAX_THRESHOLD
+        if (delaysTikTok()) boredomTracker.getCurrentFeedDelayMs() > 0
+        else coversUnscored() || boredomTracker.getCurrentBlurThreshold() < Strictness.MAX_THRESHOLD
 
     /** Blur until scored, unless no scores are coming: the key is out of credit. */
     private fun coversUnscored(): Boolean = isBlurUntilScoredOn() && !credits.isExhausted()
@@ -513,6 +581,8 @@ class ToleranceAccessibilityService : AccessibilityService() {
         // Matches the extension's DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT
         private const val PENDING_TIMEOUT_MS = 15_000L
         private const val MAX_RECENT = 500
+        // A video first identified longer than this after the last swipe didn't come from it
+        private const val MAX_IDENTIFY_LAG_MS = 3_000L
         private const val TIKTOK_LIVE_ACTIVITY = ".LivePlayActivity"
 
         // Shared with Settings and onboarding (tolerance_prefs)
@@ -522,6 +592,9 @@ class ToleranceAccessibilityService : AccessibilityService() {
         const val PREF_HIDE_AI = "hide_ai_labeled"
         const val PREF_HIDE_SHORTS = "youtube_hide_shorts"
         const val PREF_TWITTER_SCORES = "twitter_score_tags"
+        const val PREF_TIKTOK_MODE = "tiktok_mode"
+        const val TIKTOK_MODE_DELAY = "delay"
+        const val TIKTOK_MODE_SCORED = "scored"
         const val PREF_SCORE_TAG = "tiktok_score_tag"
         const val SCORE_TAG_TOP = "top"
         const val SCORE_TAG_MIDDLE = "middle"

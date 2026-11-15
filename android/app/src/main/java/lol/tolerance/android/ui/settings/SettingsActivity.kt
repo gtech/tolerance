@@ -40,12 +40,14 @@ import lol.tolerance.android.api.UpdateChecker
 import lol.tolerance.android.scoring.OpenRouterClient
 import lol.tolerance.android.boredom.ProgressiveBoredomTracker
 import lol.tolerance.android.boredom.ProgressiveBoredomTracker.Phase
+import lol.tolerance.android.boredom.RankCover
 import lol.tolerance.android.boredom.Strictness
 import lol.tolerance.android.scoring.Topic
 import lol.tolerance.android.scoring.TopicStore
 import lol.tolerance.android.service.ToleranceAccessibilityService
 import lol.tolerance.android.ui.theme.*
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class SettingsActivity : ComponentActivity() {
     // Counts returns to this screen. It stays alive in the background for days, so what the
@@ -85,6 +87,12 @@ fun SettingsScreen(resumes: Int = 0) {
     var blurUntilScored by remember { pref("blur_until_scored", true) }
     var penalizeAds by remember { pref("penalize_ads", true) }
     var debugScrollRuler by remember { pref("debug_scroll_ruler", false) }
+    var tikTokMode by remember {
+        mutableStateOf(
+            prefs.getString(ToleranceAccessibilityService.PREF_TIKTOK_MODE, ToleranceAccessibilityService.TIKTOK_MODE_DELAY)
+                ?: ToleranceAccessibilityService.TIKTOK_MODE_DELAY
+        )
+    }
     var hideLive by remember { pref(ToleranceAccessibilityService.PREF_HIDE_LIVE, false) }
     var hideAi by remember { pref(ToleranceAccessibilityService.PREF_HIDE_AI, false) }
     var hideShorts by remember { pref(ToleranceAccessibilityService.PREF_HIDE_SHORTS, false) }
@@ -122,7 +130,7 @@ fun SettingsScreen(resumes: Int = 0) {
 
         if (BuildConfig.GITHUB_UPDATES) UpdateCard()
         BoredomCard(boredomTracker, resumes)
-        StrictnessCard(boredomTracker, resumes)
+        StrictnessCard(boredomTracker, resumes, tikTokScored = tikTokMode == ToleranceAccessibilityService.TIKTOK_MODE_SCORED)
         TopicsCard(topicStore)
 
         FeatureToggleCard(
@@ -164,6 +172,10 @@ fun SettingsScreen(resumes: Int = 0) {
         ) { hideShorts = it; save(ToleranceAccessibilityService.PREF_HIDE_SHORTS, it) }
 
         ScoreTagCard(prefs)
+        TikTokModeCard(tikTokMode) {
+            tikTokMode = it
+            prefs.edit().putString(ToleranceAccessibilityService.PREF_TIKTOK_MODE, it).apply()
+        }
         PlatformsCard(prefs)
         ApiCard(keyStore)
 
@@ -288,21 +300,32 @@ private fun PhaseBadge(phase: Phase) {
 // --- Strictness ---
 
 @Composable
-private fun StrictnessCard(tracker: ProgressiveBoredomTracker, resumes: Int) {
-    var level by remember { mutableIntStateOf(tracker.getStrictness()) }
-    val preset = Strictness.preset(level)
+private fun StrictnessCard(tracker: ProgressiveBoredomTracker, resumes: Int, tikTokScored: Boolean) {
+    // The four per-phase thresholds are the setting, as in the extension; the strictness
+    // slider is a shortcut that sets all four
+    var thresholds by remember { mutableStateOf(tracker.getBlurThresholds()) }
+    val (level, exact) = Strictness.closest(thresholds)
     val phase = remember(resumes) { tracker.getCurrentPhase() }
-    val threshold = preset.thresholds.forPhase(phase)
+    val threshold = thresholds.forPhase(phase)
+    val timing = remember(resumes) { tracker.getPhaseThresholds() }
+    var showPhases by remember { mutableStateOf(false) }
+
+    fun set(next: Strictness.Thresholds) {
+        thresholds = next
+        tracker.setBlurThresholds(next)
+    }
 
     DashboardCard("Blur Thresholds") {
         Row {
             Text("Strictness: ", color = Color(0xFFCCCCCC), fontSize = 13.sp)
-            Text(preset.label, color = ToleranceColors.Heading, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (exact) Strictness.preset(level).label else "Custom",
+                color = ToleranceColors.Heading, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            )
         }
         Slider(
             value = level.toFloat(),
-            onValueChange = { level = it.toInt() },
-            onValueChangeFinished = { tracker.setStrictness(level) },
+            onValueChange = { set(Strictness.preset(it.roundToInt()).thresholds) },
             valueRange = 1f..Strictness.PRESETS.size.toFloat(),
             steps = Strictness.PRESETS.size - 2,
         )
@@ -315,10 +338,51 @@ private fun StrictnessCard(tracker: ProgressiveBoredomTracker, resumes: Int) {
         )
         Text(
             "Now (${phase.label}): " + if (threshold >= Strictness.MAX_THRESHOLD) "only 10s are covered: " + (if (BuildConfig.AD_BLOCKING) "ads and hidden topics" else "hidden topics")
-            else "posts scoring ${ceil(threshold / 10.0).toInt()} or more are covered",
+            else "posts scoring ${ceil(threshold / 10.0).toInt()} or more are covered." +
+                if (tikTokScored) " On TikTok, where nearly every score is 7 or 8, the hookiest " +
+                    "${(RankCover.share(threshold) * 100).roundToInt()}% of videos." else "",
             color = Color(0xFFAAAAAA), fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp),
         )
+
+        Text(
+            if (showPhases) "Hide per-phase thresholds" else "Fine-tune per phase",
+            color = ToleranceColors.Muted, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 12.dp).clickable { showPhases = !showPhases },
+        )
+        if (showPhases) {
+            val t = thresholds
+            PhaseThresholdSlider("Normal", "0–${timing.normal.toInt()} min", t.normal) { set(t.copy(normal = it)) }
+            PhaseThresholdSlider("Reduced", "${timing.normal.toInt()}–${timing.reduced.toInt()} min", t.reduced) { set(t.copy(reduced = it)) }
+            PhaseThresholdSlider("Wind-down", "${timing.reduced.toInt()}–${timing.windDown.toInt()} min", t.windDown) { set(t.copy(windDown = it)) }
+            PhaseThresholdSlider("Minimal", "${timing.windDown.toInt()}+ min", t.minimal) { set(t.copy(minimal = it)) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                listOf("Less covered", "More covered").forEach { Text(it, color = ToleranceColors.Faint, fontSize = 11.sp) }
+            }
+            Text(
+                "A post is covered when its score × 10 reaches the phase's number. 100 covers only 10s.",
+                color = ToleranceColors.Faint, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp),
+            )
+        }
     }
+}
+
+/** One phase's threshold, 100 down to 20 in fives. Further right covers more, so the slider runs backwards. */
+@Composable
+private fun PhaseThresholdSlider(name: String, minutes: String, value: Int, onChange: (Int) -> Unit) {
+    val min = Strictness.MIN_THRESHOLD
+    val max = Strictness.MAX_THRESHOLD
+    val step = Strictness.THRESHOLD_STEP
+    Row(Modifier.padding(top = 12.dp)) {
+        Text("$name ", color = ToleranceColors.Muted, fontSize = 12.sp)
+        Text("($minutes): ", color = ToleranceColors.Faint, fontSize = 12.sp)
+        Text("$value", color = ToleranceColors.Heading, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+    Slider(
+        value = (max + min - value).toFloat(),
+        onValueChange = { onChange(max + min - (it / step).roundToInt() * step) },
+        valueRange = min.toFloat()..max.toFloat(),
+        steps = (max - min) / step - 1,
+    )
 }
 
 // --- Topics ---
@@ -418,6 +482,29 @@ private fun ScoreTagCard(prefs: android.content.SharedPreferences) {
                     position = value
                     prefs.edit().putString(ToleranceAccessibilityService.PREF_SCORE_TAG, value).apply()
                 }
+            }
+        }
+    }
+}
+
+/** How TikTok's For You feed is handled: a growing wait on every video, or scoring. */
+@Composable
+private fun TikTokModeCard(mode: String, onChange: (String) -> Unit) {
+    val scored = mode == ToleranceAccessibilityService.TIKTOK_MODE_SCORED
+    DashboardCard("TikTok Mode") {
+        Text(
+            if (scored) "Each For You video is scored from its caption, and the hookiest share is covered. " +
+                "Captions say little, so the scores are rough."
+            else "Each For You video waits under a cover before it shows. The wait starts at nothing and " +
+                "grows through the day, to 4 seconds. Nothing is scored, so hidden topics don't apply on TikTok.",
+            color = ToleranceColors.Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                ToleranceAccessibilityService.TIKTOK_MODE_DELAY to "Delay",
+                ToleranceAccessibilityService.TIKTOK_MODE_SCORED to "Scored",
+            ).forEach { (value, label) ->
+                Choice(label, mode == value, Modifier.weight(1f)) { onChange(value) }
             }
         }
     }

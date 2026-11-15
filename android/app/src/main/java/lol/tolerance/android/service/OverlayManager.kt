@@ -87,6 +87,12 @@ class OverlayManager(private val context: Context) {
             override val bounds: ScreenBounds,
         ) : Cover
 
+        /** Held back for a moment before it shows (TikTok's delay mode); lifts by itself. */
+        data class Delay(
+            override val contentHash: String,
+            override val bounds: ScreenBounds,
+        ) : Cover
+
         /**
          * Not a cover: a small score tag at the left edge of a post left visible, so its
          * score can be seen. [bounds] are the post's.
@@ -412,6 +418,7 @@ class OverlayManager(private val context: Context) {
                 is Cover.Tag -> return addPostTag(cover)
                 is Cover.Scored -> createCoverView(cover.score.score.toString(), cover.score.reason)
                 is Cover.Pending -> createCoverView(PENDING_LABEL, "")
+                is Cover.Delay -> createCoverView(PENDING_LABEL, "")
                 is Cover.Unidentified -> createCoverView(UNIDENTIFIED_LABEL, "")
                 is Cover.Ad -> createCoverView(AD_LABEL, "")
                 // Touches still reach the stream underneath, so say how to leave

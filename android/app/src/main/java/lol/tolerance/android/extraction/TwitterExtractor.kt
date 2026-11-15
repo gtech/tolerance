@@ -111,8 +111,12 @@ class TwitterExtractor : ContentExtractor {
 
         val text = bodyParts.joinToString(" ")
         if (author == null) return null
-        // Image-only ads can have almost no text; regular posts need enough to score
-        if (!isAd && text.length < 5) return null
+        // Too little text for the model to score. An image or video with no words is a quick
+        // hit by nature, so it gets a fixed score; anything else wordless isn't a post we know.
+        // Image-only ads are kept either way.
+        val wordless = text.length < MIN_SCORABLE_TEXT
+        val mediaOnly = wordless && MEDIA_LABELS.any { findByContentDesc(container, it, MEDIA_DEPTH) != null }
+        if (!isAd && wordless && !mediaOnly) return null
 
         val post = PostData(
             id = "${Platform.TWITTER.name}:${text.hashCode().toUInt().toString(16)}",
@@ -125,6 +129,7 @@ class TwitterExtractor : ContentExtractor {
             subreddit = null,
             screenBounds = ExtractionUtils.getScreenBounds(container),
             isAd = isAd,
+            defaultScore = if (mediaOnly && !isAd) MEDIA_ONLY_SCORE else null,
             node = container,
         )
         indexFragments(bodyParts, post)
@@ -249,6 +254,12 @@ class TwitterExtractor : ContentExtractor {
         private val ACTION_LABELS = listOf("Reply", "Repost", "Like", "Impressions", "Bookmark", "Share")
         // A whole action bar, not a lone button
         private const val MIN_ACTION_LABELS = 3
+        private const val MIN_SCORABLE_TEXT = 5
+        // How X labels a post's picture and its video player for screen readers
+        private val MEDIA_LABELS = listOf("Image", "Video")
+        private const val MEDIA_DEPTH = 6
+        // A quick hit (7-8 in the scoring spec), at the low end since we can't see it
+        const val MEDIA_ONLY_SCORE = 7
         private const val MIN_FRAGMENT_LENGTH = 5
         private const val MAX_FRAGMENTS = 1000
     }

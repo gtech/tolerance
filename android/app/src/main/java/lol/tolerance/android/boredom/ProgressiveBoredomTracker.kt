@@ -77,14 +77,34 @@ class ProgressiveBoredomTracker(private val context: Context) {
      * The current blur threshold on the extension's 0-100 scale: a post is covered when
      * score × 10 is at or above it (see [Strictness.isCovered]).
      */
-    fun getCurrentBlurThreshold(): Int =
-        Strictness.preset(getStrictness()).thresholds.forPhase(getCurrentPhase())
+    fun getCurrentBlurThreshold(): Int = getBlurThresholds().forPhase(getCurrentPhase())
 
-    /** 1 (gentlest) to 5 (strictest). */
-    fun getStrictness(): Int = prefs.getInt(KEY_STRICTNESS, Strictness.DEFAULT_LEVEL)
+    /** The current wait before a paging feed's video shows (see [FeedDelay]). Off: none. */
+    fun getCurrentFeedDelayMs(): Long =
+        if (isEnabled()) FeedDelay.delayMs(getTotalMinutes(), getPhaseThresholds()) else 0
 
-    fun setStrictness(level: Int) {
-        prefs.edit().putInt(KEY_STRICTNESS, level.coerceIn(1, Strictness.PRESETS.size)).apply()
+    /**
+     * The blur threshold for each phase. As in the extension, these four numbers are the
+     * setting: the strictness slider writes a preset's four, and each can be fine-tuned.
+     */
+    fun getBlurThresholds(): Strictness.Thresholds {
+        // Before 1.0.5 only the slider's level was stored
+        val preset = Strictness.preset(prefs.getInt(KEY_STRICTNESS, Strictness.DEFAULT_LEVEL)).thresholds
+        return Strictness.Thresholds(
+            normal = prefs.getInt(KEY_BLUR_NORMAL, preset.normal),
+            reduced = prefs.getInt(KEY_BLUR_REDUCED, preset.reduced),
+            windDown = prefs.getInt(KEY_BLUR_WIND_DOWN, preset.windDown),
+            minimal = prefs.getInt(KEY_BLUR_MINIMAL, preset.minimal),
+        )
+    }
+
+    fun setBlurThresholds(thresholds: Strictness.Thresholds) {
+        prefs.edit()
+            .putInt(KEY_BLUR_NORMAL, thresholds.normal)
+            .putInt(KEY_BLUR_REDUCED, thresholds.reduced)
+            .putInt(KEY_BLUR_WIND_DOWN, thresholds.windDown)
+            .putInt(KEY_BLUR_MINIMAL, thresholds.minimal)
+            .apply()
     }
 
     /** Today's minutes: yesterday's count is cleared first, so Settings never shows it. */
@@ -172,6 +192,10 @@ class ProgressiveBoredomTracker(private val context: Context) {
         private const val KEY_MAX_PHASE = "max_phase"
         private const val KEY_ENABLED = "boredom_enabled"
         private const val KEY_STRICTNESS = "strictness"
+        private const val KEY_BLUR_NORMAL = "blur_normal"
+        private const val KEY_BLUR_REDUCED = "blur_reduced"
+        private const val KEY_BLUR_WIND_DOWN = "blur_wind_down"
+        private const val KEY_BLUR_MINIMAL = "blur_minimal"
         private const val KEY_THRESHOLD_NORMAL = "threshold_normal"
         private const val KEY_THRESHOLD_REDUCED = "threshold_reduced"
         private const val KEY_THRESHOLD_WIND_DOWN = "threshold_wind_down"

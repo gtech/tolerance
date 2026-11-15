@@ -1,5 +1,7 @@
 package lol.tolerance.android.boredom
 
+import kotlin.math.abs
+
 /**
  * One-slider strictness, ported from the extension's src/shared/constants.ts
  * (STRICTNESS_PRESETS). Each level sets the blur threshold for all four phases.
@@ -22,7 +24,7 @@ object Strictness {
 
     // Set from day-to-day use of the extension (2026-11-08)
     val PRESETS = listOf(
-        Preset("Very gentle", Thresholds(100, 65, 65, 65)),
+        Preset("Very gentle", Thresholds(100, 85, 85, 85)),
         Preset("Gentle", Thresholds(100, 65, 55, 55)),
         Preset("Default", Thresholds(100, 55, 45, 45)),
         Preset("Strict", Thresholds(55, 45, 45, 45)),
@@ -33,8 +35,24 @@ object Strictness {
     // Top of the scale: only 10s are covered
     const val MAX_THRESHOLD = 100
 
+    // Range of a per-phase threshold when fine-tuned, as in the extension's sliders
+    const val MIN_THRESHOLD = 20
+    const val THRESHOLD_STEP = 5
+
     /** Level 1 (gentlest) to 5 (strictest). */
     fun preset(level: Int): Preset = PRESETS[level.coerceIn(1, PRESETS.size) - 1]
+
+    /**
+     * The slider position for a set of thresholds, as the extension's thresholdsToStrictness:
+     * the closest preset's level, and whether it matches exactly. Not exact means the user
+     * has fine-tuned per phase.
+     */
+    fun closest(t: Thresholds): Pair<Int, Boolean> {
+        fun distance(p: Thresholds) = abs(p.normal - t.normal) + abs(p.reduced - t.reduced) +
+            abs(p.windDown - t.windDown) + abs(p.minimal - t.minimal)
+        val index = PRESETS.indices.minBy { distance(PRESETS[it].thresholds) }
+        return (index + 1) to (distance(PRESETS[index].thresholds) == 0)
+    }
 
     fun isCovered(score: Int, threshold: Int): Boolean = score * 10 >= threshold
 }

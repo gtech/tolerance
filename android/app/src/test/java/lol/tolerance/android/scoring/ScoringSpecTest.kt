@@ -1,5 +1,8 @@
 package lol.tolerance.android.scoring
 
+import lol.tolerance.android.boredom.FeedDelay
+import lol.tolerance.android.boredom.ProgressiveBoredomTracker
+import lol.tolerance.android.boredom.RankCover
 import lol.tolerance.android.boredom.Strictness
 import lol.tolerance.android.extraction.Platform
 import org.junit.Assert.assertEquals
@@ -94,5 +97,47 @@ class ScoringSpecTest {
         // An always-shown topic scores 0 and is never covered
         assertFalse(Strictness.isCovered(0, Strictness.preset(5).thresholds.minimal))
         assertEquals("Very strict", Strictness.preset(99).label)
+    }
+
+    @Test
+    fun fineTunedThresholdsShowAsTheNearestPreset() {
+        val default = Strictness.preset(Strictness.DEFAULT_LEVEL).thresholds
+        assertEquals(Strictness.DEFAULT_LEVEL to true, Strictness.closest(default))
+        assertEquals(Strictness.DEFAULT_LEVEL to false, Strictness.closest(default.copy(reduced = 60)))
+        assertEquals(5 to true, Strictness.closest(Strictness.preset(5).thresholds))
+    }
+
+    @Test
+    fun feedDelayGrowsEvenlyThroughThePhases() {
+        val timing = ProgressiveBoredomTracker.PhaseThresholds(normal = 15.0, reduced = 45.0, windDown = 75.0)
+        assertEquals(0, FeedDelay.delayMs(0.0, timing))
+        assertEquals(500, FeedDelay.delayMs(7.5, timing))   // halfway through Normal
+        assertEquals(1000, FeedDelay.delayMs(15.0, timing))
+        assertEquals(1750, FeedDelay.delayMs(30.0, timing)) // halfway through Reduced
+        assertEquals(2500, FeedDelay.delayMs(45.0, timing))
+        assertEquals(4000, FeedDelay.delayMs(75.0, timing))
+        assertEquals(4000, FeedDelay.delayMs(300.0, timing)) // stays there
+    }
+
+    @Test
+    fun bunchedScoresAreCoveredByRank() {
+        // A TikTok-like feed: 40% 8s, 40% 7s, 20% 6s
+        val recent = List(20) { 8 } + List(20) { 7 } + List(10) { 6 }
+        val hashes = (1..400).map { "video$it" }
+        fun coveredShare(score: Int, threshold: Int) =
+            hashes.count { RankCover.isCovered(score, it, recent, threshold) } / hashes.size.toDouble()
+
+        // Threshold 100 covers nothing but 10s
+        assertEquals(0.0, coveredShare(8, 100), 0.0)
+        assertTrue(RankCover.isCovered(10, "ad", recent, 100))
+        // 55 is the hookiest 45%: every 8 (40%) and an eighth of the 7s, never a 6
+        assertEquals(1.0, coveredShare(8, 55), 0.0)
+        assertEquals(0.125, coveredShare(7, 55), 0.06)
+        assertEquals(0.0, coveredShare(6, 55), 0.0)
+        // 20 is the hookiest 80%: every 8 and 7, no 6
+        assertEquals(1.0, coveredShare(7, 20), 0.0)
+        assertEquals(0.0, coveredShare(6, 20), 0.0)
+        // The same video always gets the same answer
+        assertEquals(RankCover.isCovered(7, "video7", recent, 55), RankCover.isCovered(7, "video7", recent, 55))
     }
 }
