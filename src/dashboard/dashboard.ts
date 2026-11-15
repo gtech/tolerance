@@ -907,6 +907,16 @@ function populateSettings(settings: Settings): void {
   if (customEndpointSection) {
     customEndpointSection.style.display = provider.type === 'openai-compatible' ? 'block' : 'none';
   }
+  const openRouterModelSection = document.getElementById('openrouter-model-section');
+  const openRouterModelInput = document.getElementById('openrouter-model') as HTMLInputElement | null;
+  if (openRouterModelSection) {
+    openRouterModelSection.style.display = provider.type === 'openai-compatible' ? 'none' : 'flex';
+  }
+  if (openRouterModelInput) {
+    // Before this field existed the custom-endpoint text model was sent to OpenRouter too
+    openRouterModelInput.value = provider.openRouterModel
+      ?? (provider.type === 'openai-compatible' ? '' : provider.textModel ?? '');
+  }
   if (customEndpointInput) {
     customEndpointInput.value = provider.endpoint || '';
   }
@@ -1241,9 +1251,12 @@ function setupEventListeners(): void {
     providerTypeSelect.addEventListener('change', () => {
       const isCustom = providerTypeSelect.value === 'openai-compatible';
       customEndpointSection.style.display = isCustom ? 'block' : 'none';
+      const openRouterModelSection = document.getElementById('openrouter-model-section');
+      if (openRouterModelSection) openRouterModelSection.style.display = isCustom ? 'none' : 'flex';
       saveSettings();
     });
   }
+  document.getElementById('openrouter-model')?.addEventListener('change', saveSettings);
 
   // Custom endpoint inputs
   const customEndpointInput = document.getElementById('custom-endpoint');
@@ -1494,6 +1507,8 @@ async function saveSettings(): Promise<void> {
     apiProvider: {
       type: providerType,
       endpoint: providerType === 'openai-compatible' ? (customEndpointInput?.value?.trim() || undefined) : undefined,
+      // Always a string once saved, so an emptied field means "the default" from then on
+      openRouterModel: (document.getElementById('openrouter-model') as HTMLInputElement | null)?.value.trim() ?? existing.apiProvider?.openRouterModel,
       textModel: customTextModelInput?.value?.trim() || undefined,
       imageModel: visionModel || undefined,
       visionMode: visionModel ? 'enabled' : 'disabled',

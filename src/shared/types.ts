@@ -453,6 +453,7 @@ export interface ApiProviderConfig {
   type: 'openrouter' | 'openai-compatible';
   endpoint?: string;           // Custom endpoint URL (for openai-compatible)
   // (the endpoint's API key is not here: keys live in shared/secrets.ts)
+  openRouterModel?: string;    // OpenRouter: one model for text and images ('' = the default)
   textModel?: string;          // Override default text model
   imageModel?: string;         // Override default vision model
   visionMode?: 'auto' | 'enabled' | 'disabled';  // Vision capability

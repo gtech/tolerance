@@ -10,6 +10,7 @@ import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
 import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
+import { DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, scoringModels } from '../shared/provider-models';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
@@ -105,27 +106,10 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'google/gemini-2.5-flash-lite': { input: 0.1, output: 0.4 },
   'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'anthropic/claude-haiku-5.5': { input: 0.1, output: 0.5 },
+  'qwen/qwen3.7-flash': { input: 0.03, output: 0.13 },
 };
 
-// Default models for OpenRouter
-// Gemini 2.5 Flash Lite replaced gpt-oss-120b (Oct 2026): on the scoring eval
-// (scripts/eval) it scored 40/40 in range vs 32-36, got jokes gpt-oss missed, and
-// answered a 10-post batch in ~2s vs ~4s at about the same cost.
-// Gemini 2.5 Flash replaced Flash Lite (Oct 2026, spec v6): 50/52 in range vs 47/52.
-// Flash Lite scored filler (throwaway one-liners, mundane updates) 2-3 whatever the
-// rubric said, and teaser openings of cut-off long posts 7-8; Flash gets 5-6 for
-// both. About 5x the cost, batches ~3.8s vs ~2s.
-// Claude Haiku 5.5 with thinking off replaced Flash the same day: 52/53 in range,
-// 10-post batches ~3.6s, ~$0.06 per 1000 posts vs ~$0.24, no malformed replies.
-// With thinking on it takes ~8s a batch for no gain.
-const DEFAULT_TEXT_MODEL = 'anthropic/claude-haiku-5.5';
-// Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
-// the rest at 0-40% uptime); replaced by Gemini, now the same model as text
-const DEFAULT_IMAGE_MODEL = 'anthropic/claude-haiku-5.5';
-// Models that think by default; scoring doesn't need it, so it's turned off
-const THINKING_OFF_MODELS = new Set(['anthropic/claude-haiku-5.5', 'openai/gpt-6-luna']);
-const DEFAULT_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
-const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
+// The default models, and why each was chosen, are in shared/provider-models.ts
 
 // Provider configuration built from settings
 interface ProviderConfig {
@@ -171,9 +155,7 @@ async function getProviderConfig(): Promise<ProviderConfig> {
 
   // Use custom models if specified (non-empty), otherwise use defaults
   // This works for both OpenRouter and custom endpoints
-  const textModel = (provider.textModel && provider.textModel.trim()) || DEFAULT_TEXT_MODEL;
-  const imageModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_IMAGE_MODEL;
-  const videoModel = (provider.imageModel && provider.imageModel.trim()) || DEFAULT_FULL_VIDEO_MODEL;
+  const { textModel, imageModel, videoModel } = scoringModels(provider);
 
   log.debug(` Provider config: type=${isOpenRouter ? 'openrouter' : 'custom'}, hasKey=${!!apiKey}, isFreeTier=${isFreeTier}, textModel=${textModel}, imageModel=${imageModel}, supportsVision=${!isOpenRouter ? (provider.visionMode !== 'disabled') : true}`);
 
