@@ -20,7 +20,11 @@
 // back, to keep with the post. The rubric is unchanged.
 // v10: posts labeled AI-generated, by the site or by their author, score 10 (a setting,
 // on by default). Nothing is guessed from how a post reads.
-export const SCORING_SPEC_VERSION = 10;
+// v11: the 4-6 band is split at substance. DeepSeek v4.1 Flash gave 5-6 to most posts
+// Claude Haiku 5.5 gave 4 (plain observations, reasoned opinions), which at a blur
+// threshold of 45 blurred 91% of a Twitter sample against Haiku's 82%. A post that
+// makes a point is now 4; 5 and up is for posts where the quick hit is most of it.
+export const SCORING_SPEC_VERSION = 11;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
@@ -58,10 +62,12 @@ Rate each from 1 to 10:
 
 score (1-10), overall cheap payoff. A strong hook for little effort is the core signal; pull raises it; only lasting value lowers it.
 - 1-3: asks for real attention and repays it (dense explainers, careful arguments, plain useful information)
-- 4-6: a mild hook with real substance, or a weak quick hit
+- 4: makes a point without much hook: an observation, a reasoned opinion, a report of what someone found, built or read. (Plain useful information with no hook at all is still 1-3.)
+- 5-6: a weak quick hit: some hook with thin substance behind it, or filler
 - 7-8: a quick hit: a good joke, a cute animal, a relatable meme, a hot take, a striking image, celebrity or creator drama
 - 9-10: built to grab: outrage bait, curiosity gaps ("you won't believe"), engagement farming, tribal pile-ons, shock
 
+The line between 4 and 5 is substance. If the post makes a point, reports something or explains something that a reader of this feed could repeat to someone tomorrow, it is 4 or lower, even when it is short, casual or opinionated. Give 5 or more only when the quick hit is most of what it offers. A video title that teases a point has not made one: judge the video it promises.
 Cleverness, humour and wholesomeness do NOT lower the score: a brilliant one-line joke is still a quick hit.
 Filler is scroll fuel: a throwaway reply, an in-joke you don't get, "lol", a vague one-liner, a mundane personal update. It costs a glance and leaves nothing, so it keeps the scroll going: 6-7 even with a weak hook. A weak hook never lowers the score; only lasting value does.
 When a video's length is given, it is part of the effort: an hour-long lecture, talk or course session asks sustained attention (1-3 even on a hot topic); a two-minute clip asks almost none.
@@ -71,6 +77,8 @@ Reference points:
 - A thread explaining step by step how database indexes work, with diagrams → 2
 - A 2,000-word personal essay on grief → 3
 - A news headline stating a policy change plainly → 4
+- A researcher's plain two-sentence remark on what a new result in their field means → 4
+- "wow, it's really happening" about the day's news, with nothing else → 6
 - A reply to a friend: "lmao same, see you there" → 6
 - "Repainted the spare room this weekend, going with sage green" → 6
 - A photo of a puppy asleep in a teacup → 7
