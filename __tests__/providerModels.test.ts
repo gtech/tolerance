@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, scoringModels } from '../src/shared/provider-models';
+import { CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -16,6 +16,12 @@ describe('scoring models', () => {
   it('asks for the cheapest provider of the default model', () => {
     expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_TEXT_MODEL)).toBe(true);
     expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
+  });
+
+  it('caps the output price for the default model, and can drop the cap', () => {
+    expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'price', max_price: { completion: 0.25 } });
+    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ sort: 'price' });
+    expect(providerRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
   });
 
   it('uses the OpenRouter model for text and images', () => {

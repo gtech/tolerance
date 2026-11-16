@@ -10,7 +10,7 @@ import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
 import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
-import { CHEAPEST_PROVIDER_MODELS, DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, scoringModels } from '../shared/provider-models';
+import { DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../shared/provider-models';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
@@ -107,7 +107,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'anthropic/claude-haiku-5.5': { input: 0.1, output: 0.5 },
   'qwen/qwen3.7-flash': { input: 0.03, output: 0.13 },
-  'deepseek/deepseek-v4.1-flash-1017': { input: 0.02, output: 0.108 }, // the cheapest provider's price
+  'deepseek/deepseek-v4.1-flash-1017': { input: 0.05, output: 0.10 }, // the cheapest provider's price on 2026-11-17 ($0.02/$0.108 two days before)
 };
 
 // The default models, and why each was chosen, are in shared/provider-models.ts
@@ -982,9 +982,8 @@ async function callApi(
           allow_fallbacks: true,
         };
       }
-      if (CHEAPEST_PROVIDER_MODELS.has(model)) {
-        requestBody.provider = { sort: 'price' };
-      }
+      const routing = providerRouting(model);
+      if (routing) requestBody.provider = routing;
       if (THINKING_OFF_MODELS.has(model)) {
         requestBody.reasoning = { enabled: false };
       }
@@ -1014,12 +1013,19 @@ async function callApi(
     log.debug(` API request - endpoint=${config.endpoint}, model=${model}`);
 
     const fetchStart = performance.now();
-    const response = await fetch(config.endpoint, {
+    const send = () => fetch(config.endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(SCORING_TIMEOUT_MS),
     });
+    let response = await send();
+    // No provider under the output-price cap: better a dearer score than none
+    if (response.status === 404 && (requestBody.provider as { max_price?: unknown } | undefined)?.max_price) {
+      log.debug(' No provider under the output price cap; retrying without it');
+      requestBody.provider = providerRouting(model, false);
+      response = await send();
+    }
     const fetchEnd = performance.now();
     log.debug(` fetch completed in ${(fetchEnd - fetchStart).toFixed(0)}ms`);
 

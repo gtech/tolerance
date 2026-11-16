@@ -39,6 +39,23 @@ export const THINKING_OFF_MODELS = new Set([
 // Models whose providers differ widely in price: OpenRouter is asked for the cheapest
 export const CHEAPEST_PROVIDER_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1017']);
 
+// "Cheapest" to OpenRouter means the lowest input price. A day after the switch the
+// lowest input price belonged to a provider charging $0.50 per million output tokens
+// against $0.10 elsewhere, and a scoring call is about a third output, so it cost
+// 2.4x as much. Providers above this output price are left out. If none is under it,
+// OpenRouter answers 404 and the request is sent again without the cap.
+export const MAX_OUTPUT_PRICE_PER_MILLION = 0.25;
+
+export interface ProviderRouting {
+  sort: 'price';
+  max_price?: { completion: number };
+}
+
+export function providerRouting(model: string, capped = true): ProviderRouting | undefined {
+  if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
+  return capped ? { sort: 'price', max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION } } : { sort: 'price' };
+}
+
 export interface ScoringModels {
   textModel: string;
   imageModel: string;
