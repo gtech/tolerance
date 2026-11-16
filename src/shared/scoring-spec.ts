@@ -24,7 +24,10 @@
 // Claude Haiku 5.5 gave 4 (plain observations, reasoned opinions), which at a blur
 // threshold of 45 blurred 91% of a Twitter sample against Haiku's 82%. A post that
 // makes a point is now 4; 5 and up is for posts where the quick hit is most of it.
-export const SCORING_SPEC_VERSION = 11;
+// v12: same rubric; except on YouTube the prompt now opens with the rubric and ends
+// with the posts, so the provider's cached-input price applies to the part that
+// never changes.
+export const SCORING_SPEC_VERSION = 12;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
@@ -201,26 +204,49 @@ function fields(themes: ScoringTheme[]): string {
 }
 
 export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true, aiNote = true): string {
-  return `Rate this social media post.
+  return `You rate social media posts, one at a time.
 
-${describePost(post)}
+${rubric}${platformNotes(adNote, aiNote)}${themeSection(themes, false)}
 
-${rubric}${mediaNotes([post])}${platformNotes(adNote, aiNote)}${themeSection(themes, false)}
+Respond with ONLY valid JSON: {${fields(themes)}}${mediaNotes([post])}
 
-Respond with ONLY valid JSON: {${fields(themes)}}`;
+The post to rate:
+
+${describePost(post)}`;
 }
 
 export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true, aiNote = true): string {
   const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
   // The description is asked for outside the rubric, so an edited rubric still gets one
   const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image. In that post's result, also include "image": what the image shows, stated plainly in 25 words or fewer, quoting any prominent text in it.` : '';
-  return `Rate each of these social media posts.
+  const format = `Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
+
+  // YouTube keeps the posts first. With the rubric ahead of them DeepSeek v4.1 Flash
+  // scored video titles lower: about 50% at 5 or above on a replay of real titles,
+  // against about 60% with the rubric last. Ending on the instruction or repeating
+  // the scale after the posts did not bring it back. The other sites did not move.
+  if (posts[0]?.platform === 'youtube') {
+    return `Rate each of these social media posts.
 
 ${list}${imageNote}
 
 ${rubric}${mediaNotes(posts)}${platformNotes(adNote, aiNote)}${themeSection(themes, true)}
 
-Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
+${format}`;
+  }
+
+  // Everywhere else, what is the same from one call to the next comes first and the
+  // posts last: providers bill a repeated opening at a fraction of the input price (on
+  // DeepSeek's cheapest provider, about a seventh), and it is most of the prompt.
+  return `You rate social media posts.
+
+${rubric}${platformNotes(adNote, aiNote)}${themeSection(themes, true)}
+
+${format}${mediaNotes(posts)}
+
+The posts to rate:
+
+${list}${imageNote}`;
 }
 
 // Scored alone, a post loses its sense of scale: Gemini 2.5 Flash Lite rated a dense

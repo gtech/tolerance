@@ -97,7 +97,7 @@ async function call(prompt, image) {
       ...(image ? {} : { response_format: { type: 'json_object' } }),
       ...(model === 'openai/gpt-oss-120b' ? { provider: { order: ['groq', 'cerebras'], allow_fallbacks: true } } : {}),
       // With price sorting, the same output-price cap as the extension (shared/provider-models.ts)
-      ...(sort ? { provider: sort === 'price' ? { sort, max_price: { completion: 0.25 } } : { sort } } : {}),
+      ...(sort ? { provider: sort === 'price' && !image ? { sort, max_price: { completion: 0.25 } } : { sort } } : {}),
       ...(noReasoning ? { reasoning: { enabled: false } } : {}),
     }),
   });

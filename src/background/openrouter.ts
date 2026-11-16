@@ -982,7 +982,9 @@ async function callApi(
           allow_fallbacks: true,
         };
       }
-      const routing = providerRouting(model);
+      // No cap on image calls: on 2026-11-17 no provider under it accepted images, and
+      // an image call's reply is short, so its output price matters little
+      const routing = providerRouting(model, !effectiveImageUrl);
       if (routing) requestBody.provider = routing;
       if (THINKING_OFF_MODELS.has(model)) {
         requestBody.reasoning = { enabled: false };
