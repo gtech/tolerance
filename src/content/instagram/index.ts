@@ -4,6 +4,7 @@ import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { logShown, type ShownPost } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
@@ -626,17 +627,9 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
   if (scoringFailed) {
     void showFreeTierExhaustedDialog(currentSettings);
 
-    const isOwnKey = currentSettings?.apiTier === 'own-key';
-    badge.title = isOwnKey
-      ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.';
-    badge.style.cursor = 'pointer';
-    badge.style.pointerEvents = 'auto';
-    badge.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.open('https://tolerance.lol/account.html', '_blank');
-    });
+    const notice = failedScoreNotice(currentSettings, score.apiReason);
+    badge.title = notice.text;
+    linkFailedBadge(badge, notice);
   } else if (score.apiReason) {
     badge.title = score.apiReason;
     badge.style.cursor = 'help';

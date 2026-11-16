@@ -5,6 +5,7 @@ import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { firstSighting } from '../impressionLog';
 import { AttentionTracker } from '../attention';
@@ -592,22 +593,13 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
   // Make failed badges clickable to upgrade page
   if (info.scoringFailed) {
     void showFreeTierExhaustedDialog(currentSettings);
-
-    badge.style.cursor = 'pointer';
-    badge.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.open('https://tolerance.lol/account.html', '_blank');
-    });
+    linkFailedBadge(badge, failedScoreNotice(currentSettings, info.reason));
   }
 
   // Use native title tooltip instead of custom one (more reliable)
   const titleParts: string[] = [];
   if (info.scoringFailed) {
-    const isOwnKey = currentSettings?.apiTier === 'own-key';
-    titleParts.push(isOwnKey
-      ? 'Error receiving score. Check your OpenRouter key (spend limit / credits) in the dashboard.'
-      : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.');
+    titleParts.push(failedScoreNotice(currentSettings, info.reason).text);
   } else if (info.reason) {
     titleParts.push(info.reason);
   }

@@ -4,6 +4,7 @@ import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from 
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
 import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { logShown, type ShownPost } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
@@ -578,16 +579,9 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
   if (scoringFailed) {
     void showFreeTierExhaustedDialog(currentSettings);
 
-    const isOwnKey = currentSettings?.apiTier === 'own-key';
-    badge.title = score.apiReason ||
-      (isOwnKey ? 'Error receiving score.' : 'Free tier exhausted. Click to upgrade to Pro, or use your own API key.');
-    badge.style.cursor = 'pointer';
-    badge.style.pointerEvents = 'auto';
-    badge.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.open('https://tolerance.lol/account.html', '_blank');
-    });
+    const notice = failedScoreNotice(currentSettings, score.apiReason);
+    badge.title = notice.text;
+    linkFailedBadge(badge, notice);
   } else if (score.apiReason) {
     badge.title = score.apiReason;
     badge.style.cursor = 'default';

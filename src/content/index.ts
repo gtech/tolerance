@@ -8,6 +8,7 @@ import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
 import { showFreeTierExhaustedDialog } from './freeTierDialog';
+import { failedScoreNotice, linkFailedBadge } from './failedScore';
 import { startScrapeHealth, reportScraped } from './scrapeHealth';
 import { attention, firstSighting } from './impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from './grounding';
@@ -394,20 +395,10 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
 
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
-    const isOwnKey = currentSettings?.apiTier === 'own-key';
-    reasonDiv.textContent = isOwnKey
-      ? 'Error receiving score.'
-      : 'Free tier exhausted. Click to upgrade to Pro. Or add your own API key in the dashboard.';
+    const notice = failedScoreNotice(currentSettings, info.reason);
+    reasonDiv.textContent = notice.text;
     tooltip.appendChild(reasonDiv);
-
-    // Make badge clickable and open account page
-    badge.style.cursor = 'pointer';
-    badge.style.pointerEvents = 'auto';
-    badge.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      window.open('https://tolerance.lol/account.html', '_blank');
-    });
+    linkFailedBadge(badge, notice);
   } else if (info.reason) {
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';
