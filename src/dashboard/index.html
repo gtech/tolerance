@@ -308,7 +308,7 @@
       margin-top: 4px;
     }
 
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="password"], input[type="number"] {
       background: #222;
       border: 1px solid #333;
       border-radius: 4px;
@@ -1091,7 +1091,7 @@
           <div class="setting-label" style="font-size: 16px;"> API Key</div>
           <div class="setting-description">Get your key from <a href="https://tolerance.lol/account.html" target="_blank" style="color: #4a9eff;">tolerance.lol/account.html</a> or directly from Openrouter. More endpoint options below.</div>
         </div>
-        <input type="text" id="api-key" placeholder="sk-or-..." style="width: 100%;" />
+        <input type="password" id="api-key" placeholder="sk-or-..." autocomplete="off" spellcheck="false" style="width: 100%;" />
       </div>
 
       <div id="api-key-status" style="margin-top: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none;"></div>
