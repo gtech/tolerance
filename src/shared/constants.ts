@@ -270,12 +270,18 @@ export const SCORE_THRESHOLDS = {
 
 // Default blur thresholds (score at or above this gets blurred)
 // Set from William's day-to-day use (2026-11-08)
+// normal was 100 until 0.1.41: with nothing blurred for 15 minutes a new user
+// couldn't tell the extension was working. 70 blurs about 1 post in 6 on
+// YouTube and Twitter. Installs from before the change keep 100 (see the
+// migration in background/index.ts).
 export const DEFAULT_BLUR_THRESHOLDS = {
-  normal: 100,    // No blurring - baseline experience
+  normal: 70,
   reduced: 55,
   windDown: 45,
   minimal: 45,
 } as const;
+
+export const PRE_0_1_41_BLUR_THRESHOLDS = { normal: 100, reduced: 55, windDown: 45, minimal: 45 } as const;
 
 // One-slider strictness presets (1 = gentlest, 3 = defaults, 5 = strictest).
 // Each sets all four phase blur thresholds; lower threshold = more blurred.
@@ -297,12 +303,13 @@ export function strictnessThresholds(level: number): BlurThresholdSet {
 // Map thresholds back to a slider position. exact=false means the user has
 // fine-tuned per phase; level is then the closest preset.
 export function thresholdsToStrictness(t: BlurThresholdSet): { level: number; exact: boolean } {
+  const distanceTo = (p: BlurThresholdSet) => Math.abs(p.normal - t.normal) + Math.abs(p.reduced - t.reduced)
+    + Math.abs(p.windDown - t.windDown) + Math.abs(p.minimal - t.minimal);
+  // Ties go to Default
   let best = 3;
-  let bestDistance = Infinity;
+  let bestDistance = distanceTo(STRICTNESS_PRESETS[2].thresholds);
   STRICTNESS_PRESETS.forEach((preset, i) => {
-    const p = preset.thresholds;
-    const distance = Math.abs(p.normal - t.normal) + Math.abs(p.reduced - t.reduced)
-      + Math.abs(p.windDown - t.windDown) + Math.abs(p.minimal - t.minimal);
+    const distance = distanceTo(preset.thresholds);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = i + 1;
@@ -316,7 +323,7 @@ export const QUALITY_MODE_THRESHOLD = 41;
 
 // Default phase timing (minutes)
 export const DEFAULT_PHASE_TIMING = {
-  normal: 15,     // First 15 min: no blur
+  normal: 15,     // First 15 min: only the worst posts blurred
   reduced: 45,    // 15-45 min: reduced phase
   windDown: 75,   // 45-75 min: wind-down phase, then minimal
 } as const;

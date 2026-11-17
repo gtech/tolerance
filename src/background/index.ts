@@ -1,5 +1,5 @@
 import { MessageType, MessageResponses, ScoresResponse, EngagementScore, SessionLog, DailyNarrativeStats, WhitelistEntry, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT, isWhitelisted } from '../shared/types';
-import { log, setLogLevel } from '../shared/constants';
+import { log, setLogLevel, PRE_0_1_41_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING } from '../shared/constants';
 import { provisionFreeKey } from './provisioning';
 import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { syncResearchConsent } from '../shared/research-consent';
@@ -108,6 +108,27 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await setSettings({ ...current, blurUntilScoredTimeout: DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT });
     }
     await chrome.storage.local.set({ migratedBlurTimeout15: true });
+  }
+
+  // One-time: the Default preset's first phase went from 100 (no blur) to 70 in
+  // 0.1.41. Installs from before that keep what they had: anyone still on the
+  // built-in defaults gets the old values saved as their own.
+  const { migratedNormal70 } = await chrome.storage.local.get('migratedNormal70');
+  if (!migratedNormal70) {
+    if (details.reason === 'update') {
+      const current = await getSettings();
+      if (!current.customThresholds?.enabled) {
+        await setSettings({
+          ...current,
+          customThresholds: {
+            blurThresholds: { ...PRE_0_1_41_BLUR_THRESHOLDS },
+            phaseTiming: current.customThresholds?.phaseTiming ?? current.scheduler?.phaseThresholds ?? DEFAULT_PHASE_TIMING,
+            enabled: true,
+          },
+        });
+      }
+    }
+    await chrome.storage.local.set({ migratedNormal70: true });
   }
 
   // Schedule subscription sync if subscriptions-only mode is enabled
@@ -751,6 +772,12 @@ async function handleMessage(
     case 'SUBMIT_CALIBRATION_FEEDBACK': {
       const adaptive = await submitCalibrationFeedback(message.response);
       return { type: 'CALIBRATION_FEEDBACK_RESULT', success: true, adaptive };
+    }
+
+    case 'OPEN_DASHBOARD': {
+      const anchor = message.section ? `#${message.section}` : '';
+      await chrome.tabs.create({ url: chrome.runtime.getURL(`dashboard/index.html${anchor}`) });
+      return { success: true };
     }
 
     case 'GET_EFFECTIVE_BLUR_THRESHOLD': {

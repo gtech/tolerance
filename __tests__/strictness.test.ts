@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { strictnessThresholds, thresholdsToStrictness, STRICTNESS_PRESETS, DEFAULT_BLUR_THRESHOLDS } from '../src/shared/constants';
+import { strictnessThresholds, thresholdsToStrictness, STRICTNESS_PRESETS, DEFAULT_BLUR_THRESHOLDS, PRE_0_1_41_BLUR_THRESHOLDS } from '../src/shared/constants';
 
 describe('strictness presets', () => {
   it('middle level is the calibrated defaults', () => {
@@ -28,7 +28,13 @@ describe('strictness presets', () => {
     for (let level = 1; level <= 5; level++) {
       expect(thresholdsToStrictness(strictnessThresholds(level))).toEqual({ level, exact: true });
     }
-    expect(thresholdsToStrictness({ normal: 100, reduced: 55, windDown: 50, minimal: 45 })).toEqual({ level: 3, exact: false });
+    expect(thresholdsToStrictness({ normal: 70, reduced: 55, windDown: 50, minimal: 45 })).toEqual({ level: 3, exact: false });
+  });
+
+  it('reads the defaults from before 0.1.41 as closest to Default', () => {
+    // Equally far from Gentle and Default; the tie goes to Default
+    expect(thresholdsToStrictness(PRE_0_1_41_BLUR_THRESHOLDS)).toEqual({ level: 3, exact: false });
+    expect(DEFAULT_BLUR_THRESHOLDS.normal).toBe(70);
   });
 
   it('clamps out-of-range levels', () => {

@@ -55,13 +55,13 @@ export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<v
     <div class="tolerance-onboarding-content">
       <div class="tolerance-onboarding-icon">💡</div>
       <div class="tolerance-onboarding-text">
-        <strong>Tips:</strong>
+        <strong>Tolerance blurred this post.</strong>
         <ul class="tolerance-onboarding-list">
           <li>Press and hold a blurred post to show it, or Skip past it</li>
           ${hoverRevealEnabled() ? `<li>Or hover for ${hoverRevealSeconds()} second${hoverRevealSeconds() === 1 ? '' : 's'}</li>` : ''}
           <li>Right-click any post to trust that author</li>
         </ul>
-        <span class="tolerance-onboarding-secondary">Adjust how strict it is from the toolbar icon or the dashboard.</span>
+        <span class="tolerance-onboarding-secondary">Too much or too little? <a href="#" class="tolerance-onboarding-settings">Change how strict it is</a>.</span>
       </div>
       <button class="tolerance-onboarding-dismiss" aria-label="Dismiss">✕</button>
     </div>
@@ -87,6 +87,14 @@ export async function showOnboardingTooltip(nearElement: HTMLElement): Promise<v
   tooltip.style.maxWidth = `${Math.min(400, window.innerWidth - 20)}px`;
 
   document.body.appendChild(tooltip);
+
+  // The settings link opens the dashboard at the strictness controls
+  tooltip.querySelector('.tolerance-onboarding-settings')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD', section: 'thresholds' }).catch(() => {});
+    dismissOnboardingTooltip();
+  });
 
   // Add dismiss handler
   const dismissBtn = tooltip.querySelector('.tolerance-onboarding-dismiss');
@@ -187,6 +195,12 @@ export function injectOnboardingStyles(): void {
     .tolerance-onboarding-secondary {
       color: #888;
       font-size: 12px;
+    }
+
+    .tolerance-onboarding-settings {
+      color: #7dcea0;
+      text-decoration: underline;
+      cursor: pointer;
     }
 
     .tolerance-onboarding-list {

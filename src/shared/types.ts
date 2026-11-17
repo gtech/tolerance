@@ -650,6 +650,8 @@ export type MessageType =
   | { type: 'GET_ADAPTIVE_SETTINGS' }
   | { type: 'RESET_THRESHOLD_ADJUSTMENT' }
   | { type: 'SUBMIT_CALIBRATION_FEEDBACK'; response: 'restricted' | 'balanced' | 'too_easy' }
+  // Content scripts can't open extension pages themselves; section is the #anchor
+  | { type: 'OPEN_DASHBOARD'; section?: 'thresholds' | 'api-setup' }
   | { type: 'GET_FEEDBACK_PROMPT_STATUS' }  // Check if we should show feedback prompt
   | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal' }
   // Onboarding messages
@@ -699,7 +701,7 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: true,
     progressiveBoredomEnabled: true,
     phaseThresholds: {
-      normal: 15,    // First 15 min: baseline (no blur on Twitter/YouTube)
+      normal: 15,    // First 15 min: only the worst posts blurred (70 and up by default)
       reduced: 45,   // 15-45 min: reduced (high-engagement blurred)
       windDown: 75,  // 45-75 min: wind down, then minimal (score >= 40 blurred)
     },
