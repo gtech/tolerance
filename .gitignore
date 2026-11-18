@@ -7,3 +7,4 @@ dist-firefox/
 data/
 docs/youtube_subscriptions.html
 test_key.env
+store-creds.env
