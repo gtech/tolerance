@@ -58,13 +58,41 @@ export const CHEAPEST_PROVIDER_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1
 export const MAX_OUTPUT_PRICE_PER_MILLION = 0.25;
 
 export interface ProviderRouting {
-  sort: 'price';
+  sort: 'price' | 'throughput';
   max_price?: { completion: number };
 }
 
 export function providerRouting(model: string, capped = true): ProviderRouting | undefined {
   if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
   return capped ? { sort: 'price', max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION } } : { sort: 'price' };
+}
+
+// The cheapest provider is sometimes a degraded one. On 2026-11-18 it was Ambient,
+// which took 8.6s for an image call that another provider answered in 0.9s, and feeds
+// sat behind the blur for up to 30s. A call on the cheapest route that takes longer
+// than slowCallTimeoutMs is abandoned and sent again to the fastest provider, and the
+// cheapest route is then left alone for FAST_ROUTE_HOLD_MS.
+//
+// The fast route has its own, looser output-price cap: the very fastest providers
+// charge $2.40 per million output tokens, about ten times the cheap ones.
+export const FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION = 0.6;
+export const FAST_ROUTE_HOLD_MS = 10 * 60_000;
+
+export function fastRouting(model: string): ProviderRouting | undefined {
+  if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
+  return { sort: 'throughput', max_price: { completion: FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION } };
+}
+
+// How long a call on the cheapest route may take before it counts as slow. A healthy
+// provider answers an image call in ~1.3s and a 10-post batch in ~3s; a 40-video
+// batch writes ~3,300 tokens, so the allowance grows with the number of posts.
+export function slowCallTimeoutMs(isImageCall: boolean, postCount: number): number {
+  return isImageCall ? 6_000 : 6_000 + 500 * Math.max(1, postCount);
+}
+
+// A 404 with a price cap means no provider under the cap: the same routing without it
+export function withoutPriceCap(routing: ProviderRouting): ProviderRouting {
+  return { sort: routing.sort };
 }
 
 export interface ScoringModels {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../src/shared/provider-models';
+import { AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -22,6 +22,23 @@ describe('scoring models', () => {
     expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'price', max_price: { completion: 0.25 } });
     expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ sort: 'price' });
     expect(providerRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
+  });
+
+  it('falls back to the fastest provider, with a looser price cap', () => {
+    expect(fastRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'throughput', max_price: { completion: 0.6 } });
+    expect(fastRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
+  });
+
+  it('drops the price cap and keeps the sort', () => {
+    expect(withoutPriceCap(providerRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'price' });
+    expect(withoutPriceCap(fastRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'throughput' });
+  });
+
+  it('allows a batch more time the more posts it holds', () => {
+    expect(slowCallTimeoutMs(true, 1)).toBe(6_000);
+    expect(slowCallTimeoutMs(false, 10)).toBe(11_000);
+    expect(slowCallTimeoutMs(false, 40)).toBe(26_000);
+    expect(slowCallTimeoutMs(false, 0)).toBe(6_500);
   });
 
   it('uses the OpenRouter model for text and images', () => {

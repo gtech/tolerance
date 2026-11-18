@@ -10,7 +10,8 @@ import { dhashFromPixels } from '../shared/image-hash';
 import { getFreeTierApiKey } from './provisioning';
 import { getSecrets, withoutSecrets } from '../shared/secrets';
 import { RUBRIC_SAMPLES } from '../shared/rubric-samples';
-import { DEFAULT_FULL_VIDEO_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../shared/provider-models';
+import { DEFAULT_FULL_VIDEO_MODEL, FAST_ROUTE_HOLD_MS, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../shared/provider-models';
+import type { ProviderRouting } from '../shared/provider-models';
 import { activeRubric, RUBRIC, buildBatchPrompt, buildMediaPrompt, buildSinglePrompt, isCalibrationId, parseDims, pickPostResult, readScore, readImageDescription, IMAGE_DESCRIPTION_MAX, rubricHash, ScoreDims, ScorePlatform, ScoringPost, withCalibration } from '../shared/scoring-spec';
 
 export interface ScoreResponse {
@@ -857,6 +858,10 @@ interface CallOutcome { upstreamLimited?: boolean }
 // and the tab's posts would sit behind the pre-score blur.
 const SCORING_TIMEOUT_MS = 60_000;
 
+// Set when a call on the cheapest route ran too long (see fastRouting). Kept in memory
+// only: a restarted worker tries the cheapest route once more.
+let cheapRouteSlowUntil = 0;
+
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
 async function callApi(
   config: ProviderConfig,
@@ -984,7 +989,10 @@ async function callApi(
       }
       // No cap on image calls: on 2026-11-17 no provider under it accepted images, and
       // an image call's reply is short, so its output price matters little
-      const routing = providerRouting(model, !effectiveImageUrl);
+      // While the cheapest route is known to be slow, go straight to the fast one
+      const routing = Date.now() < cheapRouteSlowUntil
+        ? fastRouting(model)
+        : providerRouting(model, !effectiveImageUrl);
       if (routing) requestBody.provider = routing;
       if (THINKING_OFF_MODELS.has(model)) {
         requestBody.reasoning = { enabled: false };
@@ -1015,18 +1023,46 @@ async function callApi(
     log.debug(` API request - endpoint=${config.endpoint}, model=${model}`);
 
     const fetchStart = performance.now();
-    const send = () => fetch(config.endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(SCORING_TIMEOUT_MS),
-    });
-    let response = await send();
-    // No provider under the output-price cap: better a dearer score than none
-    if (response.status === 404 && (requestBody.provider as { max_price?: unknown } | undefined)?.max_price) {
-      log.debug(' No provider under the output price cap; retrying without it');
-      requestBody.provider = providerRouting(model, false);
-      response = await send();
+    const send = async (timeoutMs: number) => {
+      let response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      // No provider under the output-price cap: better a dearer score than none
+      const routing = requestBody.provider as ProviderRouting | undefined;
+      if (response.status === 404 && routing?.max_price) {
+        log.debug(' No provider under the output price cap; retrying without it');
+        requestBody.provider = withoutPriceCap(routing);
+        response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      }
+      // The time limit has to cover the answer itself, not only the headers: read the
+      // whole body here and hand back a response that already holds it
+      const text = await response.text();
+      return new Response(text, { status: response.status, statusText: response.statusText });
+    };
+    let response: Response;
+    const onCheapestRoute = (requestBody.provider as ProviderRouting | undefined)?.sort === 'price';
+    if (onCheapestRoute) {
+      try {
+        response = await send(slowCallTimeoutMs(isImageCall, postCount));
+      } catch (error) {
+        if ((error as Error)?.name !== 'TimeoutError') throw error;
+        // The cheapest provider is too slow right now: ask the fastest one, and keep
+        // asking it for a while before trying the cheapest again
+        cheapRouteSlowUntil = Date.now() + FAST_ROUTE_HOLD_MS;
+        log.debug(` Cheapest provider took over ${slowCallTimeoutMs(isImageCall, postCount)}ms; using the fastest for ${FAST_ROUTE_HOLD_MS / 60_000} minutes`);
+        requestBody.provider = fastRouting(model);
+        response = await send(SCORING_TIMEOUT_MS);
+      }
+    } else {
+      response = await send(SCORING_TIMEOUT_MS);
     }
     const fetchEnd = performance.now();
     log.debug(` fetch completed in ${(fetchEnd - fetchStart).toFixed(0)}ms`);
