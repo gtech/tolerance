@@ -76,6 +76,11 @@ async function promptMultiline(question) {
 async function main() {
   console.log(`\n=== Releasing Tolerance ${versionTag} ===\n`);
 
+  // Step 0: free keys can only call models on the server's allowlist. Stop here if
+  // this version's defaults are not all on it.
+  console.log('=== Checking default models against the free-key allowlist ===');
+  run('node scripts/check-free-models.mjs');
+
   // Step 1: Get release notes
   const notes = await promptMultiline('Release notes:');
   if (notes.length === 0) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../src/shared/provider-models';
+import { AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, providerRouting, scoringModels } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -46,5 +46,12 @@ describe('scoring models', () => {
     const models = scoringModels({ type: 'openai-compatible', openRouterModel: 'qwen/qwen3.7-flash', textModel: 'llama3.2', imageModel: 'llava' });
     expect(models.textModel).toBe('llama3.2');
     expect(models.imageModel).toBe('llava');
+  });
+
+  it('lists every default model for the release check against the free-key allowlist', () => {
+    const unconfigured = scoringModels({ type: 'openrouter' });
+    for (const model of [unconfigured.textModel, unconfigured.imageModel, unconfigured.videoModel, AUXILIARY_MODEL]) {
+      expect(FREE_KEY_MODELS).toContain(model);
+    }
   });
 });

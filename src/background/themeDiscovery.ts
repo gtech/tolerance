@@ -1,4 +1,5 @@
 import { log } from '../shared/constants';
+import { AUXILIARY_MODEL } from '../shared/provider-models';
 import { EmergingNarrative, NarrativeTheme } from '../shared/types';
 import { getSettings, getNarrativeThemes, saveEmergingNarratives, getEmergingNarratives } from './storage';
 import { getSecrets } from '../shared/secrets';
@@ -103,7 +104,7 @@ async function callDiscoveryApi(prompt: string): Promise<DiscoveryResult | null>
         'X-Title': 'Tolerance Theme Discovery',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
+        model: AUXILIARY_MODEL,
         messages: [
           {
             role: 'user',

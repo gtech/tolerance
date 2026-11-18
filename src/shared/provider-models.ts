@@ -27,6 +27,17 @@ export const DEFAULT_TEXT_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 // the rest at 0-40% uptime); images now go to the same model as text
 export const DEFAULT_IMAGE_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 export const DEFAULT_FULL_VIDEO_MODEL = 'google/gemini-2.5-flash-lite';
+// Rewrites (Claude filter) and theme discovery
+export const AUXILIARY_MODEL = 'openai/gpt-oss-120b';
+
+// Every model this version asks for when nothing has been configured. Free keys can
+// only call models on the server's allowlist (an OpenRouter guardrail), so each of
+// these has to be on it BEFORE a release goes out: `pnpm check:models` compares this
+// list with the live one, and the release script runs it first. A model added to the
+// code has to be added here too, or the check can't see it.
+export const FREE_KEY_MODELS: readonly string[] = [
+  ...new Set([DEFAULT_TEXT_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_FULL_VIDEO_MODEL, AUXILIARY_MODEL]),
+];
 
 // Models that think by default; scoring doesn't need it, so it's turned off
 export const THINKING_OFF_MODELS = new Set([

@@ -15,6 +15,7 @@
     "dev": "node esbuild.config.js --watch",
     "bump": "node scripts/bump-version.js",
     "release": "node scripts/release.js",
+    "check:models": "node scripts/check-free-models.mjs",
     "ship": "pnpm build && git add -A && git commit -m \"update\" && git push",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",

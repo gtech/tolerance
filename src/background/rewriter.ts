@@ -10,6 +10,7 @@ import { getSettings, getTodayDateString } from './storage';
 import { getFreeTierApiKey } from './provisioning';
 import { getSecrets } from '../shared/secrets';
 import { log } from '../shared/constants';
+import { AUXILIARY_MODEL } from '../shared/provider-models';
 
 // Claude session tracking
 interface ClaudeSession {
@@ -228,7 +229,7 @@ export async function rewriteResponse(text: string): Promise<RewriteResult> {
         'X-Title': 'Tolerance Claude Filter',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b', // Better output quality
+        model: AUXILIARY_MODEL, // Better output quality
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text },
