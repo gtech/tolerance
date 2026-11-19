@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Tolerance: Doomscroll & Clickbait Blocker",
   "short_name": "Tolerance",
-  "version": "0.1.41",
-  "description": "A digital detox without blocking: blurs clickbait, rage bait, AI slop and ads on Facebook, YouTube, Instagram, Twitter & Reddit.",
+  "version": "0.1.42",
+  "description": "Digital detox without blocking: blurs clickbait, rage bait, AI slop & ads on Facebook, YouTube, Instagram, Twitter, Reddit, LinkedIn",
   "browser_specific_settings": {
     "gecko": {
       "id": "tolerance@tolerance.lol",
