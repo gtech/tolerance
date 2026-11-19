@@ -11,8 +11,9 @@
 export interface OptionalSite {
   id: string;          // also the id of the registered content script
   origins: string[];
-  js: string[];
+  js?: string[];
   early?: string[];    // scripts to run before the page renders, registered as `${id}-early`
+  css?: string[];      // stylesheets applied before the page renders, registered as `${id}-css`
 }
 
 export const CLAUDE_SITE: OptionalSite = { id: 'claude-filter', origins: ['*://claude.ai/*'], js: ['claude-filter.js'] };
@@ -27,7 +28,13 @@ export const LINKEDIN_SITE: OptionalSite = {
   js: ['linkedin.js'],
   early: ['linkedin-early.js'],
 };
-export const OPTIONAL_SITES = [CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE];
+// Only hides the "Recent Recaps" shelf, with a stylesheet: nothing on Twitch is read or scored
+export const TWITCH_SITE: OptionalSite = {
+  id: 'twitch',
+  origins: ['*://www.twitch.tv/*'],
+  css: ['twitch-hide-recaps.css'],
+};
+export const OPTIONAL_SITES: OptionalSite[] = [CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE, TWITCH_SITE];
 
 // Hosts of the providers a custom endpoint may point at. Must match the manifest.
 export const PROVIDER_HOSTS = [
@@ -83,8 +90,9 @@ export function requestEndpointAccess(endpoint: string): Promise<boolean> {
 // Register each optional site's content script while the site is granted, unregister it otherwise
 export async function syncOptionalScripts(): Promise<void> {
   const scripts = OPTIONAL_SITES.flatMap(site => [
-    { id: site.id, site, js: site.js, runAt: 'document_idle' as const },
-    ...(site.early ? [{ id: `${site.id}-early`, site, js: site.early, runAt: 'document_start' as const }] : []),
+    ...(site.js ? [{ id: site.id, site, files: { js: site.js }, runAt: 'document_idle' as const }] : []),
+    ...(site.early ? [{ id: `${site.id}-early`, site, files: { js: site.early }, runAt: 'document_start' as const }] : []),
+    ...(site.css ? [{ id: `${site.id}-css`, site, files: { css: site.css }, runAt: 'document_start' as const }] : []),
   ]);
   const registered = new Set(
     (await chrome.scripting.getRegisteredContentScripts({ ids: scripts.map(s => s.id) })).map(s => s.id),
@@ -97,7 +105,7 @@ export async function syncOptionalScripts(): Promise<void> {
       await chrome.scripting.registerContentScripts([{
         id: script.id,
         matches: script.site.origins,
-        js: script.js,
+        ...script.files,
         runAt: script.runAt,
         persistAcrossSessions: true,
       }]);

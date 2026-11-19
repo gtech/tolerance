@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isLinkedInFeedPath, liGateCss, LI_POST_ID_ATTR, LI_DONE_ATTR } from '../src/content/linkedin/gate';
-import { LINKEDIN_SITE, OPTIONAL_SITES } from '../src/shared/optional-sites';
+import { LINKEDIN_SITE, TWITCH_SITE, OPTIONAL_SITES } from '../src/shared/optional-sites';
 import manifest from '../manifest.json';
 import firefoxManifest from '../manifest.firefox.json';
 
@@ -24,6 +24,20 @@ describe('LinkedIn', () => {
     expect(OPTIONAL_SITES).toContain(LINKEDIN_SITE);
     for (const m of [manifest, firefoxManifest] as { optional_host_permissions: string[]; host_permissions?: string[] }[]) {
       for (const origin of LINKEDIN_SITE.origins) {
+        expect(m.optional_host_permissions).toContain(origin);
+        expect(m.host_permissions ?? []).not.toContain(origin);
+      }
+    }
+  });
+});
+
+describe('Twitch', () => {
+  it('is an optional site in both manifests, with a stylesheet and no script', () => {
+    expect(OPTIONAL_SITES).toContain(TWITCH_SITE);
+    expect(TWITCH_SITE.js).toBeUndefined();
+    expect(TWITCH_SITE.css).toEqual(['twitch-hide-recaps.css']);
+    for (const m of [manifest, firefoxManifest] as { optional_host_permissions: string[]; host_permissions?: string[] }[]) {
+      for (const origin of TWITCH_SITE.origins) {
         expect(m.optional_host_permissions).toContain(origin);
         expect(m.host_permissions ?? []).not.toContain(origin);
       }

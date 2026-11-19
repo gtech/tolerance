@@ -14,7 +14,7 @@ import { loadUsageChart } from '../shared/usage-chart';
 import { getSecrets, setSecrets, withoutSecrets } from '../shared/secrets';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
-import { CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE, hasAccess, requestAccess, removeAccess, requestEndpointAccess } from '../shared/optional-sites';
+import { CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE, TWITCH_SITE, hasAccess, requestAccess, removeAccess, requestEndpointAccess } from '../shared/optional-sites';
 import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
@@ -1330,7 +1330,8 @@ function setupEventListeners(): void {
   // TikTok is an optional site too. There is no setting behind this switch: it shows
   // whether the browser grants TikTok, and the time counter runs while it does.
   // LinkedIn works the same way: it is scored while the browser grants linkedin.com
-  for (const [id, site] of [['platform-tiktok', TIKTOK_SITE], ['platform-linkedin', LINKEDIN_SITE]] as const) {
+  // Twitch too: the Recent Recaps row is hidden while the browser grants twitch.tv
+  for (const [id, site] of [['platform-tiktok', TIKTOK_SITE], ['platform-linkedin', LINKEDIN_SITE], ['platform-twitch', TWITCH_SITE]] as const) {
     const input = document.getElementById(id) as HTMLInputElement | null;
     if (!input) continue;
     hasAccess(site.origins).then(granted => { input.checked = granted; });

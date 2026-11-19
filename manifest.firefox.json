@@ -34,6 +34,7 @@
     "*://claude.ai/*",
     "*://www.tiktok.com/*",
     "*://www.linkedin.com/*",
+    "*://www.twitch.tv/*",
     "*://api.openai.com/*",
     "*://api.anthropic.com/*",
     "*://api.groq.com/*",

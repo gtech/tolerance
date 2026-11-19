@@ -30,6 +30,7 @@ const staticFiles = [
   ['src/welcome/welcome.html', 'dist/welcome/welcome.html'],
   ['src/content/reddit-gate.css', 'dist/reddit-gate.css'],
   ['src/content/instagram/gate.css', 'dist/instagram-gate.css'],
+  ['src/content/twitch/hide-recaps.css', 'dist/twitch-hide-recaps.css'],
 ];
 
 function copyStatic() {

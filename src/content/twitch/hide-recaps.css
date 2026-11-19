@@ -1,0 +1,7 @@
+/* Twitch's "Recent Recaps" shelf: a row of short auto-playing clips above the live
+   channels. Found by what it holds rather than its heading, so it works in every
+   language: the row whose cards are recap clips (served from twitch-vap-video-assets).
+   The parent is hidden so the heading goes with it. */
+div:has(> .preview-card-carousel img[src*="twitch-vap-video-assets"]) {
+  display: none !important;
+}
