@@ -44,7 +44,7 @@ export function siteLabels(text: string | undefined): { sponsored: boolean; aiLa
   return { sponsored: rest.startsWith(SPONSORED_PREFIX), aiLabeled };
 }
 
-export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
+export type ScorePlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';
 export type ScoreMedia = 'text' | 'image' | 'gallery' | 'video' | 'reel';
 
 // Sub-ratings, each 1-10. Stored alongside the score for later analysis.
@@ -140,6 +140,7 @@ const LABELS: Record<ScorePlatform, { name: string; content: string; source: (s:
   youtube: { name: 'YouTube', content: 'Video title', source: s => `Channel: ${s}` },
   instagram: { name: 'Instagram', content: 'Caption', source: s => `Author: ${s}`, likes: 'Likes' },
   facebook: { name: 'Facebook', content: 'Post', source: s => `Author: ${s}`, likes: 'Likes' },
+  linkedin: { name: 'LinkedIn', content: 'Post', source: s => `Author: ${s}`, likes: 'Reactions' },
 };
 
 const MEDIA_LABELS: Record<ScoreMedia, string> = {

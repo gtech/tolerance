@@ -15,6 +15,8 @@ const MESSAGING_URLS: [string, string][] = [
   ['SCORE_FACEBOOK_POSTS', 'https://www.facebook.com/messages'],
   ['SCORE_FACEBOOK_POSTS', 'https://www.facebook.com/messages/t/1234'],
   ['SCORE_FACEBOOK_POSTS', 'https://www.facebook.com/messages/e2ee/t/1234'],
+  ['SCORE_LINKEDIN_POSTS', 'https://www.linkedin.com/messaging'],
+  ['SCORE_LINKEDIN_POSTS', 'https://www.linkedin.com/messaging/thread/2-abc123/'],
   ['SCORE_INSTAGRAM_POSTS', 'https://www.instagram.com/direct/inbox/'],
   ['SCORE_INSTAGRAM_POSTS', 'https://www.instagram.com/direct/t/1234/'],
   ['SCORE_POSTS', 'https://old.reddit.com/message/inbox/'],
@@ -34,6 +36,7 @@ const FEED_URLS: [string, string][] = [
   ['SCORE_TWEETS', 'https://twitter.com/home'],
   ['SCORE_FACEBOOK_POSTS', 'https://www.facebook.com/'],
   ['SCORE_FACEBOOK_POSTS', 'https://www.facebook.com/groups/1234/'],
+  ['SCORE_LINKEDIN_POSTS', 'https://www.linkedin.com/feed/'],
   ['SCORE_INSTAGRAM_POSTS', 'https://www.instagram.com/'],
   ['SCORE_INSTAGRAM_POSTS', 'https://www.instagram.com/someuser/'],
   ['SCORE_INSTAGRAM_POSTS', 'https://www.instagram.com/directed.by.sam/'],
@@ -84,7 +87,7 @@ describe('canScoreFrom', () => {
 
   it('knows every scoring message the background handles', () => {
     expect(Object.keys(SCORE_MESSAGE_PLATFORM).sort()).toEqual([
-      'SCORE_FACEBOOK_POSTS', 'SCORE_INSTAGRAM_POSTS', 'SCORE_POSTS', 'SCORE_TWEETS', 'SCORE_VIDEOS',
+      'SCORE_FACEBOOK_POSTS', 'SCORE_INSTAGRAM_POSTS', 'SCORE_LINKEDIN_POSTS', 'SCORE_POSTS', 'SCORE_TWEETS', 'SCORE_VIDEOS',
     ]);
   });
 });

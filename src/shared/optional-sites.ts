@@ -12,12 +12,22 @@ export interface OptionalSite {
   id: string;          // also the id of the registered content script
   origins: string[];
   js: string[];
+  early?: string[];    // scripts to run before the page renders, registered as `${id}-early`
 }
 
 export const CLAUDE_SITE: OptionalSite = { id: 'claude-filter', origins: ['*://claude.ai/*'], js: ['claude-filter.js'] };
 // Only counts time spent on TikTok towards the session; nothing on the page is read or changed
 export const TIKTOK_SITE: OptionalSite = { id: 'tiktok-tracker', origins: ['*://www.tiktok.com/*'], js: ['tracker.js'] };
-export const OPTIONAL_SITES = [CLAUDE_SITE, TIKTOK_SITE];
+// Scored and blurred like the five feed sites, but asked for separately: adding a site
+// to the install permissions disables the extension for everyone who already has it
+// until they approve the change
+export const LINKEDIN_SITE: OptionalSite = {
+  id: 'linkedin',
+  origins: ['*://www.linkedin.com/*'],
+  js: ['linkedin.js'],
+  early: ['linkedin-early.js'],
+};
+export const OPTIONAL_SITES = [CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE];
 
 // Hosts of the providers a custom endpoint may point at. Must match the manifest.
 export const PROVIDER_HOSTS = [
@@ -72,21 +82,27 @@ export function requestEndpointAccess(endpoint: string): Promise<boolean> {
 
 // Register each optional site's content script while the site is granted, unregister it otherwise
 export async function syncOptionalScripts(): Promise<void> {
+  const scripts = OPTIONAL_SITES.flatMap(site => [
+    { id: site.id, site, js: site.js, runAt: 'document_idle' as const },
+    ...(site.early ? [{ id: `${site.id}-early`, site, js: site.early, runAt: 'document_start' as const }] : []),
+  ]);
   const registered = new Set(
-    (await chrome.scripting.getRegisteredContentScripts({ ids: OPTIONAL_SITES.map(s => s.id) })).map(s => s.id),
+    (await chrome.scripting.getRegisteredContentScripts({ ids: scripts.map(s => s.id) })).map(s => s.id),
   );
-  for (const site of OPTIONAL_SITES) {
-    const granted = await hasAccess(site.origins);
-    if (granted && !registered.has(site.id)) {
+  const granted = new Map<OptionalSite, boolean>();
+  for (const site of OPTIONAL_SITES) granted.set(site, await hasAccess(site.origins));
+  for (const script of scripts) {
+    const allowed = granted.get(script.site);
+    if (allowed && !registered.has(script.id)) {
       await chrome.scripting.registerContentScripts([{
-        id: site.id,
-        matches: site.origins,
-        js: site.js,
-        runAt: 'document_idle',
+        id: script.id,
+        matches: script.site.origins,
+        js: script.js,
+        runAt: script.runAt,
         persistAcrossSessions: true,
       }]);
-    } else if (!granted && registered.has(site.id)) {
-      await chrome.scripting.unregisterContentScripts({ ids: [site.id] });
+    } else if (!allowed && registered.has(script.id)) {
+      await chrome.scripting.unregisterContentScripts({ ids: [script.id] });
     }
   }
 }

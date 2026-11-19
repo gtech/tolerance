@@ -52,7 +52,7 @@ import {
   getEffectivePhaseThresholds,
   getScoreRecords,
 } from './storage';
-import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts } from './scorer';
+import { scorePosts, scoreTweets, scoreVideos, scoreInstagramPosts, scoreFacebookPosts, scoreLinkedInPosts } from './scorer';
 import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary, testRubric } from './openrouter';
 import { rewriteResponse, recordClaudeHeartbeat, getClaudeFilterStatus } from './rewriter';
@@ -153,6 +153,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         '*://www.youtube.com/*',
         '*://www.instagram.com/*',
         '*://www.facebook.com/*',
+        '*://www.linkedin.com/*',
       ],
     });
   }
@@ -182,7 +183,7 @@ chrome.runtime.onStartup?.addListener(() => {
   refreshOptionalScripts();
 });
 
-// claude.ai and TikTok are optional sites: their content scripts exist only while access is granted
+// claude.ai, TikTok and LinkedIn are optional sites: their content scripts exist only while access is granted
 function refreshOptionalScripts(): void {
   syncOptionalScripts().catch(e => log.debug(' Could not sync optional site scripts', e));
 }
@@ -515,6 +516,11 @@ async function handleMessage(
       return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
     }
 
+    case 'SCORE_LINKEDIN_POSTS': {
+      const scores = await scoreLinkedInPosts(message.posts);
+      return { type: 'SCORES_RESULT', scores } satisfies ScoresResponse;
+    }
+
     case 'GET_SCHEDULER_ORDER': {
       const scoreMap = new Map<string, EngagementScore>();
       for (const score of message.scores) {
@@ -842,10 +848,13 @@ const isTwitterUrl = (url?: string): boolean => isOnSite(url, 'twitter.com', 'x.
 const isYouTubeUrl = (url?: string): boolean => isOnSite(url, 'youtube.com');
 const isInstagramUrl = (url?: string): boolean => isOnSite(url, 'instagram.com');
 const isFacebookUrl = (url?: string): boolean => isOnSite(url, 'facebook.com');
+// Only seen once LinkedIn is switched on in the dashboard: until then the browser
+// doesn't tell the extension the address of a LinkedIn tab
+const isLinkedInUrl = (url?: string): boolean => isOnSite(url, 'linkedin.com');
 
 // Helper to check if URL is any supported social media platform
 function isSocialMediaUrl(url?: string): boolean {
-  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url) || isInstagramUrl(url) || isFacebookUrl(url);
+  return isRedditUrl(url) || isTwitterUrl(url) || isYouTubeUrl(url) || isInstagramUrl(url) || isFacebookUrl(url) || isLinkedInUrl(url);
 }
 
 // Session lifecycle management

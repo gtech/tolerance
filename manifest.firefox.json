@@ -33,6 +33,7 @@
   "optional_host_permissions": [
     "*://claude.ai/*",
     "*://www.tiktok.com/*",
+    "*://www.linkedin.com/*",
     "*://api.openai.com/*",
     "*://api.anthropic.com/*",
     "*://api.groq.com/*",

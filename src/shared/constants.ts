@@ -266,6 +266,11 @@ export const SCORE_THRESHOLDS = {
     HIGH: 55,
     MEDIUM: 40,
   },
+  linkedin: {
+    // Same as Facebook until there is LinkedIn data to calibrate against
+    HIGH: 55,
+    MEDIUM: 40,
+  },
 };
 
 // Default blur thresholds (score at or above this gets blurred)
@@ -329,7 +334,7 @@ export const DEFAULT_PHASE_TIMING = {
 } as const;
 
 // Bucket boundaries
-export function scoreToBucket(score: number, platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' = 'reddit'): 'low' | 'medium' | 'high' {
+export function scoreToBucket(score: number, platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin' = 'reddit'): 'low' | 'medium' | 'high' {
   const thresholds = SCORE_THRESHOLDS[platform];
   if (score >= thresholds.HIGH) return 'high';
   if (score >= thresholds.MEDIUM) return 'medium';

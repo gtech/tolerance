@@ -14,7 +14,7 @@
 // Pure functions only: the content scripts feed it posts, the background stores the
 // counts and runs the daily check.
 
-export type HealthPlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
+export type HealthPlatform = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';
 
 export interface FieldTally { seen: number; found: number }
 export interface PlatformDay {
@@ -44,6 +44,7 @@ const FLOORS: Record<HealthPlatform, Record<string, number>> = {
   youtube: { title: 0.8, channel: 0.8, length: 0.5, views: 0.5, thumbnail: 0 },
   instagram: { author: 0.8, content: 0.5, stableId: 0 },
   facebook: { author: 0.8, content: 0.5, stableId: 0 },
+  linkedin: { author: 0.8, content: 0.5, stableId: 0.8 },
 };
 
 const MIN_POSTS = 20;        // fewer than this and a rate says nothing
@@ -86,6 +87,12 @@ export function checkPost(platform: HealthPlatform, post: Record<string, unknown
         content: has(post.caption) || has(post.imageUrl) || has(post.thumbnailUrl),
         stableId: has(post.id) && !String(post.id).startsWith('fb_hash_'),
       };
+    case 'linkedin':
+      return {
+        author: has(post.authorDisplayName),
+        content: has(post.caption) || has(post.imageUrl) || has(post.thumbnailUrl),
+        stableId: has(post.id) && !String(post.id).startsWith('li_hash_'),
+      };
   }
 }
 
@@ -124,7 +131,7 @@ export function addToDay(
 }
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
-const SITE: Record<HealthPlatform, string> = { reddit: 'Reddit', twitter: 'Twitter', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook' };
+const SITE: Record<HealthPlatform, string> = { reddit: 'Reddit', twitter: 'Twitter', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn' };
 
 // What looks broken on one day, given the days before it
 export function evaluateDay(history: HealthHistory, day: string): HealthAlert[] {

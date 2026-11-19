@@ -230,7 +230,7 @@ function convertNarrativeIndicesToThemeIds(
 }
 
 function platformLabel(platform: ScorePlatform): string {
-  return { reddit: 'Reddit', twitter: 'Twitter', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook' }[platform];
+  return { reddit: 'Reddit', twitter: 'Twitter', youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', linkedin: 'LinkedIn' }[platform];
 }
 
 function inferPlatform(source: string): ScorePlatform {

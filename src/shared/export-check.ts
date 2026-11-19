@@ -30,8 +30,8 @@ export interface ExportReport {
 }
 
 const BUCKETS = new Set(['low', 'medium', 'high']);
-const LOGGED_PLATFORMS = new Set(['reddit', 'twitter', 'youtube', 'instagram', 'facebook']);
-const CONTENT_PLATFORMS = new Set(['reddit', 'twitter', 'youtube', 'instagram', 'facebook']);
+const LOGGED_PLATFORMS = new Set(['reddit', 'twitter', 'youtube', 'instagram', 'facebook', 'linkedin']);
+const CONTENT_PLATFORMS = new Set(['reddit', 'twitter', 'youtube', 'instagram', 'facebook', 'linkedin']);
 const DIMS = ['hook', 'effort', 'pull', 'value'] as const;
 const SPONSORED = '[Sponsored] ';
 const AI_LABELED = '[Labeled AI-generated] ';

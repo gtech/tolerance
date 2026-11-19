@@ -41,6 +41,8 @@ describe('checkPost', () => {
     expect(checkPost('instagram', { id: 'DAbC_12', authorUsername: 'someone', caption: 'Hi' })).toEqual({ author: true, content: true, stableId: true });
     expect(checkPost('instagram', { id: '3141592653', authorUsername: '', caption: '' })).toEqual({ author: false, content: false, stableId: false });
     expect(checkPost('facebook', { id: 'fb_hash_k3j2', authorDisplayName: 'Page', caption: '' , imageUrl: 'https://x/y.jpg' })).toEqual({ author: true, content: true, stableId: false });
+    expect(checkPost('linkedin', { id: 'li_hdoVrsd7', authorDisplayName: 'Someone', caption: 'Hi' })).toEqual({ author: true, content: true, stableId: true });
+    expect(checkPost('linkedin', { id: 'li_hash_k3j2', authorDisplayName: '', caption: '' })).toEqual({ author: false, content: false, stableId: false });
   });
 });
 

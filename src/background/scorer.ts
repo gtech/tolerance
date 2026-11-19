@@ -5,6 +5,7 @@ import {
   YouTubeVideo,
   InstagramPost,
   FacebookPost,
+  LinkedInPost,
   EngagementScore,
   PostContent,
   NarrativeTheme,
@@ -48,7 +49,7 @@ function stampSpec(score: EngagementScore, result: ScoreResponse): void {
 export async function applySiteLabels(
   scores: EngagementScore[],
   textOf: Map<string, string | undefined>,
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook'
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin'
 ): Promise<void> {
   const settings = await getSettings();
   const adsOn = settings.penalizeFacebookAds !== false;
@@ -96,7 +97,7 @@ function applyVideoFloor(score: EngagementScore): void {
 // already-adjusted scores).
 async function applyCounterStrategies(
   scores: EngagementScore[],
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook'
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin'
 ): Promise<void> {
   const withNarrative = scores.filter(s => s.factors.narrative && !s.scoreFailed);
   if (withNarrative.length === 0) return;
@@ -1288,10 +1289,21 @@ export async function scoreInstagramPosts(
   return allScores;
 }
 
-// Score Facebook posts - adapts Facebook content to the scoring system
+// Facebook and LinkedIn posts have the same fields and are scored the same way
+type FeedPost = Omit<FacebookPost, 'element'> | Omit<LinkedInPost, 'element'>;
+
+export function scoreFacebookPosts(posts: Omit<FacebookPost, 'element'>[]): Promise<EngagementScore[]> {
+  return scoreFeedPosts(posts, 'facebook');
+}
+
+export function scoreLinkedInPosts(posts: Omit<LinkedInPost, 'element'>[]): Promise<EngagementScore[]> {
+  return scoreFeedPosts(posts, 'linkedin');
+}
+
 // Modeled on scoreInstagramPosts
-export async function scoreFacebookPosts(
-  posts: Omit<FacebookPost, 'element'>[]
+async function scoreFeedPosts(
+  posts: FeedPost[],
+  platform: 'facebook' | 'linkedin'
 ): Promise<EngagementScore[]> {
   const t0 = performance.now();
   const settings = await getSettings();
@@ -1307,12 +1319,12 @@ export async function scoreFacebookPosts(
   const t2 = performance.now();
 
   const newScores: EngagementScore[] = [];
-  const postsForApi: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
+  const postsForApi: { post: FeedPost; score: EngagementScore }[] = [];
 
   for (const post of uncached) {
     const score = createPendingScore(post.id);
     // Whitelist uses display name for Facebook (no @handles)
-    score.whitelisted = isWhitelisted(post.authorDisplayName, 'facebook', settings.whitelist);
+    score.whitelisted = isWhitelisted(post.authorDisplayName, platform, settings.whitelist);
     newScores.push(score);
 
     if (apiEnabled) {
@@ -1323,8 +1335,8 @@ export async function scoreFacebookPosts(
   }
 
   // Separate by type
-  const textPosts: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
-  const mediaPosts: { post: Omit<FacebookPost, 'element'>; score: EngagementScore }[] = [];
+  const textPosts: { post: FeedPost; score: EngagementScore }[] = [];
+  const mediaPosts: { post: FeedPost; score: EngagementScore }[] = [];
 
   for (const item of postsForApi) {
     const hasMedia = item.post.mediaType === 'video' ||
@@ -1350,7 +1362,7 @@ export async function scoreFacebookPosts(
           post.authorDisplayName,
           post.likeCount,
           post.commentCount,
-          'facebook'
+          platform
         );
         if (!apiResult) {
           score.apiReason = `Scoring failed: ${getLastCallError() ?? 'no response'}`;
@@ -1360,7 +1372,7 @@ export async function scoreFacebookPosts(
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
-          score.bucket = scoreToBucket(apiScore, 'facebook');
+          score.bucket = scoreToBucket(apiScore, platform);
 
           if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
             score.factors.narrative = {
@@ -1394,7 +1406,7 @@ export async function scoreFacebookPosts(
             imageUrl,
             post.likeCount,
             post.commentCount,
-            'facebook'
+            platform
           );
         } else {
           const imageUrl = post.imageUrl || post.thumbnailUrl || '';
@@ -1406,7 +1418,7 @@ export async function scoreFacebookPosts(
             post.commentCount,
             post.id,
             undefined,
-            'facebook'
+            platform
           );
         }
 
@@ -1418,7 +1430,7 @@ export async function scoreFacebookPosts(
           score.apiScore = apiScore;
           score.scoreFailed = false;
           score.apiReason = apiResult.reason;
-          score.bucket = scoreToBucket(apiScore, 'facebook');
+          score.bucket = scoreToBucket(apiScore, platform);
 
           if (apiResult.narrativeMatches && apiResult.narrativeMatches.length > 0) {
             score.factors.narrative = {
@@ -1439,8 +1451,8 @@ export async function scoreFacebookPosts(
 
   log.debug(` Facebook scoring timing - setup: ${(t1-t0).toFixed(0)}ms, cache: ${(t2-t1).toFixed(0)}ms, scoring: ${(t3-t2).toFixed(0)}ms, total: ${(t3-t0).toFixed(0)}ms (${uncached.length} uncached)`);
 
-  await applySiteLabels(newScores, new Map(uncached.map(p => [p.id, p.caption])), 'facebook');
-  await applyCounterStrategies(newScores, 'facebook');
+  await applySiteLabels(newScores, new Map(uncached.map(p => [p.id, p.caption])), platform);
+  await applyCounterStrategies(newScores, platform);
 
   if (newScores.length > 0) {
     await cacheScores(newScores);
@@ -1451,7 +1463,7 @@ export async function scoreFacebookPosts(
   await savePostContent(uncached.map(post => ({
     ...facebookImages(post.id),
     postId: post.id,
-    platform: 'facebook' as const,
+    platform,
     text: post.caption,
     author: post.authorDisplayName,
     imageUrl: post.imageUrl,
@@ -1465,7 +1477,7 @@ export async function scoreFacebookPosts(
   for (const post of posts) {
     const cachedScore = cached.get(post.id);
     if (cachedScore) {
-      cachedScore.whitelisted = isWhitelisted(post.authorDisplayName, 'facebook', settings.whitelist);
+      cachedScore.whitelisted = isWhitelisted(post.authorDisplayName, platform, settings.whitelist);
       allScores.push(cachedScore);
     } else {
       const newScore = newScores.find(s => s.postId === post.id);

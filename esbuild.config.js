@@ -110,6 +110,18 @@ const builds = [
   },
   {
     ...commonOptions,
+    entryPoints: ['src/content/linkedin/early.ts'],
+    outfile: 'dist/linkedin-early.js',
+    format: 'iife', // Content scripts need IIFE (document_start blur before linkedin.js loads)
+  },
+  {
+    ...commonOptions,
+    entryPoints: ['src/content/linkedin/index.ts'],
+    outfile: 'dist/linkedin.js',
+    format: 'iife', // Content scripts need IIFE (LinkedIn feed processing; optional site)
+  },
+  {
+    ...commonOptions,
     entryPoints: ['src/content/claude-filter/index.ts'],
     outfile: 'dist/claude-filter.js',
     format: 'iife', // Content scripts need IIFE (Claude.ai response filter)

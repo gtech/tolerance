@@ -65,7 +65,7 @@ export interface CounterStrategy {
 // Base interface for any social media post (Reddit, Twitter, YouTube, Instagram, etc.)
 export interface SocialPost {
   id: string;
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';
   author: string;
   text: string;              // Post content (title for Reddit, tweet text for Twitter, caption for Instagram/Facebook)
   score: number | null;      // Likes/upvotes
@@ -189,6 +189,20 @@ export interface FacebookPost extends SocialPost {
   feedType: 'news-feed' | 'group' | 'unknown';
 }
 
+// ==========================================
+// LinkedIn Types
+// ==========================================
+
+// Same fields as a Facebook post, so the background scores both with one function
+export interface LinkedInPost extends SocialPost {
+  platform: 'linkedin';
+  caption: string;               // Post text, plus the text of a reshared post
+  likeCount: number | null;      // Reactions
+  commentCount: number;
+  authorDisplayName: string;     // Person, company or school
+  isSponsored?: boolean;         // "Promoted"
+}
+
 export interface EngagementScore {
   postId: string;
   apiScore: number; // 0-100, from OpenRouter
@@ -223,7 +237,7 @@ export interface ScoreFactors {
 
 export interface PostContent {
   postId: string;
-  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
+  platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';
   text: string;           // Post content (title for Reddit, tweet text for Twitter, caption for Instagram)
   title?: string;         // Reddit-specific separate title
   author: string;
@@ -249,7 +263,7 @@ export interface PostImpression {
   wasReordered: boolean;
   narrativeThemeId?: string;  // Detected narrative theme ID (if any)
   // Logged since Nov 2026, so the history can be analysed without guessing
-  platform?: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';   // the last two since 10 Nov 2026
+  platform?: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';   // the last two since 10 Nov 2026
   short?: boolean;            // YouTube: a Short. Shorts in a shelf name no channel, so their source is empty
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
@@ -375,7 +389,7 @@ export type LogLevel = 'off' | 'error' | 'warn' | 'info' | 'debug';
 // Pre-filter whitelist entry - trusted sources that bypass blur transform
 export interface WhitelistEntry {
   sourceId: string;           // @username, u/username, channel name, or display name
-  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook';
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook' | 'linkedin';
   createdAt: number;
   reason?: string;            // User's note about why they trust this source
 }
@@ -412,7 +426,7 @@ export function pendingBlurTimeoutMs(seconds: number | undefined): number | null
 // Check if a source is in the whitelist (case-insensitive)
 export function isWhitelisted(
   sourceId: string,
-  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook',
+  platform: 'reddit' | 'twitter' | 'instagram' | 'youtube' | 'facebook' | 'linkedin',
   whitelist: WhitelistEntry[] | undefined
 ): boolean {
   if (!whitelist || whitelist.length === 0) return false;
@@ -612,6 +626,7 @@ export type MessageType =
   | { type: 'SCORE_VIDEOS'; videos: Omit<YouTubeVideo, 'element'>[] }
   | { type: 'SCORE_INSTAGRAM_POSTS'; posts: Omit<InstagramPost, 'element'>[] }
   | { type: 'SCORE_FACEBOOK_POSTS'; posts: Omit<FacebookPost, 'element'>[] }
+  | { type: 'SCORE_LINKEDIN_POSTS'; posts: Omit<LinkedInPost, 'element'>[] }
   | { type: 'SCORES_RESULT'; scores: EngagementScore[] }
   | { type: 'LOG_IMPRESSIONS'; impressions: PostImpression[] }
   | { type: 'LOG_ATTENTION'; dwellUpdates: DwellUpdate[]; scrollBuckets: ScrollBucket[] }
@@ -659,14 +674,14 @@ export type MessageType =
   | { type: 'DISMISS_ONBOARDING_TOOLTIP' }
   // Context menu whitelist
   | { type: 'GET_CLICKED_AUTHOR' }  // Background asks content script for author at click position
-  | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' }
+  | { type: 'ADD_TO_WHITELIST'; sourceId: string; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin' }
   // API error state
   | { type: 'GET_API_ERROR_STATE' }
   // Subscription sync
   | { type: 'SYNC_SUBSCRIPTIONS'; platform: 'youtube' }
   | { type: 'GET_SUBSCRIPTIONS' }
   // Scraper health check (developer setting)
-  | { type: 'SCRAPE_HEALTH'; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook'; loads?: number; posts?: number; fields?: Record<string, { seen: number; found: number }> }
+  | { type: 'SCRAPE_HEALTH'; platform: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin'; loads?: number; posts?: number; fields?: Record<string, { seen: number; found: number }> }
   | { type: 'GET_SCRAPE_HEALTH' }
   | { type: 'RUN_SCRAPE_HEALTH_CHECK' };
 
@@ -680,6 +695,7 @@ export interface MessageResponses {
   SCORE_VIDEOS: ScoresResponse;
   SCORE_INSTAGRAM_POSTS: ScoresResponse;
   SCORE_FACEBOOK_POSTS: ScoresResponse;
+  SCORE_LINKEDIN_POSTS: ScoresResponse;
   GET_SCHEDULER_ORDER: { type: 'SCHEDULER_ORDER_RESULT'; orderedIds: string[]; hiddenIds: string[] };
   GET_GLOBAL_SESSION: {
     type: 'GLOBAL_SESSION_RESULT';

@@ -4,7 +4,7 @@
 // the background refuses a scoring request unless it comes from the right site and
 // from a page that isn't a messaging surface.
 
-export type ScorePlatformKey = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook';
+export type ScorePlatformKey = 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';
 
 export const SCORE_MESSAGE_PLATFORM: Record<string, ScorePlatformKey> = {
   SCORE_POSTS: 'reddit',
@@ -12,6 +12,7 @@ export const SCORE_MESSAGE_PLATFORM: Record<string, ScorePlatformKey> = {
   SCORE_VIDEOS: 'youtube',
   SCORE_INSTAGRAM_POSTS: 'instagram',
   SCORE_FACEBOOK_POSTS: 'facebook',
+  SCORE_LINKEDIN_POSTS: 'linkedin',
 };
 
 // Same hosts as the content script matches in the manifest
@@ -21,6 +22,7 @@ const HOSTS: Record<ScorePlatformKey, string[]> = {
   youtube: ['www.youtube.com'],
   instagram: ['www.instagram.com'],
   facebook: ['www.facebook.com'],
+  linkedin: ['www.linkedin.com'],
 };
 
 // Inboxes and conversations. A path matches if it is one of these or sits under one.
@@ -30,6 +32,7 @@ const MESSAGING_PATHS: Record<ScorePlatformKey, string[]> = {
   youtube: [],
   instagram: ['/direct'],
   facebook: ['/messages'],
+  linkedin: ['/messaging'],
 };
 
 export function isMessagingPath(platform: ScorePlatformKey, pathname: string): boolean {

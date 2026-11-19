@@ -14,7 +14,7 @@ import { loadUsageChart } from '../shared/usage-chart';
 import { getSecrets, setSecrets, withoutSecrets } from '../shared/secrets';
 import type { HealthHistory, HealthReport } from '../shared/scrape-health';
 import { USAGE_HISTORY_DAYS } from '../shared/usage-history';
-import { CLAUDE_SITE, TIKTOK_SITE, hasAccess, requestAccess, removeAccess, requestEndpointAccess } from '../shared/optional-sites';
+import { CLAUDE_SITE, TIKTOK_SITE, LINKEDIN_SITE, hasAccess, requestAccess, removeAccess, requestEndpointAccess } from '../shared/optional-sites';
 import type { RubricTestRow } from '../background/openrouter';
 
 interface ApiUsage {
@@ -1329,12 +1329,14 @@ function setupEventListeners(): void {
 
   // TikTok is an optional site too. There is no setting behind this switch: it shows
   // whether the browser grants TikTok, and the time counter runs while it does.
-  const tiktokInput = document.getElementById('platform-tiktok') as HTMLInputElement | null;
-  if (tiktokInput) {
-    hasAccess(TIKTOK_SITE.origins).then(granted => { tiktokInput.checked = granted; });
-    tiktokInput.addEventListener('change', () => {
-      const change = tiktokInput.checked ? requestAccess(TIKTOK_SITE.origins) : removeAccess(TIKTOK_SITE.origins);
-      change.then(async () => { tiktokInput.checked = await hasAccess(TIKTOK_SITE.origins); });
+  // LinkedIn works the same way: it is scored while the browser grants linkedin.com
+  for (const [id, site] of [['platform-tiktok', TIKTOK_SITE], ['platform-linkedin', LINKEDIN_SITE]] as const) {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    if (!input) continue;
+    hasAccess(site.origins).then(granted => { input.checked = granted; });
+    input.addEventListener('change', () => {
+      const change = input.checked ? requestAccess(site.origins) : removeAccess(site.origins);
+      change.then(async () => { input.checked = await hasAccess(site.origins); });
     });
   }
 
@@ -2666,6 +2668,7 @@ function renderWhitelist(whitelist: WhitelistEntry[]): void {
     instagram: 'Instagram',
     youtube: 'YouTube',
     facebook: 'Facebook',
+    linkedin: 'LinkedIn',
   };
 
   const platformColors: Record<string, string> = {
@@ -2674,6 +2677,7 @@ function renderWhitelist(whitelist: WhitelistEntry[]): void {
     instagram: '#e1306c',
     youtube: '#ff0000',
     facebook: '#1877f2',
+    linkedin: '#0a66c2',
   };
 
   container.innerHTML = whitelist.map(entry => {
