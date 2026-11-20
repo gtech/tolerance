@@ -63,6 +63,7 @@ async function init(): Promise<void> {
   await setupGroundingSettings();
   await setupFacebookReelsSetting();
   await setupYouTubeShortsSetting();
+  await setupYouTubePlayablesSetting();
   await setupResearchSetting();
   await setupFacebookAdsSetting();
   await setupAiLabelSetting();
@@ -155,6 +156,17 @@ async function setupYouTubeShortsSetting(): Promise<void> {
   toggle.addEventListener('change', async () => {
     const current = await getSettings();
     await chrome.storage.local.set({ settings: { ...current, hideYouTubeShorts: toggle.checked } });
+  });
+}
+
+// Hide YouTube Playables card (on unless turned off)
+async function setupYouTubePlayablesSetting(): Promise<void> {
+  const toggle = document.getElementById('yt-playables-toggle') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).hideYouTubePlayables !== false;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({ settings: { ...current, hideYouTubePlayables: toggle.checked } });
   });
 }
 

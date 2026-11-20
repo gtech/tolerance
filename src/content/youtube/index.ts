@@ -12,7 +12,7 @@ import { firstSighting } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
-import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, hidePlayablesCss, shortsWatchUrl } from './gate';
+import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, HIDE_PLAYABLES_CLASS, hidePlayablesCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { createHideBudget } from '../../shared/hide-budget';
@@ -220,6 +220,11 @@ function shortsHidden(): boolean {
 
 function applyShortsMode(): void {
   document.documentElement.classList.toggle(HIDE_SHORTS_CLASS, shortsHidden());
+  // Settings: "Hide YouTube Playables"
+  document.documentElement.classList.toggle(
+    HIDE_PLAYABLES_CLASS,
+    currentSettings?.hideYouTubePlayables !== false && currentSettings?.platforms?.youtube !== false,
+  );
   redirectShorts();
 }
 
@@ -387,7 +392,7 @@ function injectStyles(): void {
     /* Hide Shorts (setting) */
     ${hideShortsCss()}
 
-    /* Hide the Playables (games) shelf */
+    /* Hide the Playables (games) shelf (setting) */
     ${hidePlayablesCss()}
   `;
   document.head.appendChild(style);

@@ -502,6 +502,8 @@ export interface Settings {
   // Hide YouTube Shorts (shelves, menu entries, channel tab; /shorts links open in
   // the normal player). Default: true (false until 0.1.35)
   hideYouTubeShorts?: boolean;
+  // Hide the "YouTube Playables" games shelf in the home feed. Default: true
+  hideYouTubePlayables?: boolean;
   // Give ads the top score on every site. Default: true. Named from when it was
   // Facebook only; the name stays so saved choices carry over.
   penalizeFacebookAds?: boolean;
