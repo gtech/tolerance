@@ -48,6 +48,17 @@ export function hideShortsCss(): string {
   ].map(sel => `${scope} ${sel}`).join(',\n') + ' { display: none !important; }';
 }
 
+// The "YouTube Playables" shelf: a row of instant games dropped into the home feed.
+// Always hidden while Tolerance runs on YouTube; there is no setting. Found by its
+// game cards, with the link to /playables in the shelf header as a second sign. The
+// Playables page itself, and the entry in the side menu, are left alone.
+export function hidePlayablesCss(): string {
+  return [
+    'ytd-rich-section-renderer:has(ytd-mini-game-card-view-model)',
+    'ytd-rich-section-renderer:has(#rich-shelf-header a[href^="/playables"])',
+  ].join(',\n') + ' { display: none !important; }';
+}
+
 // /shorts/VIDEO_ID -> /watch?v=VIDEO_ID: the video still plays, without the swipe feed
 export function shortsWatchUrl(pathname: string): string | null {
   const m = pathname.match(/^\/shorts\/([A-Za-z0-9_-]+)/);
