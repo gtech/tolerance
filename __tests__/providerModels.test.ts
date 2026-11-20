@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../src/shared/provider-models';
+import { ALLOWED_QUANTIZATIONS, AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -19,19 +19,26 @@ describe('scoring models', () => {
   });
 
   it('caps the output price for the default model, and can drop the cap', () => {
-    expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'price', max_price: { completion: 0.25 } });
-    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ sort: 'price' });
+    expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'price', max_price: { completion: 0.25 }, quantizations: ALLOWED_QUANTIZATIONS });
+    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ sort: 'price', quantizations: ALLOWED_QUANTIZATIONS });
     expect(providerRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
   });
 
   it('falls back to the fastest provider, with a looser price cap', () => {
-    expect(fastRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'throughput', max_price: { completion: 0.6 } });
+    expect(fastRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'throughput', max_price: { completion: 0.6 }, quantizations: ALLOWED_QUANTIZATIONS });
     expect(fastRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
   });
 
   it('drops the price cap and keeps the sort', () => {
-    expect(withoutPriceCap(providerRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'price' });
-    expect(withoutPriceCap(fastRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'throughput' });
+    expect(withoutPriceCap(providerRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'price', quantizations: ALLOWED_QUANTIZATIONS });
+    expect(withoutPriceCap(fastRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'throughput', quantizations: ALLOWED_QUANTIZATIONS });
+  });
+
+  it('never accepts a 4-bit provider, or one that does not say what it runs', () => {
+    for (const refused of ['int4', 'fp4', 'mxfp4', 'nvfp4', 'unknown']) {
+      expect(ALLOWED_QUANTIZATIONS).not.toContain(refused);
+    }
+    expect(ALLOWED_QUANTIZATIONS).toContain('fp8');
   });
 
   it('allows a batch more time the more posts it holds', () => {

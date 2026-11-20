@@ -57,14 +57,26 @@ export const CHEAPEST_PROVIDER_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1
 // OpenRouter answers 404 and the request is sent again without the cap.
 export const MAX_OUTPUT_PRICE_PER_MILLION = 0.25;
 
+// Providers running the model at 4-bit precision are never used (a decision made on
+// 2026-11-20, for model welfare reasons). OpenRouter takes a list of the precisions
+// that ARE acceptable, so this is everything from 8 bits up. Providers that don't say
+// what they run ("unknown") are left out too: on that day about a dozen 8-bit
+// providers sat under the fast route's price cap, so nothing is lost by it.
+export const ALLOWED_QUANTIZATIONS: readonly string[] = ['int8', 'fp8', 'mxfp8', 'fp16', 'bf16', 'fp32'];
+
 export interface ProviderRouting {
   sort: 'price' | 'throughput';
   max_price?: { completion: number };
+  quantizations: readonly string[];
 }
 
 export function providerRouting(model: string, capped = true): ProviderRouting | undefined {
   if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
-  return capped ? { sort: 'price', max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION } } : { sort: 'price' };
+  return {
+    sort: 'price',
+    ...(capped ? { max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION } } : {}),
+    quantizations: ALLOWED_QUANTIZATIONS,
+  };
 }
 
 // The cheapest provider is sometimes a degraded one. On 2026-11-18 it was Ambient,
@@ -80,7 +92,11 @@ export const FAST_ROUTE_HOLD_MS = 10 * 60_000;
 
 export function fastRouting(model: string): ProviderRouting | undefined {
   if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
-  return { sort: 'throughput', max_price: { completion: FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION } };
+  return {
+    sort: 'throughput',
+    max_price: { completion: FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION },
+    quantizations: ALLOWED_QUANTIZATIONS,
+  };
 }
 
 // How long a call on the cheapest route may take before it counts as slow. A healthy
@@ -90,9 +106,10 @@ export function slowCallTimeoutMs(isImageCall: boolean, postCount: number): numb
   return isImageCall ? 6_000 : 6_000 + 500 * Math.max(1, postCount);
 }
 
-// A 404 with a price cap means no provider under the cap: the same routing without it
+// A 404 with a price cap means no provider under the cap: the same routing without it.
+// The precision rule stays: a dearer provider is acceptable, a 4-bit one is not.
 export function withoutPriceCap(routing: ProviderRouting): ProviderRouting {
-  return { sort: routing.sort };
+  return { sort: routing.sort, quantizations: routing.quantizations };
 }
 
 export interface ScoringModels {
