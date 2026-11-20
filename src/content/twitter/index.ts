@@ -18,6 +18,7 @@ import { buildDebugReport, showDebugReport } from './debug';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { opaqueGateCss } from '../gateOpacity';
+import { watchForReload } from '../reloadNotice';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -1081,6 +1082,7 @@ async function initCore(): Promise<void> {
 
   // Start heartbeat tracking
   startHeartbeat();
+  watchForReload();
 
   // Start recovery check for stuck states
   startRecoveryCheck();

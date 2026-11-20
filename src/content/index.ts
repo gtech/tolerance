@@ -17,6 +17,7 @@ import { attachHoldReveal } from './holdReveal';
 import { setOpaque } from './opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
 import { GATE_POST_ATTR, watchGate } from './gateSwitch';
+import { watchForReload } from './reloadNotice';
 
 watchGate('reddit');
 
@@ -719,6 +720,7 @@ async function initCore(): Promise<void> {
 
   // Start heartbeat tracking for progressive boredom
   startHeartbeat();
+  watchForReload();
 
   // Process initial posts
   await processPosts();

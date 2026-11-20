@@ -14,6 +14,7 @@ import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { releaseIfStillUnscraped } from '../gateSwitch';
 import { fetchImageAsBase64 } from '../fetchImage';
+import { watchForReload } from '../reloadNotice';
 
 // LinkedIn's home feed. Built the way Facebook's is (../facebook/index.ts): a CSS gate
 // covers posts until they are scored, then each gets a score badge and, at or above
@@ -528,6 +529,7 @@ async function init(): Promise<void> {
       feedStarted = true;
       await updateBlurThreshold();
       startHeartbeat();
+      watchForReload();
     }
     await processPosts();
     setupLinkedInObserver(processPosts);

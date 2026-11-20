@@ -13,6 +13,7 @@ import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { GATE_POST_ATTR, GATE_DONE_ATTR, releaseIfStillUnscraped, watchGate } from '../gateSwitch';
+import { watchForReload } from '../reloadNotice';
 
 // The manifest's CSS gate can't see client-side navigation, so check the page as it changes
 setInterval(watchGate('instagram', isValidFeedPage), 250);
@@ -779,6 +780,7 @@ async function init(): Promise<void> {
       await updateBlurThreshold();
       // Start heartbeat for session tracking
       startHeartbeat();
+      watchForReload();
     }
     await processPosts();
     setupInstagramObserver(processPosts);

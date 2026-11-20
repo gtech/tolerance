@@ -13,6 +13,7 @@ import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { releaseIfStillUnscraped } from '../gateSwitch';
+import { watchForReload } from '../reloadNotice';
 
 // Track processed posts to avoid re-processing
 const processedPostIds = new Set<string>();
@@ -717,6 +718,7 @@ async function init(): Promise<void> {
       await updateBlurThreshold();
       // Start heartbeat
       startHeartbeat();
+      watchForReload();
     }
     await processPosts();
     // Set up observer for new feed items

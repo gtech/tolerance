@@ -16,6 +16,7 @@ import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTu
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { createHideBudget } from '../../shared/hide-budget';
+import { watchForReload } from '../reloadNotice';
 
 // Track processed videos to avoid re-processing
 const processedVideoIds = new Set<string>();
@@ -871,6 +872,7 @@ async function initCore(): Promise<void> {
 
   // Start heartbeat tracking
   startHeartbeat();
+  watchForReload();
 
   // Start recovery check
   startRecoveryCheck();
