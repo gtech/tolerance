@@ -20,7 +20,7 @@ import type { ApiProviderConfig } from './types';
 // slow in use: 52/53 in range, 10-post batches ~2.3s, images ~1.3s, on the cheapest
 // provider ($0.02/$0.108 per million tokens). About fifty providers serve it at up to
 // 15x that price, and OpenRouter's own choice landed on a $0.30/$1.20 one, so requests
-// ask for the cheapest (CHEAPEST_PROVIDER_MODELS). The fastest providers answer a
+// carry an output-price cap (ROUTED_MODELS). The fastest providers answer a
 // batch in ~0.35s, but at ~13x the cost (~$0.11 against ~$0.008 per 1000 posts).
 export const DEFAULT_TEXT_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
 // Llama 4 Scout's providers went unreliable (Oct 2026: Groq/Cerebras dropped it,
@@ -47,15 +47,21 @@ export const THINKING_OFF_MODELS = new Set([
   'openai/gpt-6-luna',
 ]);
 
-// Models whose providers differ widely in price: OpenRouter is asked for the cheapest
-export const CHEAPEST_PROVIDER_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1017']);
+// Models whose providers differ widely in price and quality: requests for these say
+// which providers are acceptable
+export const ROUTED_MODELS = new Set(['deepseek/deepseek-v4.1-flash-1017']);
 
-// "Cheapest" to OpenRouter means the lowest input price. A day after the switch the
-// lowest input price belonged to a provider charging $0.50 per million output tokens
-// against $0.10 elsewhere, and a scoring call is about a third output, so it cost
-// 2.4x as much. Providers above this output price are left out. If none is under it,
-// OpenRouter answers 404 and the request is sent again without the cap.
-export const MAX_OUTPUT_PRICE_PER_MILLION = 0.25;
+// Requests used to ask for the cheapest provider (sort: 'price'). That sends every
+// call to whichever provider undercut the rest that day, and twice in a week it was a
+// newcomer that served badly: Ambient on 2026-11-18, Tenstorrent on 2026-11-23. Now
+// the choice is left to OpenRouter's default routing, which spreads calls over the
+// acceptable providers by price, speed and failure rate measured on recent traffic,
+// and gives one that falls behind only a small share. What stays fixed here is which
+// providers are acceptable: an output-price cap (the dearest charge $2.40 per million
+// output tokens, ten times the cheap ones) and the precision rule below. If no
+// provider is under the cap, OpenRouter answers 404 and the request is sent again
+// without it.
+export const MAX_OUTPUT_PRICE_PER_MILLION = 0.6;
 
 // Providers running the model at 4-bit precision are never used (a decision made on
 // 2026-11-20, for model welfare reasons). OpenRouter takes a list of the precisions
@@ -65,41 +71,37 @@ export const MAX_OUTPUT_PRICE_PER_MILLION = 0.25;
 export const ALLOWED_QUANTIZATIONS: readonly string[] = ['int8', 'fp8', 'mxfp8', 'fp16', 'bf16', 'fp32'];
 
 export interface ProviderRouting {
-  sort: 'price' | 'throughput';
+  // Absent: OpenRouter's default routing chooses among the acceptable providers
+  sort?: 'throughput';
   max_price?: { completion: number };
   quantizations: readonly string[];
 }
 
 export function providerRouting(model: string, capped = true): ProviderRouting | undefined {
-  if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
+  if (!ROUTED_MODELS.has(model)) return undefined;
   return {
-    sort: 'price',
     ...(capped ? { max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION } } : {}),
     quantizations: ALLOWED_QUANTIZATIONS,
   };
 }
 
-// The cheapest provider is sometimes a degraded one. On 2026-11-18 it was Ambient,
-// which took 8.6s for an image call that another provider answered in 0.9s, and feeds
-// sat behind the blur for up to 30s. A call on the cheapest route that takes longer
-// than slowCallTimeoutMs is abandoned and sent again to the fastest provider, and the
-// cheapest route is then left alone for FAST_ROUTE_HOLD_MS.
-//
-// The fast route has its own, looser output-price cap: the very fastest providers
-// charge $2.40 per million output tokens, about ten times the cheap ones.
-export const FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION = 0.6;
+// Default routing still gives a slow provider a small share of calls. On 2026-11-18
+// one took 8.6s for an image call that another answered in 0.9s, and feeds sat behind
+// the blur for up to 30s. A call on the default route that takes longer than
+// slowCallTimeoutMs is abandoned and sent again to the provider with the highest
+// measured throughput, and the default route is then left alone for FAST_ROUTE_HOLD_MS.
 export const FAST_ROUTE_HOLD_MS = 10 * 60_000;
 
 export function fastRouting(model: string): ProviderRouting | undefined {
-  if (!CHEAPEST_PROVIDER_MODELS.has(model)) return undefined;
+  if (!ROUTED_MODELS.has(model)) return undefined;
   return {
     sort: 'throughput',
-    max_price: { completion: FAST_ROUTE_MAX_OUTPUT_PRICE_PER_MILLION },
+    max_price: { completion: MAX_OUTPUT_PRICE_PER_MILLION },
     quantizations: ALLOWED_QUANTIZATIONS,
   };
 }
 
-// How long a call on the cheapest route may take before it counts as slow. A healthy
+// How long a call on the default route may take before it counts as slow. A healthy
 // provider answers an image call in ~1.3s and a 10-post batch in ~3s; a 40-video
 // batch writes ~3,300 tokens, so the allowance grows with the number of posts.
 export function slowCallTimeoutMs(isImageCall: boolean, postCount: number): number {
@@ -109,7 +111,7 @@ export function slowCallTimeoutMs(isImageCall: boolean, postCount: number): numb
 // A 404 with a price cap means no provider under the cap: the same routing without it.
 // The precision rule stays: a dearer provider is acceptable, a 4-bit one is not.
 export function withoutPriceCap(routing: ProviderRouting): ProviderRouting {
-  return { sort: routing.sort, quantizations: routing.quantizations };
+  return { ...(routing.sort ? { sort: routing.sort } : {}), quantizations: routing.quantizations };
 }
 
 export interface ScoringModels {

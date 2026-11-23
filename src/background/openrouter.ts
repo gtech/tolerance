@@ -858,9 +858,9 @@ interface CallOutcome { upstreamLimited?: boolean }
 // and the tab's posts would sit behind the pre-score blur.
 const SCORING_TIMEOUT_MS = 60_000;
 
-// Set when a call on the cheapest route ran too long (see fastRouting). Kept in memory
-// only: a restarted worker tries the cheapest route once more.
-let cheapRouteSlowUntil = 0;
+// Set when a call on the default route ran too long (see fastRouting). Kept in memory
+// only: a restarted worker tries the default route once more.
+let defaultRouteSlowUntil = 0;
 
 // Core API call function - supports both OpenRouter and OpenAI-compatible endpoints
 async function callApi(
@@ -987,10 +987,11 @@ async function callApi(
           allow_fallbacks: true,
         };
       }
-      // No cap on image calls: on 2026-11-17 no provider under it accepted images, and
-      // an image call's reply is short, so its output price matters little
-      // While the cheapest route is known to be slow, go straight to the fast one
-      const routing = Date.now() < cheapRouteSlowUntil
+      // No cap on image calls: on 2026-11-17 no provider under the cap of the time
+      // accepted images, and an image call's reply is short, so its output price
+      // matters little
+      // While the default route is known to be slow, go straight to the fast one
+      const routing = Date.now() < defaultRouteSlowUntil
         ? fastRouting(model)
         : providerRouting(model, !effectiveImageUrl);
       if (routing) requestBody.provider = routing;
@@ -1048,16 +1049,17 @@ async function callApi(
       return new Response(text, { status: response.status, statusText: response.statusText });
     };
     let response: Response;
-    const onCheapestRoute = (requestBody.provider as ProviderRouting | undefined)?.sort === 'price';
-    if (onCheapestRoute) {
+    const sentRouting = requestBody.provider as ProviderRouting | undefined;
+    const onDefaultRoute = !!sentRouting?.quantizations && !sentRouting.sort;
+    if (onDefaultRoute) {
       try {
         response = await send(slowCallTimeoutMs(isImageCall, postCount));
       } catch (error) {
         if ((error as Error)?.name !== 'TimeoutError') throw error;
-        // The cheapest provider is too slow right now: ask the fastest one, and keep
-        // asking it for a while before trying the cheapest again
-        cheapRouteSlowUntil = Date.now() + FAST_ROUTE_HOLD_MS;
-        log.debug(` Cheapest provider took over ${slowCallTimeoutMs(isImageCall, postCount)}ms; using the fastest for ${FAST_ROUTE_HOLD_MS / 60_000} minutes`);
+        // The provider this call landed on is too slow right now: ask the fastest one,
+        // and keep asking it for a while before going back to the default route
+        defaultRouteSlowUntil = Date.now() + FAST_ROUTE_HOLD_MS;
+        log.debug(` Provider took over ${slowCallTimeoutMs(isImageCall, postCount)}ms; using the fastest for ${FAST_ROUTE_HOLD_MS / 60_000} minutes`);
         requestBody.provider = fastRouting(model);
         response = await send(SCORING_TIMEOUT_MS);
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ALLOWED_QUANTIZATIONS, AUXILIARY_MODEL, FREE_KEY_MODELS, CHEAPEST_PROVIDER_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../src/shared/provider-models';
+import { ALLOWED_QUANTIZATIONS, AUXILIARY_MODEL, FREE_KEY_MODELS, ROUTED_MODELS, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, THINKING_OFF_MODELS, fastRouting, providerRouting, scoringModels, slowCallTimeoutMs, withoutPriceCap } from '../src/shared/provider-models';
 
 describe('scoring models', () => {
   it('uses the defaults when nothing is set', () => {
@@ -13,24 +13,29 @@ describe('scoring models', () => {
     expect(THINKING_OFF_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
   });
 
-  it('asks for the cheapest provider of the default model', () => {
-    expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_TEXT_MODEL)).toBe(true);
-    expect(CHEAPEST_PROVIDER_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
+  it('says which providers are acceptable for the default model', () => {
+    expect(ROUTED_MODELS.has(DEFAULT_TEXT_MODEL)).toBe(true);
+    expect(ROUTED_MODELS.has(DEFAULT_IMAGE_MODEL)).toBe(true);
   });
 
   it('caps the output price for the default model, and can drop the cap', () => {
-    expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'price', max_price: { completion: 0.25 }, quantizations: ALLOWED_QUANTIZATIONS });
-    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ sort: 'price', quantizations: ALLOWED_QUANTIZATIONS });
+    expect(providerRouting(DEFAULT_TEXT_MODEL)).toEqual({ max_price: { completion: 0.6 }, quantizations: ALLOWED_QUANTIZATIONS });
+    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).toEqual({ quantizations: ALLOWED_QUANTIZATIONS });
     expect(providerRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
   });
 
-  it('falls back to the fastest provider, with a looser price cap', () => {
+  it('never pins to the cheapest provider', () => {
+    expect(providerRouting(DEFAULT_TEXT_MODEL)).not.toHaveProperty('sort');
+    expect(providerRouting(DEFAULT_TEXT_MODEL, false)).not.toHaveProperty('sort');
+  });
+
+  it('falls back to the fastest provider under the same price cap', () => {
     expect(fastRouting(DEFAULT_TEXT_MODEL)).toEqual({ sort: 'throughput', max_price: { completion: 0.6 }, quantizations: ALLOWED_QUANTIZATIONS });
     expect(fastRouting('anthropic/claude-haiku-5.5')).toBeUndefined();
   });
 
   it('drops the price cap and keeps the sort', () => {
-    expect(withoutPriceCap(providerRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'price', quantizations: ALLOWED_QUANTIZATIONS });
+    expect(withoutPriceCap(providerRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ quantizations: ALLOWED_QUANTIZATIONS });
     expect(withoutPriceCap(fastRouting(DEFAULT_TEXT_MODEL)!)).toEqual({ sort: 'throughput', quantizations: ALLOWED_QUANTIZATIONS });
   });
 
