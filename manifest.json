@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tolerance: Doomscroll, Clickbait & AI Slop Blocker",
   "short_name": "Tolerance",
-  "version": "0.1.43",
+  "version": "0.1.44",
   "description": "A digital detox without blocking: blurs clickbait, rage bait, AI slop and ads in your social feeds, so you scroll less.",
   "icons": {
     "16": "icons/icon16.png",
