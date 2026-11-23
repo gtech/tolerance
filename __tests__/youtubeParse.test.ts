@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { isCountOrDate, parseUploadDate, parseViewCount, pickDuration } from '../src/shared/youtube-parse';
+import { isCountOrDate, parseUploadDate, parseViewCount, pickDuration, videoIdFromHref } from '../src/shared/youtube-parse';
 
 // The text on a YouTube card. The current forms are from a capture of the home page and
 // the watch-page sidebar in November 2026; the older ones must keep working too.
+
+describe('videoIdFromHref', () => {
+  it('reads all three link shapes', () => {
+    expect(videoIdFromHref('/watch?v=dQw4w9WgXcQ&t=10s')).toEqual({ id: 'dQw4w9WgXcQ', isShort: false });
+    expect(videoIdFromHref('/shorts/abcDEF_-123')).toEqual({ id: 'abcDEF_-123', isShort: true });
+    // Sidebar cards beside a stream, November 2026
+    expect(videoIdFromHref('/live/abcDEF_-123?si=xyz')).toEqual({ id: 'abcDEF_-123', isShort: false });
+    expect(videoIdFromHref('https://www.youtube.com/live/abcDEF_-123')).toEqual({ id: 'abcDEF_-123', isShort: false });
+  });
+
+  it('finds nothing in other links', () => {
+    expect(videoIdFromHref('/@somechannel')).toBeNull();
+    expect(videoIdFromHref('/playlist?list=PL123')).toBeNull();
+    expect(videoIdFromHref('')).toBeNull();
+    expect(videoIdFromHref(undefined)).toBeNull();
+  });
+});
 
 describe('parseViewCount', () => {
   it('reads the long form in a card\'s accessibility label', () => {

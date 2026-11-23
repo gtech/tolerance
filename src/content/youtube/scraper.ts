@@ -3,6 +3,7 @@ import { log } from '../../shared/constants';
 import { withAiLabel } from '../aiLabel';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 import { isOffPageCard } from './gate';
+import { VIDEO_LINK_SELECTOR, videoIdFromHref } from '../../shared/youtube-parse';
 import { isCountOrDate, parseUploadDate, parseViewCount, pickDuration } from '../../shared/youtube-parse';
 
 // Scrape video data from YouTube DOM
@@ -107,23 +108,14 @@ function parseVideoElement(element: HTMLElement): YouTubeVideo | null {
   try {
     // Extract video ID from href - YouTube now uses multiple link structures
     const link = element.querySelector<HTMLAnchorElement>(
-      'a[href*="/watch?v="], a[href*="/shorts/"], a.yt-lockup-view-model__content-image'
+      `${VIDEO_LINK_SELECTOR}, a.yt-lockup-view-model__content-image`
     );
     const href = link?.getAttribute('href') || '';
 
-    // Handle both regular videos and Shorts
-    let id: string | null = null;
-    let isShort = false;
-
-    const watchMatch = href.match(/[?&]v=([a-zA-Z0-9_-]+)/);
-    const shortsMatch = href.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
-
-    if (watchMatch) {
-      id = watchMatch[1];
-    } else if (shortsMatch) {
-      id = shortsMatch[1];
-      isShort = true;
-    }
+    // Regular videos, Shorts and streams
+    const found = videoIdFromHref(href);
+    const id = found?.id ?? null;
+    const isShort = found?.isShort ?? false;
 
     if (!id) {
       // Debug: log what we found (only for non-ad elements)

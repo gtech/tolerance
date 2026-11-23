@@ -16,6 +16,21 @@ export function parseViewCount(text: string): number {
   return Math.round(num * (UNITS[(match[2] || '').toLowerCase()] ?? 1));
 }
 
+// The video a link points to. YouTube has three shapes for it: /watch?v=ID, /shorts/ID
+// and /live/ID (streams, live or finished; seen on every sidebar card beside a stream in
+// November 2026).
+export function videoIdFromHref(href: string | null | undefined): { id: string; isShort: boolean } | null {
+  if (!href) return null;
+  const watch = href.match(/[?&]v=([a-zA-Z0-9_-]+)/);
+  if (watch) return { id: watch[1], isShort: false };
+  const shorts = href.match(/\/shorts\/([a-zA-Z0-9_-]+)/);
+  if (shorts) return { id: shorts[1], isShort: true };
+  const live = href.match(/\/live\/([a-zA-Z0-9_-]+)/);
+  if (live) return { id: live[1], isShort: false };
+  return null;
+}
+export const VIDEO_LINK_SELECTOR = 'a[href*="/watch?v="], a[href*="/shorts/"], a[href^="/live/"], a[href*="youtube.com/live/"]';
+
 // "2 days ago", "3 months ago", "Streamed 2 hours ago"
 export function parseUploadDate(text: string): string | undefined {
   const match = text.match(/(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago)/i);

@@ -12,6 +12,7 @@ import { firstSighting } from '../impressionLog';
 import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
+import { VIDEO_LINK_SELECTOR, videoIdFromHref } from '../../shared/youtube-parse';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, HIDE_PLAYABLES_CLASS, hidePlayablesCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
@@ -758,7 +759,8 @@ let currentSettings: Settings | null = null;
 
 // Check if we're on a video watch page
 function isWatchPage(): boolean {
-  return window.location.pathname.startsWith('/watch');
+  // A stream's own page is /live/ID
+  return window.location.pathname.startsWith('/watch') || window.location.pathname.startsWith('/live/');
 }
 
 const YOUTUBE_AD_SELECTOR = 'ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer';
@@ -1188,15 +1190,8 @@ function refreshBlurState(): void {
 // Find video ID from a video element (for looking up cached scores)
 function findVideoIdFromElement(element: HTMLElement): string | null {
   // Try to find a link to the video
-  const link = element.querySelector('a[href*="/watch?v="], a[href*="/shorts/"]') as HTMLAnchorElement | null;
-  if (link) {
-    const href = link.getAttribute('href') || '';
-    const watchMatch = href.match(/[?&]v=([^&]+)/);
-    if (watchMatch) return watchMatch[1];
-    const shortsMatch = href.match(/\/shorts\/([^?&]+)/);
-    if (shortsMatch) return shortsMatch[1];
-  }
-  return null;
+  const link = element.querySelector(VIDEO_LINK_SELECTOR);
+  return videoIdFromHref(link?.getAttribute('href'))?.id ?? null;
 }
 
 // Track right-clicked element for context menu
