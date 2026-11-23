@@ -1,5 +1,6 @@
 import { Tweet, EngagementScore, PostImpression } from '../../shared/types';
 import { log } from '../../shared/constants';
+import { cellOf } from './dom';
 import { impressionScoreFields } from '../../shared/impression-fields';
 
 // Reorder tweets by recalculating translateY based on actual heights
@@ -26,7 +27,7 @@ export function reorderTweets(
   const originalTransforms = new Map<string, number>(); // Just the Y value
 
   for (const tweet of tweets) {
-    const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+    const cell = cellOf(tweet.element) as HTMLElement;
     if (cell) {
       tweetCells.set(tweet.id, cell);
 
@@ -126,7 +127,7 @@ export function recordImpressions(
 export function hideTweet(tweetId: string, tweets: Tweet[]): void {
   const tweet = tweets.find(t => t.id === tweetId);
   if (tweet?.element) {
-    const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+    const cell = cellOf(tweet.element) as HTMLElement;
     if (cell) {
       cell.style.opacity = '0';
       cell.style.pointerEvents = 'none';
@@ -138,7 +139,7 @@ export function hideTweet(tweetId: string, tweets: Tweet[]): void {
 export function showTweet(tweetId: string, tweets: Tweet[]): void {
   const tweet = tweets.find(t => t.id === tweetId);
   if (tweet?.element) {
-    const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+    const cell = cellOf(tweet.element) as HTMLElement;
     if (cell) {
       cell.style.opacity = '';
       cell.style.pointerEvents = '';

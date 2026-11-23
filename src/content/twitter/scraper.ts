@@ -2,6 +2,8 @@ import { Tweet, TweetAnchor } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
 import { withAiLabel } from '../aiLabel';
+import { TWEET_SELECTOR, isOldLayoutTweet } from './dom';
+import { inQuotedTweetV2, parseTweetV2 } from './scraperV2';
 
 // Scrape tweet data from Twitter/X DOM
 // Twitter uses React with data-testid attributes for stable selectors
@@ -9,10 +11,8 @@ import { withAiLabel } from '../aiLabel';
 export function scrapeVisibleTweets(): Tweet[] {
   const tweets: Tweet[] = [];
 
-  // Twitter timeline tweets are in article elements with data-testid="tweet"
-  const tweetElements = document.querySelectorAll<HTMLElement>(
-    'article[data-testid="tweet"]'
-  );
+  // One article per post, in either layout (see ./dom.ts)
+  const tweetElements = document.querySelectorAll<HTMLElement>(TWEET_SELECTOR);
 
   for (const element of tweetElements) {
     const tweet = parseTweetElement(element);
@@ -34,6 +34,9 @@ function isPromotedTweet(element: HTMLElement): boolean {
 
 export function parseTweetElement(element: HTMLElement): Tweet | null {
   try {
+    // The site as rebuilt in November 2026 has its own reader
+    if (!isOldLayoutTweet(element)) return parseTweetV2(element);
+
     // Get tweet ID from the permalink (status URL)
     const permalinkElement = element.querySelector<HTMLAnchorElement>(
       'a[href*="/status/"]'
@@ -232,7 +235,7 @@ function parseViewCount(element: HTMLElement): number | undefined {
   return parseCount(match[1]);
 }
 
-function parseCount(text: string): number {
+export function parseCount(text: string): number {
   if (!text || text === '') return 0;
 
   // Handle K, M, B suffixes
@@ -301,6 +304,7 @@ function parseQuotedTweet(element: HTMLElement): { author: string; text: string;
 // ancestor holding an author line holds only the quoted tweet's. Doesn't depend on
 // where Twitter puts the quote card's outer element.
 export function inQuotedTweet(element: HTMLElement, node: Element): boolean {
+  if (!isOldLayoutTweet(element)) return inQuotedTweetV2(element, node);
   const mainName = element.querySelector('[data-testid="User-Name"]');
   if (!mainName || mainName.contains(node)) return false;
   for (let el = node.parentElement; el && el !== element; el = el.parentElement) {
@@ -448,12 +452,12 @@ function backgroundImageUrl(container: HTMLElement): string | undefined {
   return undefined;
 }
 
-function extractHashtags(text: string): string[] {
+export function extractHashtags(text: string): string[] {
   const matches = text.match(/#\w+/g);
   return matches?.map(h => h.slice(1)) || [];
 }
 
-function extractMentions(text: string): string[] {
+export function extractMentions(text: string): string[] {
   const matches = text.match(/@\w+/g);
   return matches?.map(m => m.slice(1)) || [];
 }

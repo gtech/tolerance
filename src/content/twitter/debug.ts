@@ -7,6 +7,7 @@
 import { EngagementScore } from '../../shared/types';
 import { anchorCacheId } from '../../shared/anchor-utils';
 import { parseTweetElement, inQuotedTweet } from './scraper';
+import { cellOf, tweetIn } from './dom';
 
 export interface DebugState {
   processed: boolean;
@@ -37,14 +38,14 @@ function scoreSummary(s: EngagementScore | null | undefined): string {
 // Each video/photo/link card in the tweet and whether it was counted as the main
 // tweet's or the quoted tweet's
 function describeMedia(article: HTMLElement): string {
-  const found = [...article.querySelectorAll('[data-testid="videoPlayer"], [data-testid="tweetPhoto"], [data-testid="card.wrapper"]')]
-    .map(el => `${el.getAttribute('data-testid')}:${inQuotedTweet(article, el) ? 'quoted' : 'main'}`);
+  const found = [...article.querySelectorAll('[data-testid="videoPlayer"], [data-testid="tweetPhoto"], [data-testid="card.wrapper"], video, img[src*="pbs.twimg.com/media/"]')]
+    .map(el => `${el.getAttribute('data-testid') ?? el.tagName.toLowerCase()}:${inQuotedTweet(article, el) ? 'quoted' : 'main'}`);
   return found.length ? found.join(' ') : 'none';
 }
 
 function describeCell(cell: Element | null): string {
   if (!cell) return 'none';
-  const article = cell.querySelector<HTMLElement>('article[data-testid="tweet"]');
+  const article = tweetIn(cell);
   if (!article) {
     const testids = [...cell.querySelectorAll('[data-testid]')].map(e => e.getAttribute('data-testid')).slice(0, 6);
     return `no tweet; testids=[${testids.join(',')}] text="${short(cell.textContent, 50)}"`;
@@ -56,7 +57,7 @@ function describeCell(cell: Element | null): string {
 // Elements in the avatar column of an article, with geometry relative to the avatar
 function avatarColumn(article: HTMLElement | null, label: string): string[] {
   if (!article) return [`${label}: no article`];
-  const avatar = article.querySelector<HTMLElement>('[data-testid="Tweet-User-Avatar"]');
+  const avatar = article.querySelector<HTMLElement>('[data-testid="Tweet-User-Avatar"], [data-post-avatar]');
   if (!avatar) return [`${label}: no Tweet-User-Avatar`];
   const a = avatar.getBoundingClientRect();
   const center = a.left + a.width / 2;
@@ -90,8 +91,8 @@ export async function buildDebugReport(
   target: HTMLElement,
   state: (tweetId: string) => DebugState
 ): Promise<string> {
-  const cell = target.closest('[data-testid="cellInnerDiv"]');
-  const article = cell?.querySelector<HTMLElement>('article[data-testid="tweet"]');
+  const cell = cellOf(target);
+  const article = cell ? tweetIn(cell) : null;
   if (!cell || !article) return 'Tolerance debug: no tweet found where you right-clicked.';
 
   const tweet = parseTweetElement(article);
@@ -136,7 +137,7 @@ export async function buildDebugReport(
   let prevArticle: HTMLElement | null = null;
   prev = cell.previousElementSibling;
   for (let i = 0; i < 3 && prev && !prevArticle; i++, prev = prev.previousElementSibling) {
-    prevArticle = prev.querySelector<HTMLElement>('article[data-testid="tweet"]');
+    prevArticle = tweetIn(prev);
   }
   lines.push(...avatarColumn(prevArticle, 'nearest tweet above'));
 

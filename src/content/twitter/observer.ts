@@ -2,6 +2,7 @@
 // Twitter uses virtualization so we need to be careful about performance
 
 import { log } from '../../shared/constants';
+import { CELL_SELECTOR, TWEET_SELECTOR, VIDEO_SELECTOR, primaryColumn, timelineRendered } from './dom';
 
 let timelineObserver: MutationObserver | null = null;
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -30,8 +31,8 @@ export function setupTwitterObserver(
     // Watch the whole primary column rather than the timeline section: X replaces
     // the section (e.g. switching For you / Following, which doesn't change the URL),
     // which would leave the observer on a detached node
-    const timeline = document.querySelector('[data-testid="primaryColumn"] section[role="region"]')
-      ? document.querySelector('main') ?? document.querySelector('[data-testid="primaryColumn"]')
+    const timeline = timelineRendered()
+      ? document.querySelector('main') ?? primaryColumn()
       : null;
     if (!timeline) {
       // Try again in a bit - Twitter's SPA might not have rendered yet
@@ -75,24 +76,24 @@ export function setupTwitterObserver(
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (!(node instanceof HTMLElement)) continue;
-          const isCell = node.matches('[data-testid="cellInnerDiv"]');
-          const containsTweet = node.matches('[data-testid="tweet"]') || !!node.querySelector('[data-testid="tweet"]');
+          const isCell = node.matches(CELL_SELECTOR);
+          const containsTweet = node.matches(TWEET_SELECTOR) || !!node.querySelector(TWEET_SELECTOR);
           if (!isCell && !containsTweet) {
             // A GIF/video finishing loading inside an already-scored tweet: re-scan so
             // its media type (and the video score floor) is picked up
-            const isMedia = node.matches('video, [data-testid="videoPlayer"]') || !!node.querySelector('video, [data-testid="videoPlayer"]');
-            if (isMedia && node.closest('article[data-testid="tweet"]')) hasNewTweets = true;
+            const isMedia = node.matches(VIDEO_SELECTOR) || !!node.querySelector(VIDEO_SELECTOR);
+            if (isMedia && node.closest(TWEET_SELECTOR)) hasNewTweets = true;
             continue;
           }
           hasNewTweets = true;
           if (!onCellsAdded) continue;
 
           // The tweet may arrive as a whole cell, or be rendered into an existing cell
-          const cell = isCell ? node : node.closest<HTMLElement>('[data-testid="cellInnerDiv"]');
+          const cell = isCell ? node : node.closest<HTMLElement>(CELL_SELECTOR);
           if (cell) {
             addedCells.add(cell);
           } else {
-            node.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]').forEach(c => addedCells.add(c));
+            node.querySelectorAll<HTMLElement>(CELL_SELECTOR).forEach(c => addedCells.add(c));
           }
         }
       }
@@ -121,7 +122,7 @@ export function setupTwitterObserver(
     let isScrolling = false;
 
     const checkForNewTweets = () => {
-      const currentCount = document.querySelectorAll('[data-testid="tweet"]').length;
+      const currentCount = document.querySelectorAll(TWEET_SELECTOR).length;
       if (currentCount !== lastKnownTweetCount) {
         log.debug(` Tweet count changed: ${lastKnownTweetCount} -> ${currentCount}`);
         lastKnownTweetCount = currentCount;
@@ -153,7 +154,7 @@ export function setupTwitterObserver(
     }, 500);
 
     // Initial tweet count
-    lastKnownTweetCount = document.querySelectorAll('[data-testid="tweet"]').length;
+    lastKnownTweetCount = document.querySelectorAll(TWEET_SELECTOR).length;
   };
 
   // Start looking for timeline

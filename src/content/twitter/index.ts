@@ -14,6 +14,8 @@ import { noteReveal } from '../burstCard';
 import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../holdReveal';
 import { anchorCacheId } from '../../shared/anchor-utils';
 import { isUnfilteredTwitterPath } from './paths';
+import { CELL_SELECTOR, TWEET_SELECTOR, TWEET_CELL_SELECTORS, cellOf, tweetIn, cellTweetId, primaryColumn, isOldLayoutTweet } from './dom';
+import { tweetAuthorV2 } from './scraperV2';
 import { buildDebugReport, showDebugReport } from './debug';
 import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
@@ -205,8 +207,9 @@ function startRecoveryCheck(): void {
     if (isUnfilteredPage()) return;
 
     const timeSinceProcess = Date.now() - lastProcessTime;
-    const hasVisibleTweets = document.querySelectorAll('[data-testid="tweet"]').length > 0;
-    const hasUnbadgedTweets = document.querySelectorAll('[data-testid="cellInnerDiv"]:not(:has(.tolerance-score-badge)) [data-testid="tweet"]').length > 0;
+    const tweetsOnPage = [...document.querySelectorAll(TWEET_SELECTOR)];
+    const hasVisibleTweets = tweetsOnPage.length > 0;
+    const hasUnbadgedTweets = tweetsOnPage.some(t => !cellOf(t)?.querySelector('.tolerance-score-badge'));
 
     // If it's been a while, there are tweets, and some don't have badges, try to recover
     if (timeSinceProcess > 15000 && hasVisibleTweets && hasUnbadgedTweets && !isProcessing) {
@@ -243,6 +246,10 @@ let opaqueBlurEnabled = false;
 // Track hover timers for timed reveal
 const hoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
+// Cells holding a post this script hasn't dealt with yet (both layouts)
+const GATED_CELLS = TWEET_CELL_SELECTORS.map(cell =>
+  `${cell}:not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred)`);
+
 function injectStyles(): void {
   if (stylesInjected) return;
   stylesInjected = true;
@@ -251,14 +258,14 @@ function injectStyles(): void {
   style.id = 'tolerance-twitter-styles';
   style.textContent = `
     /* Blur/fade effect on tweets during loading */
-    [data-testid="primaryColumn"].tolerance-loading [data-testid="cellInnerDiv"] {
+    .tolerance-loading :is(${CELL_SELECTOR}) {
       filter: blur(2px);
       opacity: 0.5;
       transition: filter 0.2s ease, opacity 0.2s ease;
       pointer-events: none;
     }
 
-    [data-testid="cellInnerDiv"] {
+    :is(${CELL_SELECTOR}) {
       transition: filter 0.2s ease, opacity 0.2s ease;
     }
 
@@ -369,11 +376,11 @@ function injectStyles(): void {
     /* Gate: every tweet cell is blurred until this script has dealt with it
        (pending blur, real blur, or marked done). Pure CSS, so cells the
        observer misses or reaches late are still covered from first paint. */
-    html.tolerance-gate [data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred) > :not(.tolerance-blur-overlay):not(.tolerance-score-badge) {
+    ${GATED_CELLS.map(cell => `html.tolerance-gate ${cell} > :not(.tolerance-blur-overlay):not(.tolerance-score-badge)`).join(',\n    ')} {
       filter: blur(var(--tolerance-gate-blur, 8px)) !important;
       pointer-events: none !important;
     }
-    ${opaqueGateCss('tolerance-gate', ['[data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred)'], { relative: false })}
+    ${opaqueGateCss('tolerance-gate', GATED_CELLS, { relative: false })}
 
     /* Revealed state (set by JS after hover delay) */
     .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
@@ -481,10 +488,7 @@ function createLoaderElement(): HTMLElement {
 
 function showLoading(text?: string): void {
   injectStyles();
-  const primaryColumn = document.querySelector('[data-testid="primaryColumn"]');
-  if (primaryColumn) {
-    primaryColumn.classList.add('tolerance-loading');
-  }
+  primaryColumn()?.classList.add('tolerance-loading');
   const loader = createLoaderElement();
   if (text) {
     const textEl = loader.querySelector('.tolerance-loader-text');
@@ -494,10 +498,7 @@ function showLoading(text?: string): void {
 }
 
 function hideLoading(): void {
-  const primaryColumn = document.querySelector('[data-testid="primaryColumn"]');
-  if (primaryColumn) {
-    primaryColumn.classList.remove('tolerance-loading');
-  }
+  primaryColumn()?.classList.remove('tolerance-loading');
   const loader = document.querySelector('.tolerance-loader');
   if (loader) {
     loader.classList.remove('visible');
@@ -526,7 +527,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
     return;
   }
 
-  const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+  const cell = cellOf(tweet.element) as HTMLElement;
   if (!cell) {
     log.debug(` Badge injection failed - no cellInnerDiv for tweet ${tweet.id}`);
     return;
@@ -617,7 +618,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
 function applyPendingBlur(tweet: Tweet, blurIntensity: number = 40): void {
   if (!tweet.element) return;
 
-  const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+  const cell = cellOf(tweet.element) as HTMLElement;
   if (!cell) return;
 
   resetCellIfRecycled(cell);
@@ -693,7 +694,7 @@ function handleCellsAdded(cells: HTMLElement[]): void {
   if (!twitterSettings?.blurHighEngagement || twitterSettings.reorderEnabled) return;
 
   for (const cell of cells) {
-    if (!cell.querySelector('article[data-testid="tweet"]')) continue;
+    if (!tweetIn(cell)) continue;
     resetCellIfRecycled(cell);
     if (cell.querySelector('.tolerance-score-badge')) continue;
     const tweetId = cellTweetId(cell);
@@ -704,7 +705,7 @@ function handleCellsAdded(cells: HTMLElement[]): void {
       // Already scored - Twitter recreated the cell. Re-blur immediately if needed;
       // the badge is re-injected on the next processTweets pass.
       if (shouldBlurScore(cached.score)) {
-        const article = cell.querySelector('article[data-testid="tweet"]') as HTMLElement;
+        const article = tweetIn(cell) as HTMLElement;
         applyBlurToTweet({ id: tweetId, element: article } as Tweet, cached.score, twitterSettings.blurIntensity);
       } else {
         // Scored and below the threshold: release it now. Otherwise the gate blurs
@@ -723,7 +724,7 @@ function handleCellsAdded(cells: HTMLElement[]): void {
 function removePendingBlur(tweet: Tweet): void {
   if (!tweet.element) return;
 
-  const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+  const cell = cellOf(tweet.element) as HTMLElement;
   if (!cell) return;
 
   markCellDone(cell);
@@ -759,7 +760,7 @@ function buildBlurLabel(score: EngagementScore): HTMLElement {
 function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: number = 40): void {
   if (!tweet.element) return;
 
-  const cell = tweet.element.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
+  const cell = cellOf(tweet.element) as HTMLElement;
   if (!cell) return;
 
   resetCellIfRecycled(cell);
@@ -905,12 +906,6 @@ function stampCell(cell: Element | null | undefined, tweetId: string): void {
   cell?.setAttribute(TWEET_ID_ATTR, tweetId);
 }
 
-// The tweet a cell shows now: its article's permalink, as the scraper reads it
-function cellTweetId(cell: Element): string | null {
-  const href = cell.querySelector('article[data-testid="tweet"] a[href*="/status/"]')?.getAttribute('href') || '';
-  return href.match(/\/status\/(\d+)/)?.[1] ?? null;
-}
-
 function resetCellIfRecycled(cell: HTMLElement): void {
   const stamped = cell.getAttribute(TWEET_ID_ATTR);
   if (!stamped) return;
@@ -940,8 +935,8 @@ function takeOverEarlyBlur(): void {
     const cells: HTMLElement[] = [];
     for (const node of nodes) {
       if (!(node instanceof HTMLElement)) continue;
-      if (node.matches('[data-testid="cellInnerDiv"]')) cells.push(node);
-      else cells.push(...node.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]'));
+      if (node.matches(CELL_SELECTOR)) cells.push(node);
+      else cells.push(...node.querySelectorAll<HTMLElement>(CELL_SELECTOR));
     }
     return cells;
   };
@@ -975,7 +970,7 @@ async function init(): Promise<void> {
 async function waitForTimeline(): Promise<void> {
   return new Promise((resolve) => {
     const check = () => {
-      const timeline = document.querySelector('[data-testid="primaryColumn"]');
+      const timeline = primaryColumn();
       if (timeline) {
         resolve();
       } else {
@@ -993,7 +988,7 @@ async function waitForTweets(): Promise<void> {
     const maxAttempts = 20; // 10 seconds max
 
     const check = () => {
-      const tweets = document.querySelectorAll('[data-testid="tweet"]');
+      const tweets = document.querySelectorAll(TWEET_SELECTOR);
       if (tweets.length > 0) {
         log.debug(` Found ${tweets.length} initial tweets`);
         resolve();
@@ -1181,10 +1176,9 @@ async function processTweets(): Promise<void> {
     // Tweet cells the scraper can't parse (no status link, e.g. some ads) will never
     // be scored; release them from the CSS gate
     const scrapedIds = new Set(allTweets.map(t => t.id));
-    for (const cell of document.querySelectorAll<HTMLElement>('[data-testid="cellInnerDiv"]:not([data-tolerance-done])')) {
-      const article = cell.querySelector('article[data-testid="tweet"]');
-      if (!article) continue;
-      const id = article.querySelector('a[href*="/status/"]')?.getAttribute('href')?.match(/\/status\/(\d+)/)?.[1];
+    for (const cell of document.querySelectorAll<HTMLElement>(CELL_SELECTOR)) {
+      if (cell.hasAttribute('data-tolerance-done') || !tweetIn(cell)) continue;
+      const id = cellTweetId(cell);
       if (!id || !scrapedIds.has(id)) markCellDone(cell);
     }
 
@@ -1194,7 +1188,7 @@ async function processTweets(): Promise<void> {
     const tweetsNeedingAnchor: Tweet[] = [];
 
     for (const tweet of allTweets) {
-      const tweetCell = tweet.element?.closest<HTMLElement>('[data-testid="cellInnerDiv"]');
+      const tweetCell = cellOf(tweet.element);
       if (tweetCell) resetCellIfRecycled(tweetCell);
       if (!processedTweetIds.has(tweet.id)) {
         newTweets.push(tweet);
@@ -1208,7 +1202,7 @@ async function processTweets(): Promise<void> {
         // "Scoring...": Twitter may have recreated the cell while it was being
         // scored, so the new cell got the pending blur and the result went to
         // the old, detached one
-        const cell = tweet.element?.closest('[data-testid="cellInnerDiv"]');
+        const cell = cellOf(tweet.element);
         if (cell && scoreCache.has(tweet.id) &&
             (!cell.querySelector('.tolerance-score-badge') || cell.classList.contains('tolerance-pending'))) {
           tweetsNeedingBadge.push(tweet);
@@ -1486,7 +1480,7 @@ async function recheckAnchors(tweets: Tweet[]): Promise<void> {
     log.debug(` Anchor re-check changed ${tweet.id}: ${cached.score.apiScore} -> ${score.apiScore}`);
     cached.score = score;
 
-    const cell = tweet.element?.closest('[data-testid="cellInnerDiv"]');
+    const cell = cellOf(tweet.element);
     cell?.querySelector('.tolerance-score-badge')?.remove();
     injectScoreBadge(tweet, {
       score: score.apiScore,
@@ -1555,7 +1549,7 @@ function refreshBlurState(): void {
   log.debug(` Refreshing blur state, qualityMode=${qualityModeEnabled}, subscriptionsOnly=${subscriptionsOnlyMode}`);
 
   // Get all tweets that have been scored (have badges)
-  const cells = document.querySelectorAll('[data-testid="cellInnerDiv"]');
+  const cells = document.querySelectorAll(CELL_SELECTOR);
 
   for (const cell of cells) {
     const badge = cell.querySelector('.tolerance-score-badge');
@@ -1653,12 +1647,14 @@ function extractAuthorFromElement(element: HTMLElement | null): string | null {
   if (!element) return null;
 
   // Walk up to find the tweet container (cellInnerDiv)
-  const cell = element.closest('[data-testid="cellInnerDiv"]');
+  const cell = cellOf(element);
   if (!cell) return null;
 
   // Find the tweet element
-  const tweet = cell.querySelector('[data-testid="tweet"]');
+  const tweet = tweetIn(cell);
   if (!tweet) return null;
+  // New layout: the first profile link can be the reposter's, so ask the scraper
+  if (!isOldLayoutTweet(tweet)) return tweetAuthorV2(tweet) || null;
 
   // Twitter shows author as a link with href like "/@username"
   // Look for the author link in the tweet header

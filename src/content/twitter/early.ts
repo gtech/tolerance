@@ -6,6 +6,7 @@
 
 import type { Settings } from '../../shared/types';
 import { isUnfilteredTwitterPath } from './paths';
+import { TWEET_CELL_SELECTORS } from './dom';
 import { opaqueGateCss, syncGateOpacity } from '../gateOpacity';
 
 // Keep in sync with removeEarlyBlur() in ./index.ts
@@ -16,12 +17,13 @@ const FALLBACK_MS = 15000; // never leave the feed blurred if the main script fa
 if (!isUnfilteredTwitterPath(location.pathname)) {
   const style = document.createElement('style');
   style.id = EARLY_BLUR_STYLE_ID;
+  const unhandled = TWEET_CELL_SELECTORS.map(cell => `${cell}:not(.tolerance-pending):not(.tolerance-blurred)`);
   style.textContent = `
-    [data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not(.tolerance-pending):not(.tolerance-blurred) > * {
+    ${unhandled.map(cell => `${cell} > *`).join(',\n    ')} {
       filter: blur(8px) !important;
       pointer-events: none !important;
     }
-    ${opaqueGateCss('', ['[data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]):not(.tolerance-pending):not(.tolerance-blurred)'], { relative: false })}
+    ${opaqueGateCss('', unhandled, { relative: false })}
   `;
   document.documentElement.append(style);
 
