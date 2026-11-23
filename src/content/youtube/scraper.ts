@@ -2,6 +2,7 @@ import { YouTubeVideo } from '../../shared/types';
 import { log } from '../../shared/constants';
 import { withAiLabel } from '../aiLabel';
 import { SPONSORED_PREFIX } from '../../shared/scoring-spec';
+import { isOffPageCard } from './gate';
 import { isCountOrDate, parseUploadDate, parseViewCount, pickDuration } from '../../shared/youtube-parse';
 
 // Scrape video data from YouTube DOM
@@ -83,6 +84,7 @@ export function scrapeVisibleVideos(): YouTubeVideo[] {
   for (const element of [...homeVideos, ...sidebarVideos, ...lockupVideos, ...listVideos]) {
     if (seenElements.has(element)) continue;
     seenElements.add(element);
+    if (isOffPageCard(element)) continue;
     const video = parseVideoElement(element);
     if (video) {
       videos.push(video);

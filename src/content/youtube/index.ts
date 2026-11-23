@@ -890,6 +890,10 @@ async function initCore(): Promise<void> {
     log.debug(' Navigation detected, resetting state');
     redirectShorts();
     updateGate();
+    // Search results are never scored: clear anything left on them
+    for (const card of document.querySelectorAll<HTMLElement>(
+      `ytd-search [${VIDEO_ID_ATTR}], ytd-search .tolerance-pending, ytd-search .tolerance-blurred`
+    )) resetElement(card);
     processedVideoIds.clear();
     scoreCache.clear();
     resetPageChannelCache();

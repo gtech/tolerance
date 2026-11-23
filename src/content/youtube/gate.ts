@@ -67,6 +67,15 @@ export function shortsWatchUrl(pathname: string): string | null {
   return m ? `/watch?v=${m[1]}` : null;
 }
 
+// YouTube keeps the page you came from in the document, hidden, while you watch a
+// video: the search results or the home grid are still there under ytd-page-manager.
+// Cards on such a page are not on screen and must not be scored or blurred, and the
+// search page's cards never are, hidden or not.
+export const OFF_PAGE_SELECTOR = 'ytd-page-manager > [hidden], ytd-search';
+export function isOffPageCard(element: Element): boolean {
+  return element.closest(OFF_PAGE_SELECTOR) !== null;
+}
+
 // Pages where YouTube videos aren't scored (search is user-directed; Shorts has no feed)
 export function isUnscoredYouTubePage(path: string): boolean {
   return path.startsWith('/results') || path.startsWith('/shorts');
