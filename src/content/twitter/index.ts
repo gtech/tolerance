@@ -406,19 +406,8 @@ function injectStyles(): void {
 
     /* Hide mode: a post blurred for its score leaves the feed. Posts still being
        scored stay blurred, so nothing is shown and then taken away. */
-    /* Shrunk to a 1px sliver, not display:none: Twitter lays the rows out from their
-       measured heights, and a row measuring nothing at all kept its old place and left
-       a blank space (seen November 2026). */
     html.${HIDE_BLURRED_CLASS} .tolerance-blurred:not(.${KEEP_VISIBLE_CLASS}) {
-      height: 1px !important;
-      min-height: 0 !important;
-      max-height: 1px !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      border: 0 !important;
-      overflow: hidden !important;
-      visibility: hidden !important;
-      pointer-events: none !important;
+      display: none !important;
     }
 
     /* Revealed state (set by JS after hover delay) */
