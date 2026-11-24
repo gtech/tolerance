@@ -870,6 +870,8 @@ function populateSettings(settings: Settings): void {
   if (hideBlurredBadgesInput) hideBlurredBadgesInput.checked = settings.twitter?.hideBlurredBadges ?? false;
   const hideBlurredYouTubeInput = document.getElementById('hide-blurred-youtube') as HTMLInputElement | null;
   if (hideBlurredYouTubeInput) hideBlurredYouTubeInput.checked = settings.twitter?.hideBlurredYouTube ?? false;
+  const hideBlurredTwitterInput = document.getElementById('hide-blurred-twitter') as HTMLInputElement | null;
+  if (hideBlurredTwitterInput) hideBlurredTwitterInput.checked = settings.twitter?.hideBlurredTwitter ?? false;
 
   if (hoverDelayInput) {
     const delay = settings.twitter?.hoverRevealDelay ?? 3;
@@ -1174,6 +1176,7 @@ function setupEventListeners(): void {
   document.getElementById('hover-reveal')?.addEventListener('change', saveSettings);
   document.getElementById('hide-blurred-badges')?.addEventListener('change', saveSettings);
   document.getElementById('hide-blurred-youtube')?.addEventListener('change', saveSettings);
+  document.getElementById('hide-blurred-twitter')?.addEventListener('change', saveSettings);
 
   // API Tier selection
   const tierRadios = document.querySelectorAll('input[name="api-tier"]');
@@ -1565,6 +1568,7 @@ async function saveSettings(): Promise<void> {
       hoverReveal: (document.getElementById('hover-reveal') as HTMLInputElement | null)?.checked ?? true,
       hideBlurredBadges: (document.getElementById('hide-blurred-badges') as HTMLInputElement | null)?.checked ?? false,
       hideBlurredYouTube: (document.getElementById('hide-blurred-youtube') as HTMLInputElement | null)?.checked ?? false,
+      hideBlurredTwitter: (document.getElementById('hide-blurred-twitter') as HTMLInputElement | null)?.checked ?? false,
     },
     logLevel: (logLevelSelect?.value as Settings['logLevel']) || 'error',
     blurUntilScored: blurUntilScoredInput?.checked ?? true,
