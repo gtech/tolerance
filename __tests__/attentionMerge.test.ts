@@ -26,6 +26,19 @@ describe('mergeDwellIntoImpressions', () => {
     expect(posts[0].viewportEnters).toBe(3);
   });
 
+  it('marks a post as opened without inventing a time on screen', () => {
+    const posts = [impression('a'), impression('b', { dwellMs: 4000, viewportEnters: 1 })];
+    mergeDwellIntoImpressions(posts, [
+      { postId: 'a', dwellMs: 0, enters: 0, maxContinuousMs: 0, opened: true },
+      { postId: 'b', dwellMs: 0, enters: 0, maxContinuousMs: 0, opened: true },
+    ]);
+
+    expect(posts[0].opened).toBe(true);
+    expect(posts[0].dwellMs).toBeUndefined();
+    expect(posts[1].opened).toBe(true);
+    expect(posts[1].dwellMs).toBe(4000);
+  });
+
   it('keeps the max continuous dwell across flush windows', () => {
     // A segment spanning two flush windows reports growing lengths; max() must win
     const posts = [impression('a')];

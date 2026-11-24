@@ -25,9 +25,14 @@ export function mergeDwellIntoImpressions(
       unmatched?.push(update);
       continue;
     }
-    imp.dwellMs = (imp.dwellMs ?? 0) + update.dwellMs;
-    imp.viewportEnters = (imp.viewportEnters ?? 0) + update.enters;
-    imp.maxContinuousDwellMs = Math.max(imp.maxContinuousDwellMs ?? 0, update.maxContinuousMs);
+    if (update.opened) imp.opened = true;
+    // An update that only reports an open carries no time, and shouldn't make a post
+    // that was never timed look like one timed at zero
+    if (!update.opened || update.dwellMs > 0 || update.enters > 0) {
+      imp.dwellMs = (imp.dwellMs ?? 0) + update.dwellMs;
+      imp.viewportEnters = (imp.viewportEnters ?? 0) + update.enters;
+      imp.maxContinuousDwellMs = Math.max(imp.maxContinuousDwellMs ?? 0, update.maxContinuousMs);
+    }
     matched++;
   }
   return matched;

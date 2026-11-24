@@ -887,6 +887,25 @@ async function initCore(): Promise<void> {
   // Set up observer for infinite scroll
   setupYouTubeObserver(handleNewVideos, handleCardsChanged);
 
+  // Record which scored cards get opened. Capture phase, so it sees the click before
+  // YouTube's own handlers; a click on a blurred card lands on the overlay, not the link,
+  // and is not counted. auxclick covers a middle-click into a new tab.
+  const opened = new Set<string>();
+  const noteOpen = (e: MouseEvent) => {
+    if (e.type === 'auxclick' && e.button !== 1) return;
+    const link = (e.target as Element | null)?.closest?.(VIDEO_LINK_SELECTOR);
+    const id = videoIdFromHref(link?.getAttribute('href'))?.id;
+    if (!id || opened.has(id) || !scoreCache.has(id)) return;
+    opened.add(id);
+    void sendMessage({
+      type: 'LOG_ATTENTION',
+      dwellUpdates: [{ postId: id, dwellMs: 0, enters: 0, maxContinuousMs: 0, opened: true }],
+      scrollBuckets: [],
+    });
+  };
+  document.addEventListener('click', noteOpen, true);
+  document.addEventListener('auxclick', noteOpen, true);
+
   // Set up navigation observer for SPA navigation
   setupNavigationObserver(() => {
     log.debug(' Navigation detected, resetting state');

@@ -191,6 +191,7 @@ function holdDwell(updates: DwellUpdate[]): void {
       held.dwellMs += u.dwellMs;
       held.enters += u.enters;
       held.maxContinuousMs = Math.max(held.maxContinuousMs, u.maxContinuousMs);
+      if (u.opened) held.opened = true;
     } else {
       heldDwell.set(u.postId, { ...u });
     }

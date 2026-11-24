@@ -268,6 +268,10 @@ export interface PostImpression {
   // YouTube, since 24 Nov 2026: the card sat beside a video being watched. It stays on
   // screen for as long as the video plays, so its time on screen is not attention.
   besideVideo?: boolean;
+  // YouTube, since 24 Nov 2026: the card's video link was clicked. On YouTube the time
+  // goes into watching, not into looking at cards, so this is the attention signal there.
+  // Absent means not clicked, or logged before this existed.
+  opened?: boolean;
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
   scoreFailed?: boolean;      // score is the 50 placeholder, not a real score
@@ -287,6 +291,7 @@ export interface DwellUpdate {
   dwellMs: number;
   enters: number;
   maxContinuousMs: number;
+  opened?: boolean;   // The post's link was clicked (YouTube)
 }
 
 // Per-minute scroll activity aggregate (minute = epoch ms / 60000, floored)
