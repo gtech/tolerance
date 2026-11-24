@@ -21,7 +21,6 @@ import { setOpaque } from '../opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { opaqueGateCss } from '../gateOpacity';
 import { watchForReload } from '../reloadNotice';
-import { createHideBudget } from '../../shared/hide-budget';
 
 // Track processed tweets to avoid re-processing
 const processedTweetIds = new Set<string>();
@@ -251,27 +250,6 @@ const hoverTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 const GATED_CELLS = TWEET_CELL_SELECTORS.map(cell =>
   `${cell}:not([data-tolerance-done]):not(.tolerance-pending):not(.tolerance-blurred)`);
 
-// Hide mode (Settings: "Hide instead of blur on Twitter"): a post blurred for its score
-// leaves the feed. Twitter measures each row, so the rows below move up.
-const HIDE_BLURRED_CLASS = 'tolerance-tw-hide-blurred';
-function applyHideMode(settings: Settings | null): void {
-  document.documentElement.classList.toggle(HIDE_BLURRED_CLASS, settings?.twitter?.hideBlurredTwitter ?? false);
-}
-function hideModeOn(): boolean {
-  return document.documentElement.classList.contains(HIDE_BLURRED_CLASS);
-}
-
-// Hidden posts take no room, so Twitter loads more to fill the screen, and those are
-// scored and mostly hidden in turn. Past the budget a post is blurred in place instead.
-const KEEP_VISIBLE_CLASS = 'tolerance-tw-keep-visible';
-const hideBudget = createHideBudget();
-function spendHideBudget(cell: HTMLElement): void {
-  if (!hideModeOn()) return;
-  if (hideBudget.take(Date.now())) return;
-  cell.classList.add(KEEP_VISIBLE_CLASS);
-  log.debug(' Hide budget used up, blurring in place');
-}
-
 function injectStyles(): void {
   if (stylesInjected) return;
   stylesInjected = true;
@@ -403,12 +381,6 @@ function injectStyles(): void {
       pointer-events: none !important;
     }
     ${opaqueGateCss('tolerance-gate', GATED_CELLS, { relative: false })}
-
-    /* Hide mode: a post blurred for its score leaves the feed. Posts still being
-       scored stay blurred, so nothing is shown and then taken away. */
-    html.${HIDE_BLURRED_CLASS} .tolerance-blurred:not(.${KEEP_VISIBLE_CLASS}) {
-      display: none !important;
-    }
 
     /* Revealed state (set by JS after hover delay) */
     .tolerance-blurred.tolerance-revealed > :not(.tolerance-blur-overlay):not(.tolerance-score-badge),
@@ -802,7 +774,6 @@ function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: n
 
   // Set blur intensity via CSS variable
   cell.style.setProperty('--tolerance-blur', `${blurIntensity}px`);
-  spendHideBudget(cell);
   cell.classList.add('tolerance-blurred');
 
   // Set up timed hover reveal
@@ -836,8 +807,8 @@ function applyBlurToTweet(tweet: Tweet, score: EngagementScore, blurIntensity: n
 
   log.debug(` Blurred tweet ${tweet.id}, score=${score.apiScore}, bucket=${score.bucket}`);
 
-  // Show onboarding tooltip on first blur (one-time); a hidden post has nowhere to show it
-  if (!hideModeOn()) showOnboardingTooltip(cell);
+  // Show onboarding tooltip on first blur (one-time)
+  showOnboardingTooltip(cell);
 }
 
 // Helper for async delays
@@ -943,7 +914,7 @@ function resetCellIfRecycled(cell: HTMLElement): void {
   log.debug(` Cell recycled: ${stamped} -> ${current}, resetting`);
   cell.querySelectorAll(':scope > .tolerance-score-badge, :scope > .tolerance-blur-overlay, .tolerance-score-badge')
     .forEach(n => n.remove());
-  cell.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed', KEEP_VISIBLE_CLASS);
+  cell.classList.remove('tolerance-pending', 'tolerance-blurred', 'tolerance-revealed');
   clearHeldOpen(cell);
   cell.style.removeProperty('--tolerance-blur');
   cell.removeAttribute('data-tolerance-done');
@@ -1084,7 +1055,6 @@ async function initCore(): Promise<void> {
   log.debug(` Subscriptions Only = ${subscriptionsOnlyMode}`);
 
   applyBlurPrefs(currentSettings);
-  applyHideMode(currentSettings);
   startScrapeHealth('twitter', currentSettings, !isUnfilteredPage());
 
   // Initialize opaque blur from settings
@@ -1611,7 +1581,6 @@ function refreshBlurState(): void {
       // Need to blur this tweet
       const htmlCell = cell as HTMLElement;
       htmlCell.style.setProperty('--tolerance-blur', `${twitterSettings.blurIntensity ?? 8}px`);
-      spendHideBudget(htmlCell);
       htmlCell.classList.add('tolerance-blurred');
 
       // Ensure cell has position for overlay
@@ -1644,7 +1613,7 @@ function refreshBlurState(): void {
     } else if (!shouldBlur && isBlurred) {
       // Need to unblur this tweet
       cell.classList.remove('tolerance-blurred');
-      cell.classList.remove('tolerance-revealed', KEEP_VISIBLE_CLASS);
+      cell.classList.remove('tolerance-revealed');
       clearHeldOpen(cell as HTMLElement);
       (cell as HTMLElement).style.removeProperty('--tolerance-blur');
 
@@ -1834,7 +1803,6 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 
     applyBlurPrefs(newSettings);
-    applyHideMode(newSettings);
 
     // Update opaque blur setting and apply to existing overlays
     const newOpaqueBlur = newSettings.twitter?.opaqueBlur ?? true;

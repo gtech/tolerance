@@ -556,7 +556,6 @@ export interface Settings {
     hoverReveal?: boolean;         // Hovering a blurred post reveals it (default: true)
     hideBlurredBadges?: boolean;   // Hide the score badge and blur label while a post is blurred (default: false)
     hideBlurredYouTube?: boolean;  // YouTube: remove videos that would be blurred instead of blurring them (default: false)
-    hideBlurredTwitter?: boolean;  // Twitter: remove posts that would be blurred instead of blurring them (default: false)
   };
   // Claude de-validation filter - strip sycophancy from Claude responses
   claudeFilterEnabled?: boolean;
