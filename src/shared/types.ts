@@ -265,6 +265,9 @@ export interface PostImpression {
   // Logged since Nov 2026, so the history can be analysed without guessing
   platform?: 'reddit' | 'twitter' | 'youtube' | 'instagram' | 'facebook' | 'linkedin';   // the last two since 10 Nov 2026
   short?: boolean;            // YouTube: a Short. Shorts in a shelf name no channel, so their source is empty
+  // YouTube, since 24 Nov 2026: the card sat beside a video being watched. It stays on
+  // screen for as long as the video plays, so its time on screen is not attention.
+  besideVideo?: boolean;
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
   scoreFailed?: boolean;      // score is the 50 placeholder, not a real score

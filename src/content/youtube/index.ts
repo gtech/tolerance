@@ -1093,6 +1093,7 @@ async function processVideos(): Promise<void> {
             originalPosition: i,
             subreddit: video.channel,   // The source: the channel name (Shorts in a shelf show none)
             short: video.isShort ? true : undefined,
+            besideVideo: isWatchPage(),
             wasReordered: false,
           });
           attentionTracker?.track(video.id, video.element);
