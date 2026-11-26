@@ -18,6 +18,7 @@ import { CELL_SELECTOR, TWEET_SELECTOR, TWEET_CELL_SELECTORS, cellOf, tweetIn, c
 import { tweetAuthorV2 } from './scraperV2';
 import { buildDebugReport, showDebugReport } from './debug';
 import { setOpaque } from '../opaqueBlur';
+import { coverText } from '../../shared/cover-text';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { opaqueGateCss } from '../gateOpacity';
 import { watchForReload } from '../reloadNotice';
@@ -742,15 +743,7 @@ function removePendingBlur(tweet: Tweet): void {
 function buildBlurLabel(score: EngagementScore): HTMLElement {
   const label = document.createElement('div');
   label.className = `tolerance-blur-label ${score.bucket}`;
-  const rounded = Math.round(score.apiScore);
-  let text: string;
-  if (subscriptionsOnlyMode && !score.whitelisted) {
-    text = 'Not following';
-  } else {
-    text = score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
-    if (score.whitelisted) text += ' (trusted, blurred late in session)';
-  }
-  label.textContent = text;
+  label.textContent = coverText(score, subscriptionsOnlyMode ? 'Not following' : null);
   label.style.maxWidth = '80%';
   label.style.textAlign = 'center';
   return label;

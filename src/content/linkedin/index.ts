@@ -11,6 +11,7 @@ import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
+import { coverText } from '../../shared/cover-text';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { releaseIfStillUnscraped } from '../gateSwitch';
 import { fetchImageAsBase64 } from '../fetchImage';
@@ -432,18 +433,11 @@ function injectBadge(element: HTMLElement, id: string, score: EngagementScore): 
   if (shouldBlurScore(score)) applyBlur(element, score);
 }
 
-// "<score>: <reason>" pill shown on the blur
+// The line of text shown on the blur (shared/cover-text.ts)
 function buildBlurLabel(score: EngagementScore): HTMLElement {
   const label = document.createElement('div');
   label.className = `tolerance-blur-label ${score.scoreFailed ? 'failed' : score.bucket}`;
-  const rounded = Math.round(score.apiScore);
-  let text = subscriptionsOnlyMode && !score.whitelisted
-    ? 'Not following'
-    : score.scoreFailed
-      ? `Couldn't score, counted as ${rounded}: ${(score.apiReason ?? '').replace(/^Scoring failed: /, '')}`
-      : score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
-  if (score.whitelisted && !subscriptionsOnlyMode) text += ' (trusted, blurred late in session)';
-  label.textContent = text;
+  label.textContent = coverText(score, subscriptionsOnlyMode ? 'Not following' : null);
   return label;
 }
 

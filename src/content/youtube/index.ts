@@ -15,6 +15,7 @@ import { attachHoldReveal, isHeldOpen, markHeldOpen, clearHeldOpen } from '../ho
 import { VIDEO_LINK_SELECTOR, videoIdFromHref } from '../../shared/youtube-parse';
 import { VIDEO_CARD_SELECTOR, VIDEO_ID_ATTR, DONE_ATTR, gateCss, isUnscoredYouTubePage, HIDE_SHORTS_CLASS, hideShortsCss, HIDE_PLAYABLES_CLASS, hidePlayablesCss, shortsWatchUrl } from './gate';
 import { setOpaque } from '../opaqueBlur';
+import { coverText } from '../../shared/cover-text';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { createHideBudget } from '../../shared/hide-budget';
 import { watchForReload } from '../reloadNotice';
@@ -668,15 +669,7 @@ function removePendingBlur(video: YouTubeVideo): void {
 function buildBlurLabel(score: EngagementScore): HTMLElement {
   const label = document.createElement('div');
   label.className = `tolerance-blur-label ${score.bucket}`;
-  const rounded = Math.round(score.apiScore);
-  let text: string;
-  if (subscriptionsOnlyMode && !score.whitelisted) {
-    text = 'Not subscribed';
-  } else {
-    text = score.apiReason ? `${rounded}: ${score.apiReason}` : `Score ${rounded}`;
-    if (score.whitelisted) text += ' (trusted, blurred late in session)';
-  }
-  label.textContent = text;
+  label.textContent = coverText(score, subscriptionsOnlyMode ? 'Not subscribed' : null);
   label.style.maxWidth = '80%';
   label.style.textAlign = 'center';
   return label;

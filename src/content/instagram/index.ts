@@ -11,6 +11,7 @@ import { heartbeatMessage, handleHeartbeatResponse } from '../grounding';
 import { noteReveal } from '../burstCard';
 import { attachHoldReveal } from '../holdReveal';
 import { setOpaque } from '../opaqueBlur';
+import { coverText } from '../../shared/cover-text';
 import { applyBlurPrefs, hoverRevealEnabled } from '../blurPrefs';
 import { GATE_POST_ATTR, GATE_DONE_ATTR, releaseIfStillUnscraped, watchGate } from '../gateSwitch';
 import { watchForReload } from '../reloadNotice';
@@ -214,6 +215,25 @@ function injectStyles(): void {
       border: 1px solid #000 !important;
       box-sizing: border-box !important;
     }
+
+    .tolerance-blur-overlay {
+      flex-direction: column;
+      gap: 8px;
+    }
+    /* The dark pill is for the see-through blur; solid covers restyle it (coverStyle.ts) */
+    .tolerance-blur-label {
+      max-width: 80%;
+      text-align: center;
+      background: rgba(60, 60, 60, 0.9);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .tolerance-blur-label.failed { background: rgba(127, 140, 141, 0.9); }
 
     .tolerance-blur-overlay::after {
       content: var(--tolerance-hover-text, 'Hover to reveal');
@@ -643,11 +663,11 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Apply blur if score exceeds threshold
   if (shouldBlurScore(score)) {
-    applyBlur(element);
+    applyBlur(element, score);
   }
 }
 
-function applyBlur(element: HTMLElement): void {
+function applyBlur(element: HTMLElement, score: EngagementScore): void {
   // Mark element as blurred for CSS targeting
   element.classList.add('tolerance-video-blocked');
 
@@ -664,6 +684,12 @@ function applyBlur(element: HTMLElement): void {
   if (opaqueBlurEnabled) {
     setOpaque(overlay, true);
   }
+
+  // The gist of the post, as on the other sites (shared/cover-text.ts)
+  const label = document.createElement('div');
+  label.className = `tolerance-blur-label ${score.scoreFailed ? 'failed' : score.bucket}`;
+  label.textContent = coverText(score, subscriptionsOnlyMode ? 'Not following' : null);
+  overlay.appendChild(label);
 
   // Add hover reveal functionality
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
