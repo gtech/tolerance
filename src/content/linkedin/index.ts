@@ -100,7 +100,7 @@ async function updateBlurThreshold(): Promise<void> {
     const sessionResult = await sendMessage({ type: 'GET_GLOBAL_SESSION' });
     if (sessionResult && 'phase' in sessionResult) {
       const newPhase = sessionResult.phase as typeof currentPhase;
-      const thresholdResult = await sendMessage({ type: 'GET_EFFECTIVE_BLUR_THRESHOLD', phase: newPhase });
+      const thresholdResult = await sendMessage({ type: 'GET_EFFECTIVE_BLUR_THRESHOLD', phase: newPhase, site: 'linkedin' });
       if (thresholdResult && 'threshold' in thresholdResult) {
         const newThreshold = thresholdResult.threshold as number;
         if (newThreshold !== currentBlurThreshold || newPhase !== currentPhase) {

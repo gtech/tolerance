@@ -788,7 +788,7 @@ async function handleMessage(
 
     case 'GET_EFFECTIVE_BLUR_THRESHOLD': {
       const adaptive = await getAdaptiveSettings();
-      const threshold = await getEffectiveBlurThreshold(message.phase, adaptive.blurThresholdOffset);
+      const threshold = await getEffectiveBlurThreshold(message.phase, adaptive.blurThresholdOffset, message.site);
       return { type: 'BLUR_THRESHOLD_RESULT', threshold, phase: message.phase } satisfies MessageResponses['GET_EFFECTIVE_BLUR_THRESHOLD'];
     }
 

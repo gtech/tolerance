@@ -22,7 +22,7 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_ADAPTIVE_SETTINGS,
 } from '../shared/types';
-import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS } from '../shared/constants';
+import { SEED_NARRATIVE_THEMES, DEFAULT_BLUR_THRESHOLDS, adjustedThreshold, siteOffset } from '../shared/constants';
 import { mergeDwellIntoImpressions, mergeScrollBuckets } from '../shared/attention-utils';
 import { archiveUsageDay, recentUsageDays, UsageDay, UsageHistory } from '../shared/usage-history';
 import { addTopicHit, customThemesFirst, TopicHits } from '../shared/topics';
@@ -934,36 +934,16 @@ export async function submitCalibrationFeedback(
 // Checks custom thresholds first, then falls back to base + adaptive offset
 export async function getEffectiveBlurThreshold(
   phase: 'normal' | 'reduced' | 'wind-down' | 'minimal',
-  adaptiveOffset: number
+  adaptiveOffset: number,
+  site?: string
 ): Promise<number> {
-  // Check for custom thresholds first
   const settings = await getSettings();
-  if (settings.customThresholds?.enabled) {
-    const customThresholds = settings.customThresholds.blurThresholds;
-    const phaseKey = phase === 'wind-down' ? 'windDown' : phase;
-    const customThreshold = customThresholds[phaseKey as keyof typeof customThresholds];
-    if (customThreshold !== undefined) {
-      // Apply adaptive offset to custom threshold too
-      const adjusted = customThreshold + adaptiveOffset;
-      return Math.max(20, Math.min(100, adjusted));
-    }
-  }
-
-  // Map phase names to threshold keys (phase uses 'wind-down', constants use 'windDown')
-  const phaseToKey: Record<string, keyof typeof DEFAULT_BLUR_THRESHOLDS> = {
-    'normal': 'normal',
-    'reduced': 'reduced',
-    'wind-down': 'windDown',
-    'minimal': 'minimal',
-  };
-
-  const key = phaseToKey[phase] || 'normal';
-  const base = DEFAULT_BLUR_THRESHOLDS[key];
-  // Apply adaptive offset (positive = gentler = higher threshold)
-  const adjusted = base + adaptiveOffset;
-
-  // Clamp to reasonable bounds (allow up to 100 for no-blur phases)
-  return Math.max(20, Math.min(100, adjusted));
+  // Phase names use 'wind-down', threshold keys use 'windDown'
+  const key = phase === 'wind-down' ? 'windDown' : phase;
+  const custom = settings.customThresholds?.enabled ? settings.customThresholds.blurThresholds[key] : undefined;
+  const base = custom ?? DEFAULT_BLUR_THRESHOLDS[key] ?? DEFAULT_BLUR_THRESHOLDS.normal;
+  // Positive offsets are gentler (a higher threshold)
+  return adjustedThreshold(base, adaptiveOffset, siteOffset(settings.siteThresholdOffsets, site));
 }
 
 // Get effective phase thresholds (adjusted by speed multiplier)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { strictnessThresholds, thresholdsToStrictness, STRICTNESS_PRESETS, DEFAULT_BLUR_THRESHOLDS, PRE_0_1_41_BLUR_THRESHOLDS } from '../src/shared/constants';
+import { strictnessThresholds, thresholdsToStrictness, STRICTNESS_PRESETS, DEFAULT_BLUR_THRESHOLDS, PRE_0_1_41_BLUR_THRESHOLDS, siteOffset, adjustedThreshold, SITE_OFFSET_MAX } from '../src/shared/constants';
 
 describe('strictness presets', () => {
   it('middle level is the calibrated defaults', () => {
@@ -40,5 +40,27 @@ describe('strictness presets', () => {
   it('clamps out-of-range levels', () => {
     expect(strictnessThresholds(0)).toEqual(strictnessThresholds(1));
     expect(strictnessThresholds(9)).toEqual(strictnessThresholds(5));
+  });
+});
+
+describe('per-site adjustment', () => {
+  it('is zero for a site with none, or with no site at all', () => {
+    expect(siteOffset(undefined, 'twitter')).toBe(0);
+    expect(siteOffset({ youtube: -10 }, 'twitter')).toBe(0);
+    expect(siteOffset({ youtube: -10 }, undefined)).toBe(0);
+  });
+
+  it('returns the site\'s own adjustment, kept within the allowed range', () => {
+    expect(siteOffset({ youtube: -10 }, 'youtube')).toBe(-10);
+    expect(siteOffset({ youtube: -90 }, 'youtube')).toBe(-SITE_OFFSET_MAX);
+    expect(siteOffset({ youtube: NaN }, 'youtube')).toBe(0);
+  });
+
+  it('stacks with the daily-feedback adjustment and stays between 20 and 100', () => {
+    expect(adjustedThreshold(55, 0, -10)).toBe(45);
+    expect(adjustedThreshold(55, 5, -10)).toBe(50);
+    expect(adjustedThreshold(100, 10, -15)).toBe(95);
+    expect(adjustedThreshold(30, -10, -20)).toBe(20);
+    expect(adjustedThreshold(90, 10, 20)).toBe(100);
   });
 });

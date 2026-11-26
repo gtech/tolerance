@@ -163,6 +163,7 @@ async function updateBlurThreshold(): Promise<void> {
       const thresholdResult = await sendMessage({
         type: 'GET_EFFECTIVE_BLUR_THRESHOLD',
         phase: newPhase,
+        site: 'youtube',
       });
 
       if (thresholdResult && 'threshold' in thresholdResult) {

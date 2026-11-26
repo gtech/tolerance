@@ -1,4 +1,5 @@
 import type { ScoreDims } from './scoring-spec';
+import type { SiteThresholdOffsets, ThresholdSite } from './constants';
 // Core types for Tolerance
 import type { GroundingSettings } from './grounding-utils';
 
@@ -578,6 +579,9 @@ export interface Settings {
   };
   // Pre-filter whitelist - trusted sources that bypass blur transform
   whitelist?: WhitelistEntry[];
+  // Per-site adjustment to the blur threshold, in points; negative is stricter (see
+  // siteOffset in constants.ts). A site left out uses the thresholds as they are.
+  siteThresholdOffsets?: SiteThresholdOffsets;
   // Custom threshold overrides (user-adjustable, resets to calibrated defaults)
   customThresholds?: {
     // Blur thresholds per phase (score at which content gets blurred)
@@ -678,7 +682,8 @@ export type MessageType =
   // Content scripts can't open extension pages themselves; section is the #anchor
   | { type: 'OPEN_DASHBOARD'; section?: 'thresholds' | 'api-setup' }
   | { type: 'GET_FEEDBACK_PROMPT_STATUS' }  // Check if we should show feedback prompt
-  | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal' }
+  // `site` is the feed asking; without it the answer leaves out any per-site adjustment
+  | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal'; site?: ThresholdSite }
   // Onboarding messages
   | { type: 'GET_ONBOARDING_STATE' }
   | { type: 'DISMISS_ONBOARDING_TOOLTIP' }

@@ -1,5 +1,5 @@
 import { AppState, Settings, DEFAULT_SETTINGS, DEFAULT_STATE, NarrativeTheme, CounterStrategy, DailyNarrativeStats, WhitelistEntry, TrustedBlurPhase, DEFAULT_BLUR_UNTIL_SCORED_TIMEOUT } from '../shared/types';
-import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, QUALITY_MODE_THRESHOLD, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness } from '../shared/constants';
+import { DEFAULT_BLUR_THRESHOLDS, DEFAULT_PHASE_TIMING, QUALITY_MODE_THRESHOLD, STRICTNESS_PRESETS, BlurThresholdSet, strictnessThresholds, thresholdsToStrictness, THRESHOLD_SITES, SITE_OFFSET_MAX, SITE_OFFSET_STEP, SiteThresholdOffsets, siteOffset } from '../shared/constants';
 import { DEFAULT_GROUNDING } from '../shared/grounding-utils';
 import { readStrictness, saveStrictness } from '../shared/strictness-settings';
 import { getResearchOptIn, setResearchOptIn } from '../shared/research-consent';
@@ -593,6 +593,67 @@ async function getSettings(): Promise<Settings> {
   return result.settings || DEFAULT_SETTINGS;
 }
 
+// "Adjust per site": one slider per feed. A slider holds minus the stored offset, so
+// right is stricter, like every other slider on the card.
+function siteOffsetText(offset: number): string {
+  if (offset === 0) return 'same as the rest';
+  return `${Math.abs(offset)} ${offset < 0 ? 'stricter' : 'gentler'}`;
+}
+
+function showSiteOffsets(offsets: SiteThresholdOffsets | undefined): void {
+  const changed: string[] = [];
+  for (const { id, label } of THRESHOLD_SITES) {
+    const offset = siteOffset(offsets, id);
+    const slider = document.getElementById(`site-offset-${id}`) as HTMLInputElement | null;
+    const value = document.getElementById(`site-offset-${id}-value`);
+    if (slider) slider.value = String(-offset);
+    if (value) value.textContent = siteOffsetText(offset);
+    if (offset !== 0) changed.push(`${label} ${siteOffsetText(offset)}`);
+  }
+  const summary = document.getElementById('site-offsets-summary');
+  if (summary) summary.textContent = changed.length ? changed.join(', ') : 'Stricter or gentler on one site than the rest';
+}
+
+function readSiteOffsets(): SiteThresholdOffsets {
+  const offsets: SiteThresholdOffsets = {};
+  for (const { id } of THRESHOLD_SITES) {
+    const slider = document.getElementById(`site-offset-${id}`) as HTMLInputElement | null;
+    const offset = -parseInt(slider?.value ?? '0', 10);
+    if (offset) offsets[id] = offset;
+  }
+  return offsets;
+}
+
+function setupSiteOffsets(): void {
+  const grid = document.getElementById('site-offsets');
+  if (!grid || grid.childElementCount) return;
+  for (const { id, label } of THRESHOLD_SITES) {
+    const row = document.createElement('div');
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size: 12px; color: #888; margin-bottom: 4px;';
+    const value = document.createElement('span');
+    value.id = `site-offset-${id}-value`;
+    title.append(`${label}: `, value);
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = `site-offset-${id}`;
+    slider.min = String(-SITE_OFFSET_MAX);
+    slider.max = String(SITE_OFFSET_MAX);
+    slider.step = String(SITE_OFFSET_STEP);
+    slider.value = '0';
+    slider.style.width = '100%';
+    slider.setAttribute('aria-label', `${label}: stricter or gentler than the rest`);
+    slider.addEventListener('input', () => showSiteOffsets(readSiteOffsets()));
+    slider.addEventListener('change', async () => {
+      const settings = await getSettings();
+      await chrome.storage.local.set({ settings: { ...settings, siteThresholdOffsets: readSiteOffsets() } });
+      void renderThresholdNow();
+    });
+    row.append(title, slider);
+    grid.append(row);
+  }
+}
+
 function updateModeDisplay(state: AppState): void {
   // Update baseline status in advanced settings
   const baselineStatus = document.getElementById('baseline-status');
@@ -952,6 +1013,9 @@ function populateSettings(settings: Settings): void {
 }
 
 function populateCustomThresholds(settings: Settings): void {
+  setupSiteOffsets();
+  showSiteOffsets(settings.siteThresholdOffsets);
+
   // Default values (calibrated defaults)
   const defaultBlurThresholds = DEFAULT_BLUR_THRESHOLDS;
   const defaultPhaseTiming = { normal: 15, reduced: 45, windDown: 75 };
@@ -2626,6 +2690,7 @@ async function resetThresholdsToCalibrated(): Promise<void> {
 
   const settings: Settings = {
     ...existing,
+    siteThresholdOffsets: {},
     customThresholds: {
       blurThresholds: defaultBlurThresholds,
       phaseTiming: defaultPhaseTiming,
@@ -2804,6 +2869,14 @@ async function renderThresholdNow(): Promise<void> {
     if (offset !== 0) {
       line += ` That's your setting ${offset < 0 ? 'lowered' : 'raised'} by ${Math.abs(offset)} from your daily "too easy / too restricted" answers.`;
     }
+    // Sites with their own adjustment, each with the threshold it ends up at
+    const adjusted = THRESHOLD_SITES.filter(({ id }) => siteOffset(settings.siteThresholdOffsets, id) !== 0);
+    const sites = await Promise.all(adjusted.map(async ({ id, label }) => {
+      const own = (await chrome.runtime.sendMessage({ type: 'GET_EFFECTIVE_BLUR_THRESHOLD', phase, site: id }) as { threshold?: number } | null)?.threshold;
+      return own === undefined ? null : `${label} ${own >= 100 ? 'nothing' : `${own} and up`}`;
+    }));
+    const listed = sites.filter(Boolean);
+    if (listed.length) line += ` Adjusted per site: ${listed.join(', ')}.`;
     if (settings.qualityMode) line += ` Quality mode is on, which blurs everything scoring above ${QUALITY_MODE_THRESHOLD - 1}.`;
     if (settings.subscriptionsOnly) line += ' Subscriptions-only is on, which blurs everything not trusted.';
     text.textContent = line;

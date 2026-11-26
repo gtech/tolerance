@@ -1003,6 +1003,44 @@
       background-color: #fff;
     }
 
+    /* Fold-out rows under the strictness slider: finer control, drawn as rows you can
+       see are there rather than as small gray links */
+    details.tune > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 14px;
+      border: 1px solid #4a4a8a;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #e6e9ff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    details.tune > summary::-webkit-details-marker { display: none; }
+    details.tune > summary:hover { background: rgba(255, 255, 255, 0.08); }
+    details.tune > summary small {
+      display: block;
+      margin-top: 2px;
+      color: #9aa3cc;
+      font-size: 12px;
+      font-weight: 400;
+    }
+    details.tune > summary::after {
+      content: '';
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid #9aa3cc;
+      border-bottom: 2px solid #9aa3cc;
+      transform: rotate(45deg);
+      transition: transform 0.2s;
+    }
+    details.tune[open] > summary::after { transform: rotate(-135deg); }
+
     /* Strictness slider stop labels */
     .strictness-labels {
       display: flex;
@@ -1135,9 +1173,9 @@
           <span id="threshold-now-text"></span>
           <button id="threshold-adjust-reset" style="display: none; margin-left: 8px; padding: 2px 8px; font-size: 11px; background: #2a2a2a; border: 1px solid #444; border-radius: 4px; color: #ccc; cursor: pointer;">Reset adjustment</button>
         </div>
-        <details id="threshold-fine-tune" style="margin-top: 12px;">
-        <summary style="cursor: pointer; font-size: 12px; color: #888;">Fine-tune per phase</summary>
-        <div style="font-size: 11px; color: #666; margin-top: 8px;">Each phase blurs posts scoring at or above its number. 100 blurs nothing.</div>
+        <details id="threshold-fine-tune" class="tune" style="margin-top: 14px;">
+        <summary><span>Fine-tune per phase<small>Set how much is blurred early and late in a session</small></span></summary>
+        <div style="font-size: 11px; color: #666; margin-top: 10px;">Each phase blurs posts scoring at or above its number. 100 blurs nothing.</div>
         <!-- Per-phase sliders hold 120 - threshold so right = stricter, like Strictness (see toSliderValue) -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
           <div>
@@ -1158,6 +1196,13 @@
           </div>
         </div>
         <div class="strictness-labels"><span>Less blur</span><span>More blur</span></div>
+        </details>
+        <details id="threshold-per-site" class="tune" style="margin-top: 8px;">
+        <summary><span>Adjust per site<small id="site-offsets-summary">Stricter or gentler on one site than the rest</small></span></summary>
+        <div style="font-size: 11px; color: #666; margin-top: 10px;">Moves a site's blur threshold up or down from the settings above, in every phase.</div>
+        <!-- Rows are built in dashboard.ts from THRESHOLD_SITES -->
+        <div id="site-offsets" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;"></div>
+        <div class="strictness-labels"><span>Gentler</span><span>Stricter</span></div>
         </details>
       </div>
 

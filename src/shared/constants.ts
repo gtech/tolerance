@@ -323,6 +323,35 @@ export function thresholdsToStrictness(t: BlurThresholdSet): { level: number; ex
   return { level: best, exact: bestDistance === 0 };
 }
 
+// Per-site adjustment (settings.siteThresholdOffsets): points added to the phase
+// threshold on one site. Negative is stricter. Same direction as the daily-feedback
+// adjustment, and the two stack.
+export const SITE_OFFSET_MAX = 20;
+export const SITE_OFFSET_STEP = 5;
+export const THRESHOLD_SITES = [
+  { id: 'twitter', label: 'Twitter' },
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'reddit', label: 'Reddit' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'facebook', label: 'Facebook' },
+  { id: 'linkedin', label: 'LinkedIn' },
+] as const;
+export type ThresholdSite = typeof THRESHOLD_SITES[number]['id'];
+export type SiteThresholdOffsets = Partial<Record<ThresholdSite, number>>;
+
+export function siteOffset(offsets: SiteThresholdOffsets | undefined, site: string | undefined): number {
+  const value = site ? offsets?.[site as ThresholdSite] : undefined;
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  return Math.max(-SITE_OFFSET_MAX, Math.min(SITE_OFFSET_MAX, value));
+}
+
+// The threshold in force: the phase's setting moved by the daily-feedback adjustment
+// and, on a site that has one, its own. 100 blurs nothing; 20 is the floor.
+export function adjustedThreshold(phaseThreshold: number, ...offsets: number[]): number {
+  const total = offsets.reduce((sum, o) => sum + o, phaseThreshold);
+  return Math.max(20, Math.min(100, total));
+}
+
 // Quality Mode skips the phases and blurs every post scoring above 40
 export const QUALITY_MODE_THRESHOLD = 41;
 
