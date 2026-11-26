@@ -27,7 +27,10 @@
 // v12: same rubric; except on YouTube the prompt now opens with the rubric and ends
 // with the posts, so the provider's cached-input price applies to the part that
 // never changes.
-export const SCORING_SPEC_VERSION = 12;
+// v13: same rubric; "reason" is now the gist of the post, stated flat, where it used
+// to say what grabs attention. It is the text shown on a blurred post, and a reader
+// who has been told what is under the cover has less cause to open it.
+export const SCORING_SPEC_VERSION = 13;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
@@ -200,8 +203,13 @@ ${themes.map((t, i) => `${i + 1}. "${t.name}": ${t.description}`).join('\n')}
 Include "narratives" with the matching theme numbers, or [] if none match.`;
 }
 
+// What "reason" should hold. It is shown on the cover of a blurred post and in the
+// badge tooltip, to someone deciding whether to open the post. Told plainly what is
+// there, they mostly don't need to; a description of how gripping it is does the opposite.
+const REASON_ASK = '20 words max, flat and plain: what the post says or shows. State outright any fact, answer or punchline it holds, so nothing is left to open it for. If it teases something without telling it, say what it leaves out. If it holds nothing, name the kind of post. No praise, no excitement, none of its own bait wording';
+
 function fields(themes: ScoringTheme[]): string {
-  return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<15 words max: what grabs attention and what, if anything, it gives back>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
+  return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<${REASON_ASK}>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
 }
 
 export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true, aiNote = true): string {

@@ -1,5 +1,6 @@
 import type { Settings } from '../shared/types';
-import { syncGateOpacity } from './gateOpacity';
+import { SOLID_COVERS, syncGateOpacity } from './gateOpacity';
+import { quietCoverCss } from './coverStyle';
 
 let hoverReveal = true;
 let hoverSeconds = 3;
@@ -31,6 +32,7 @@ export function applyBlurPrefs(settings: Settings | null | undefined): void {
       html.tolerance-no-hover-reveal :not(.tolerance-pending) > .tolerance-blur-overlay::after {
         content: none !important;
       }
+      ${quietCoverCss(SOLID_COVERS)}
     `;
     (document.head || document.documentElement).appendChild(style);
   }

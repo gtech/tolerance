@@ -29,7 +29,7 @@ html:not(.tolerance-gate-off):not(.tolerance-gate-translucent) main article:not(
   left: 0;
   right: 0;
   bottom: 10px;
-  background: rgb(140, 140, 140);
+  background: var(--tolerance-cover, Canvas);
   z-index: 50;
   animation: tolerance-gate-cover 15s step-end forwards;
 }

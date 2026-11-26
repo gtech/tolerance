@@ -1,12 +1,17 @@
 import type { Settings } from '../shared/types';
+import { COVER_BACKGROUND, watchPageColours } from './coverStyle';
 
 // The gate shown before scoring follows the Opaque Blur setting. Settings aren't known
 // at first paint, so it starts opaque (the default) and this class turns that off.
 export function syncGateOpacity(settings: Partial<Settings> | null | undefined): void {
   document.documentElement.classList.toggle('tolerance-gate-translucent', settings?.twitter?.opaqueBlur === false);
+  watchPageColours();
 }
 
-// Solid gray cover over gated items, the same gray as the blur overlay (opaqueBlur.ts)
+// Selector prefix for pages where covers are solid
+export const SOLID_COVERS = 'html:not(.tolerance-gate-translucent)';
+
+// Solid cover over gated items, the same colour as the blur overlay (opaqueBlur.ts)
 // so the hand-off to it doesn't show. `scope` is the html class that switches the gate
 // on, if any. `shift` moves it up to line up with overlays that sit offset on a platform.
 export function opaqueGateCss(
@@ -27,7 +32,7 @@ export function opaqueGateCss(
     left: 0;
     right: 0;
     bottom: ${shift}px;
-    background: rgb(140, 140, 140);
+    background: ${COVER_BACKGROUND};
     z-index: ${zIndex};
   }`;
 }
