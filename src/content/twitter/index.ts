@@ -431,7 +431,6 @@ function injectStyles(): void {
 function attachHoldRevealToCell(overlay: HTMLElement, cell: HTMLElement): void {
   if (!cell.classList.contains('tolerance-revealed')) clearHeldOpen(cell);
   attachHoldReveal(overlay, {
-    post: cell,
     isRevealed: () => isHeldOpen(cell),
     reveal: () => {
       markHeldOpen(cell);

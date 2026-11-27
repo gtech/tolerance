@@ -2,9 +2,7 @@
 //
 // A reveal should be a choice that costs something, not a free click or a
 // resting cursor. Holding fills a ring over a few seconds; letting go early
-// cancels. The hold gets longer with each reveal in the last 30 minutes, and a
-// "Skip" button offers the way out (the part of a friction prompt that
-// research on the one sec app found does the work).
+// cancels. The hold gets longer with each reveal in the last 30 minutes.
 
 import { holdSecondsFor, REVEAL_WINDOW_MS } from '../shared/hold-utils';
 
@@ -40,7 +38,7 @@ async function recordReveal(): Promise<void> {
   }
 }
 
-async function logEvent(event: 'revealed' | 'skipped' | 'let-go', holdMs: number): Promise<void> {
+async function logEvent(event: 'revealed' | 'let-go', holdMs: number): Promise<void> {
   try {
     const { revealLog } = await chrome.storage.local.get('revealLog');
     const entries = (revealLog as { t: number; event: string; holdMs: number; host: string }[] | undefined) ?? [];
@@ -72,7 +70,7 @@ const STYLES = `
   .chip {
     display: flex; align-items: center; gap: 10px;
     background: rgba(20, 20, 20, 0.82); color: #fff;
-    border-radius: 999px; padding: 6px 6px 6px 14px;
+    border-radius: 999px; padding: 6px 14px;
     font-size: 13px; font-weight: 500; white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3); user-select: none;
   }
@@ -81,18 +79,10 @@ const STYLES = `
   .ring .track { stroke: rgba(255,255,255,0.25); }
   .ring .fill { stroke: #7dcea0; stroke-linecap: round; }
   :host(.holding) .ring { display: block; }
-  .skip {
-    font: inherit; font-size: 12px; color: #ddd; cursor: pointer;
-    background: rgba(255,255,255,0.12); border: none; border-radius: 999px; padding: 4px 10px;
-  }
-  .skip:hover { background: rgba(255,255,255,0.2); }
-  :host(.done) .skip { display: none; }
-  :host(.done) .chip { padding-right: 14px; }
   /* Short cards (YouTube sidebar, small thumbnails): tuck into the corner */
   @container tolerance-overlay (max-height: 170px) {
     :host { left: auto; right: 4px; bottom: 4px; transform: none; }
-    .chip { font-size: 11px; gap: 6px; padding: 3px 3px 3px 9px; }
-    .skip { font-size: 11px; padding: 2px 8px; }
+    .chip { font-size: 11px; gap: 6px; padding: 3px 9px; }
     .ring { width: 14px; height: 14px; }
   }
 `;
@@ -100,7 +90,6 @@ const STYLES = `
 const CIRCUMFERENCE = 2 * Math.PI * 7;
 
 export interface HoldRevealOptions {
-  post: HTMLElement;          // what Skip scrolls past
   reveal: () => void;         // platform-specific unblur
   isRevealed?: () => boolean;
 }
@@ -116,11 +105,9 @@ export function attachHoldReveal(overlay: HTMLElement, opts: HoldRevealOptions):
     <div class="chip">
       <svg class="ring" viewBox="0 0 18 18"><circle class="track" cx="9" cy="9" r="7"/><circle class="fill" cx="9" cy="9" r="7"/></svg>
       <span class="text">Hold to show</span>
-      <button class="skip" type="button">Skip</button>
     </div>`;
   const text = root.querySelector('.text') as HTMLElement;
   const fill = root.querySelector('.fill') as SVGCircleElement;
-  const skip = root.querySelector('.skip') as HTMLButtonElement;
   fill.style.strokeDasharray = String(CIRCUMFERENCE);
   fill.style.strokeDashoffset = String(CIRCUMFERENCE);
   // Overlays are absolutely positioned to fill the post, so size containment is safe
@@ -170,7 +157,6 @@ export function attachHoldReveal(overlay: HTMLElement, opts: HoldRevealOptions):
 
   overlay.addEventListener('pointerdown', (e) => {
     if (finished || opts.isRevealed?.() || !e.isPrimary || e.button !== 0) return;
-    if (e.composedPath().includes(skip)) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -202,18 +188,6 @@ export function attachHoldReveal(overlay: HTMLElement, opts: HoldRevealOptions):
   });
   // Long-press menus on touch would interrupt the hold
   overlay.addEventListener('contextmenu', (e) => { if (holding) e.preventDefault(); });
-
-  skip.addEventListener('pointerdown', (e) => e.stopPropagation());
-  skip.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    logEvent('skipped', holdSecondsFor(recentReveals, Date.now()) * 1000);
-    text.textContent = 'Skipped';
-    host.classList.add('done');
-    finished = true;
-    const bottom = opts.post.getBoundingClientRect().bottom;
-    window.scrollBy({ top: Math.max(0, bottom - 72), behavior: 'smooth' });
-  });
 }
 
 // For platforms that re-blur on mouse leave: a held reveal stays revealed

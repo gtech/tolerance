@@ -730,7 +730,6 @@ function applyBlurToVideo(video: YouTubeVideo, score: EngagementScore, blurInten
   const card = video.element;
   clearHeldOpen(card);
   attachHoldReveal(overlay, {
-    post: card,
     isRevealed: () => isHeldOpen(card),
     reveal: () => {
       markHeldOpen(card);

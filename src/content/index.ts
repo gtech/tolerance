@@ -543,7 +543,6 @@ function applyBlur(post: RedditPost): void {
   });
 
   attachHoldReveal(overlay, {
-    post: element,
     isRevealed: () => isRevealed,
     reveal: () => {
       overlay.classList.remove('revealing');

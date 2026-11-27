@@ -482,7 +482,7 @@ function applyBlur(element: HTMLElement, score: EngagementScore): void {
 
   overlay.appendChild(buildBlurLabel(score));
   element.appendChild(overlay);
-  attachHoldReveal(overlay, { post: element, reveal: revealContent, isRevealed: () => revealed });
+  attachHoldReveal(overlay, { reveal: revealContent, isRevealed: () => revealed });
 }
 
 function applySettings(settings: Settings): void {

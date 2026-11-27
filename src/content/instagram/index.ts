@@ -739,7 +739,7 @@ function applyBlur(element: HTMLElement, score: EngagementScore): void {
   });
 
   element.appendChild(overlay);
-  attachHoldReveal(overlay, { post: element, reveal: revealContent, isRevealed: () => revealed });
+  attachHoldReveal(overlay, { reveal: revealContent, isRevealed: () => revealed });
 
   // Show onboarding tooltip on first blur (one-time)
   showOnboardingTooltip(element);
