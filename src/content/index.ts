@@ -16,6 +16,7 @@ import { noteReveal } from './burstCard';
 import { attachHoldReveal } from './holdReveal';
 import { setOpaque } from './opaqueBlur';
 import { applyBlurPrefs, hoverRevealEnabled } from './blurPrefs';
+import { coverText } from '../shared/cover-text';
 import { GATE_POST_ATTR, watchGate } from './gateSwitch';
 import { watchForReload } from './reloadNotice';
 
@@ -300,9 +301,37 @@ function injectLoadingStyles(): void {
       z-index: 50 !important;
       transition: opacity 0.3s ease;
       display: flex !important;
+      flex-direction: column !important;
       align-items: center !important;
       justify-content: center !important;
       background: rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* The score and gist of the post. The dark pill is for the see-through blur;
+       solid covers restyle it (coverStyle.ts) */
+    .tolerance-blur-label {
+      max-width: 80%;
+      text-align: center;
+      background: rgba(60, 60, 60, 0.9);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .tolerance-pending .tolerance-blur-label { display: none; }
+    /* Short rows (old Reddit, compact view): one line, no arrow */
+    @container tolerance-overlay (max-height: 110px) {
+      html .tolerance-blur-overlay.tolerance-blur-overlay > .tolerance-blur-label {
+        max-width: 70% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      html .tolerance-blur-overlay.tolerance-blur-overlay > .tolerance-blur-label::after { display: none !important; }
+      .tolerance-blur-overlay::after { padding: 2px 16px; }
     }
 
     .tolerance-blur-overlay::after {
@@ -486,7 +515,7 @@ function removePendingBlur(post: RedditPost): void {
 }
 
 // Apply blur to high-engagement content with hover reveal
-function applyBlur(post: RedditPost): void {
+function applyBlur(post: RedditPost, score: EngagementScore): void {
   const element = post.element;
   if (!element) return;
 
@@ -507,6 +536,13 @@ function applyBlur(post: RedditPost): void {
 
   // Remove the "Scoring..." label by removing pending class effect
   overlay.classList.remove('revealing', 'revealed');
+
+  // The score and gist of the post, as on the other sites (shared/cover-text.ts)
+  overlay.querySelector('.tolerance-blur-label')?.remove();
+  const label = document.createElement('div');
+  label.className = `tolerance-blur-label ${score.scoreFailed ? 'failed' : score.bucket}`;
+  label.textContent = coverText(score);
+  overlay.appendChild(label);
 
   // Add hover reveal functionality
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
@@ -988,7 +1024,7 @@ async function processPosts(): Promise<void> {
 
         // Apply or remove blur based on score
         if (shouldBlurScore(score)) {
-          applyBlur(post);
+          applyBlur(post, score);
           log.debug(` Post ${post.id} blurred (score: ${displayScore}, threshold: ${currentBlurThreshold})`);
         } else {
           removePendingBlur(post);

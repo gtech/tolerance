@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { coverText } from '../src/shared/cover-text';
 
 describe('coverText', () => {
-  it('shows the gist alone, without the score', () => {
-    expect(coverText({ apiScore: 82, apiReason: 'Joke that Mondays feel long.' })).toBe('Joke that Mondays feel long.');
+  it('leads with the score, then the gist', () => {
+    expect(coverText({ apiScore: 81.6, apiReason: 'Joke that Mondays feel long.' })).toBe('82: Joke that Mondays feel long.');
   });
 
   it('falls back to the score when the model gave no gist', () => {
@@ -19,11 +19,11 @@ describe('coverText', () => {
 
   it('uses the site wording in only-following mode, except for trusted sources', () => {
     expect(coverText({ apiScore: 20, apiReason: 'A plain update.' }, 'Not following')).toBe('Not following');
-    expect(coverText({ apiScore: 80, apiReason: 'A meme.', whitelisted: true }, 'Not following')).toBe('A meme.');
+    expect(coverText({ apiScore: 80, apiReason: 'A meme.', whitelisted: true }, 'Not following')).toBe('80: A meme.');
   });
 
   it('notes a trusted source blurred late in a session', () => {
     expect(coverText({ apiScore: 80, apiReason: 'A meme.', whitelisted: true }))
-      .toBe('A meme. (trusted, blurred late in session)');
+      .toBe('80: A meme. (trusted, blurred late in session)');
   });
 });

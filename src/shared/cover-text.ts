@@ -1,8 +1,8 @@
 import type { EngagementScore } from './types';
 
-// The line of text on a blurred post's cover. For a scored post it is the model's
-// gist of the post and nothing else: the score is on the badge, and on the cover it
-// only made the post look like something being rated. `notFollowing` is set while
+// The line of text on a blurred post's cover. For a scored post it is the score,
+// then the model's gist of the post ("82: Joke that Mondays feel long."): the number
+// says at a glance how far over the line the post is. `notFollowing` is set while
 // only-following mode is on, with the site's own wording ("Not following",
 // "Not subscribed").
 export function coverText(
@@ -16,7 +16,8 @@ export function coverText(
     const why = (score.apiReason ?? '').replace(/^Scoring failed: /, '');
     text = `Couldn't score, counted as ${rounded}${why ? `: ${why}` : ''}`;
   } else {
-    text = score.apiReason?.trim() || `Score ${rounded}`;
+    const gist = score.apiReason?.trim();
+    text = gist ? `${rounded}: ${gist}` : `Score ${rounded}`;
   }
   if (score.whitelisted && !notFollowing) text += ' (trusted, blurred late in session)';
   return text;
