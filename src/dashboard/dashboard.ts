@@ -68,6 +68,7 @@ async function init(): Promise<void> {
   await setupFacebookAdsSetting();
   await setupAiLabelSetting();
   await setupGistSetting();
+  await setupBlurUnscoredSetting();
   await setupScrapeHealth();
   setupWeekCardPreview();
   await setupSubscriptionsOnly();
@@ -218,6 +219,17 @@ async function setupGistSetting(): Promise<void> {
       settings: { ...current, gistSummaries: toggle.checked },
       topicsChangedAt: Date.now(), // re-score posts under the new setting
     });
+  });
+}
+
+// "Blur Posts That Can't Be Scored" row (off unless turned on)
+async function setupBlurUnscoredSetting(): Promise<void> {
+  const toggle = document.getElementById('blur-unscored') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).blurUnscored === true;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({ settings: { ...current, blurUnscored: toggle.checked } });
   });
 }
 

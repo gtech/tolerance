@@ -4,7 +4,8 @@ import { scrapeVisibleTweets, serializeTweet } from './scraper';
 import { reorderTweets, recordImpressions } from './reorder';
 import { setupTwitterObserver, setupNavigationObserver, checkNavigation } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
-import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { noteFailedScore } from '../unscoredNotice';
+import { blursUnscored } from '../../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { firstSighting } from '../impressionLog';
@@ -146,6 +147,9 @@ function shouldBlurScore(score: EngagementScore): boolean {
 
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
+
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
 
   const displayScore = score.apiScore;
   // Quality Mode skips the phases for its own fixed threshold
@@ -595,7 +599,7 @@ function injectScoreBadge(tweet: Tweet, info: BadgeInfo): void {
 
   // Make failed badges clickable to upgrade page
   if (info.scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
     linkFailedBadge(badge, failedScoreNotice(currentSettings, info.reason));
   }
 

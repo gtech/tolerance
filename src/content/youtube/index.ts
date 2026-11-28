@@ -5,7 +5,8 @@ import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants
 import { scrapeVisibleVideos, serializeVideo, getPageChannelHandle, resetPageChannelCache } from './scraper';
 import { setupYouTubeObserver, setupNavigationObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
-import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { noteFailedScore } from '../unscoredNotice';
+import { blursUnscored } from '../../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { firstSighting } from '../impressionLog';
@@ -184,15 +185,14 @@ async function updateBlurThreshold(): Promise<void> {
 
 // Check if a score should be blurred based on current threshold
 function shouldBlurScore(score: { apiScore: number; scoreFailed?: boolean; whitelisted?: boolean }): boolean {
-  // A failed score keeps its placeholder of 50 and is blurred like any 50, so a
-  // rate-limited or broken API doesn't leave everything unblurred
-
   // Trusted sources bypass blur until the configured phase
-
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
 
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
+
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
 
   const displayScore = score.apiScore;
   // Quality Mode skips the phases for its own fixed threshold
@@ -558,7 +558,7 @@ function injectScoreBadge(video: YouTubeVideo, info: BadgeInfo): void {
   tooltip.className = 'tolerance-tooltip';
 
   if (info.scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
 
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';

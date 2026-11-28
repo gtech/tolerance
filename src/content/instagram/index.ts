@@ -3,7 +3,8 @@ import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants
 import { scrapeVisiblePosts, serializePost } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
-import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { noteFailedScore } from '../unscoredNotice';
+import { blursUnscored } from '../../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { logShown, type ShownPost } from '../impressionLog';
@@ -134,6 +135,9 @@ function shouldBlurScore(score: EngagementScore): boolean {
 
   // Subscriptions-only: blur ALL non-whitelisted content
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
+
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
 
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -647,7 +651,7 @@ function injectBadge(post: InstagramPost, score: EngagementScore): void {
 
   // Add tooltip with reason
   if (scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
 
     const notice = failedScoreNotice(currentSettings, score.apiReason);
     badge.title = notice.text;

@@ -95,6 +95,7 @@ const BROKEN: [string, 'error' | 'warning', string, (e: Loose) => void][] = [
   ['post.before-session', 'error', 'a post logged before its session began', e => { post(e, 0).timestamp = T0 - 600_000; }],
   ['export.future', 'error', 'a post dated after the export', e => { post(e, 0).timestamp = T0 + 7_200_000; e.sessions[0].endTime = T0 + 7_300_000; }],
   ['post.failed-score', 'error', 'a failed score that is not 50', e => { post(e, 2).score = 80; }],
+  ['post.failed-score', 'error', 'an empty score on a post not marked failed', e => { post(e, 1).score = null; }],
   ['post.failed-score', 'error', 'a failed score with sub-scores', e => { post(e, 2).dims = { hook: 5, effort: 5, pull: 5, value: 5 }; }],
   ['post.dims-range', 'error', 'a sub-score of 0', e => { post(e, 1).dims.hook = 0; }],
   ['post.dims-range', 'error', 'a missing sub-score', e => { delete post(e, 1).dims.value; }],
@@ -168,6 +169,12 @@ describe('specific cases', () => {
     e.sessions[0].engagementDistribution = { high: 0, medium: 6, low: 0 };
     const finding = checkExport(e).findings.find(f => f.rule === 'post.flat-day');
     expect(finding).toMatchObject({ severity: 'warning', count: 6 });
+  });
+
+  it('accepts a failed score logged empty, as it is since 28 Nov 2026', () => {
+    const e = goodExport();
+    post(e, 2).score = null;
+    expect(checkExport(e).findings).toEqual([]);
   });
 
   it('accepts a site-marked ad that was logged at 100, and one whose score failed', () => {

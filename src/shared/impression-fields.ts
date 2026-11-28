@@ -6,14 +6,16 @@ import type { EngagementScore, PostImpression } from './types';
 export function impressionScoreFields(
   score: EngagementScore | undefined
 ): Pick<PostImpression, 'score' | 'bucket' | 'narrativeThemeId' | 'specVersion' | 'dims' | 'scoreFailed' | 'modelScore' | 'imageSeen'> {
+  const failed = !score || !!score.scoreFailed;
   return {
-    score: score?.apiScore ?? 50,
+    // A post that could not be scored has no score. (Before 28 Nov 2026 it was logged
+    // as a placeholder 50, told apart only by scoreFailed.)
+    score: failed ? null : score.apiScore,
     bucket: score?.bucket ?? 'medium',
     narrativeThemeId: score?.factors?.narrative?.themeId,
     specVersion: score?.specVersion,
-    dims: score?.dims,
-    // Without this a failed score looks the same as a real 50
-    scoreFailed: !score || score.scoreFailed ? true : undefined,
+    dims: failed ? undefined : score.dims,
+    scoreFailed: failed ? true : undefined,
     modelScore: score?.modelScore,
     imageSeen: score?.imageSeen,
   };

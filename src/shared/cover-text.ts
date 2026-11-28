@@ -14,7 +14,8 @@ export function coverText(
   let text: string;
   if (score.scoreFailed) {
     const why = (score.apiReason ?? '').replace(/^Scoring failed: /, '');
-    text = `Couldn't score, counted as ${rounded}${why ? `: ${why}` : ''}`;
+    // Only on a cover when unscored posts are set to blur (Settings.blurUnscored)
+    text = `Couldn't score${why ? `: ${why}` : ''}`;
   } else {
     const gist = score.apiReason?.trim();
     text = gist ? `${rounded}: ${gist}` : `Score ${rounded}`;

@@ -7,7 +7,8 @@ import { setupObserver, setupRESObserver } from './observer';
 import { setupNewRedditObserver } from './observer-new';
 import { injectReminderCard, CardData } from './reminderCard';
 import { injectOnboardingStyles, showOnboardingTooltip } from './onboarding';
-import { showFreeTierExhaustedDialog } from './freeTierDialog';
+import { noteFailedScore } from './unscoredNotice';
+import { blursUnscored } from '../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from './failedScore';
 import { startScrapeHealth, reportScraped } from './scrapeHealth';
 import { attention, firstSighting } from './impressionLog';
@@ -107,6 +108,9 @@ function shouldBlurScore(score: EngagementScore): boolean {
 
   // Trusted sources bypass blur until the configured phase
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
+
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
 
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
@@ -422,7 +426,7 @@ function injectScoreBadge(post: RedditPost, info: BadgeInfo): void {
 
   // Reason
   if (info.scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
 
     const reasonDiv = document.createElement('div');
     reasonDiv.className = 'tolerance-tooltip-reason';

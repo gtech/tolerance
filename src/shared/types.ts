@@ -256,7 +256,7 @@ export interface PostContent {
 export interface PostImpression {
   timestamp: number;
   postId: string;
-  score: number;
+  score: number | null;   // null: the post could not be scored (a placeholder 50 before 28 Nov 2026)
   bucket: 'low' | 'medium' | 'high';
   position: number;
   originalPosition: number;
@@ -275,7 +275,7 @@ export interface PostImpression {
   opened?: boolean;
   specVersion?: number;       // Scoring spec that produced the score
   dims?: ScoreDims;           // Sub-ratings: hook, effort, pull, value
-  scoreFailed?: boolean;      // score is the 50 placeholder, not a real score
+  scoreFailed?: boolean;      // the post could not be scored; score is null (or the old 50 placeholder)
   modelScore?: number;        // The model's own score, when a topic setting changed `score`
   imageSeen?: boolean;        // Image posts: whether the model saw the image (false = scored on text alone)
   blurThreshold?: number;     // Blur threshold in force when the post was shown
@@ -522,6 +522,9 @@ export interface Settings {
   // The line on a blurred post says what the post holds, where it otherwise says why
   // the post scored as it did (scoring-spec.ts, GIST_ASK). Default: false
   gistSummaries?: boolean;
+  // Blur posts that could not be scored (no credit, key refused, request failed), where
+  // they are otherwise left as they are (shared/failed-score.ts). Default: false
+  blurUnscored?: boolean;
   // Developer: count what each site's scraper finds and check it once a day for signs
   // that the site changed its markup (shared/scrape-health.ts). Default: false
   scrapeHealthCheck?: boolean;

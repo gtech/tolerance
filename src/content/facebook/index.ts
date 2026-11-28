@@ -3,7 +3,8 @@ import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants
 import { scrapeVisiblePosts, serializePost, POST_ROOT_SELECTOR, isInFeed } from './scraper';
 import { setupFacebookObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { FB_POST_ID_ATTR, FB_DONE_ATTR, fbGateCss, hideReelsCss, REELS_HIDDEN_CLASS, REEL_LINK } from './gate';
-import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { noteFailedScore } from '../unscoredNotice';
+import { blursUnscored } from '../../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { logShown, type ShownPost } from '../impressionLog';
@@ -118,11 +119,12 @@ async function updateBlurThreshold(): Promise<void> {
 }
 
 function shouldBlurScore(score: EngagementScore): boolean {
-  // A failed score keeps its placeholder of 50 and is blurred like any 50
   if (score.apiScore === undefined) return false;
   // Trusted sources bypass blur until the configured phase
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
   const displayScore = score.apiScore;
   const threshold = qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold;
   return displayScore >= threshold;
@@ -580,7 +582,7 @@ function injectBadge(post: FacebookPost, score: EngagementScore): void {
   badge.textContent = scoringFailed ? '?' : displayScore.toString();
 
   if (scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
 
     const notice = failedScoreNotice(currentSettings, score.apiReason);
     badge.title = notice.text;

@@ -3,7 +3,8 @@ import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants
 import { scrapeVisiblePosts, serializePost, findPostElements, extractAuthor } from './scraper';
 import { setupLinkedInObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { LI_POST, LI_POST_ID_ATTR, LI_DONE_ATTR, liGateCss } from './gate';
-import { showFreeTierExhaustedDialog } from '../freeTierDialog';
+import { noteFailedScore } from '../unscoredNotice';
+import { blursUnscored } from '../../shared/failed-score';
 import { failedScoreNotice, linkFailedBadge } from '../failedScore';
 import { startScrapeHealth, reportScraped } from '../scrapeHealth';
 import { logShown, type ShownPost } from '../impressionLog';
@@ -124,6 +125,8 @@ function shouldBlurScore(score: EngagementScore): boolean {
   // Trusted sources bypass blur until the configured phase
   if (score.whitelisted && isTrustedExempt(currentPhase, currentSettings?.trustedBlurPhase)) return false;
   if (subscriptionsOnlyMode && !score.whitelisted) return true;
+  // A post that couldn't be scored is left alone, unless set to blur (shared/failed-score.ts)
+  if (score.scoreFailed) return blursUnscored(currentSettings);
   return score.apiScore >= blurThreshold();
 }
 
@@ -419,7 +422,7 @@ function injectBadge(element: HTMLElement, id: string, score: EngagementScore): 
   badge.textContent = scoringFailed ? '?' : score.apiScore.toString();
 
   if (scoringFailed) {
-    void showFreeTierExhaustedDialog(currentSettings);
+    noteFailedScore(currentSettings);
     const notice = failedScoreNotice(currentSettings, score.apiReason);
     badge.title = notice.text;
     linkFailedBadge(badge, notice);

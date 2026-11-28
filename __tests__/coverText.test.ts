@@ -13,8 +13,8 @@ describe('coverText', () => {
 
   it('says so when the post could not be scored', () => {
     expect(coverText({ apiScore: 50, scoreFailed: true, apiReason: 'Scoring failed: key limit reached' }))
-      .toBe("Couldn't score, counted as 50: key limit reached");
-    expect(coverText({ apiScore: 50, scoreFailed: true })).toBe("Couldn't score, counted as 50");
+      .toBe("Couldn't score: key limit reached");
+    expect(coverText({ apiScore: 50, scoreFailed: true })).toBe("Couldn't score");
   });
 
   it('uses the site wording in only-following mode, except for trusted sources', () => {

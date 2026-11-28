@@ -98,14 +98,16 @@ export function checkExport(raw: unknown): ExportReport {
 
     for (const p of s.posts) {
       counts.posts++;
-      if (!isRec(p) || !num(p.timestamp) || !str(p.postId) || !p.postId || !num(p.score) || !BUCKETS.has(p.bucket as string) ||
+      if (!isRec(p) || !num(p.timestamp) || !str(p.postId) || !p.postId || !(num(p.score) || p.score === null) || !BUCKETS.has(p.bucket as string) ||
           !num(p.position) || !num(p.originalPosition) || !str(p.subreddit) || typeof p.wasReordered !== 'boolean') {
         flag('post.shape', 'error', 'Logged post is missing a basic field (time, id, score, bucket, position or source)', isRec(p) ? p.postId : sid);
         continue;
       }
       const id = p.postId;
       tally[p.bucket as string]++;
-      if (!inRange(p.score, 0, 100)) flag('post.score-range', 'error', 'Score is outside 0 to 100', id);
+      // null: the post could not be scored (logged that way since 28 Nov 2026)
+      const score = num(p.score) ? p.score : null;
+      if (score !== null && !inRange(score, 0, 100)) flag('post.score-range', 'error', 'Score is outside 0 to 100', id);
       if (p.timestamp < s.startTime - MINUTE) flag('post.before-session', 'error', 'Post was logged before its session started', id);
       if (num(s.endTime) && p.timestamp > s.endTime + MINUTE) {
         flag('post.after-session-end', 'warning', 'Post is dated after its session ended (possible if the clock changed)', id);
@@ -120,8 +122,10 @@ export function checkExport(raw: unknown): ExportReport {
       seenAt.add(key);
 
       const failed = p.scoreFailed === true;
-      if (p.scoreFailed !== undefined && typeof p.scoreFailed !== 'boolean') flag('post.failed-score', 'error', 'A failed score must be the placeholder 50 with no sub-scores', id);
-      if (failed && (p.score !== 50 || p.dims !== undefined)) flag('post.failed-score', 'error', 'A failed score must be the placeholder 50 with no sub-scores', id);
+      const FAILED_SHAPE = 'A failed score must be empty (or the older placeholder 50) with no sub-scores, and only a failed score may be empty';
+      if (p.scoreFailed !== undefined && typeof p.scoreFailed !== 'boolean') flag('post.failed-score', 'error', FAILED_SHAPE, id);
+      if (failed && ((score !== null && score !== 50) || p.dims !== undefined)) flag('post.failed-score', 'error', FAILED_SHAPE, id);
+      if (!failed && score === null) flag('post.failed-score', 'error', FAILED_SHAPE, id);
 
       if (p.dims !== undefined) {
         const d = p.dims;
@@ -157,7 +161,7 @@ export function checkExport(raw: unknown): ExportReport {
         if (!LOGGED_PLATFORMS.has(p.platform as string)) flag('post.platform', 'error', 'Platform is not one that logs posts', id);
         if (!inRange(p.blurThreshold, 0, 100) || typeof p.blurred !== 'boolean') {
           flag('post.threshold', 'error', 'Post is missing the blur threshold in force or whether it was blurred', id);
-        } else if (p.blurred && p.score < (p.blurThreshold as number)) {
+        } else if (p.blurred && score !== null && score < (p.blurThreshold as number)) {
           flag('post.blur-below-threshold', 'warning', 'Post was blurred although its score is under the threshold (expected only in subscriptions-only mode)', id);
         }
         const hasSpec = num(p.specVersion) && p.specVersion >= 1;
@@ -169,10 +173,10 @@ export function checkExport(raw: unknown): ExportReport {
         flag('post.threshold', 'error', 'Post is missing the blur threshold in force or whether it was blurred', id);
       }
 
-      scoreOf.set(id, { score: p.score, failed });
+      scoreOf.set(id, { score: score ?? 0, failed: failed || score === null });
       const day = Math.floor(p.timestamp / 86_400_000);
       const d = byDay.get(day) ?? { all50: true, ids: [] };
-      if (p.score !== 50) d.all50 = false;
+      if (score !== 50) d.all50 = false;
       d.ids.push(id);
       byDay.set(day, d);
     }

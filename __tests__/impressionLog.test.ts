@@ -89,6 +89,6 @@ describe('logShown', () => {
   it('carries a failed score through as failed', async () => {
     const { logShown } = await import('../src/content/impressionLog');
     logShown('facebook', [post('fb_9', { score: score({ postId: 'fb_9', apiScore: 50, scoreFailed: true, specVersion: undefined }) })]);
-    expect(sent[0].impressions![0]).toMatchObject({ score: 50, scoreFailed: true });
+    expect(sent[0].impressions![0]).toMatchObject({ score: null, scoreFailed: true });
   });
 });
