@@ -1,4 +1,5 @@
 import { log } from '../../shared/constants';
+import { findPostElements, isExplorePage } from './scraper';
 
 // Observe DOM changes for infinite scroll detection on Instagram
 // Using interval-based polling instead of MutationObserver to avoid performance issues
@@ -44,7 +45,7 @@ export function setupInstagramObserver(callback: () => void): void {
   log.debug('Instagram: Setting up polling observer');
 
   // Track initial articles by ID (not just count)
-  const initialArticles = document.querySelectorAll('article');
+  const initialArticles = findPostElements();
   lastSeenArticles.clear();
   for (const article of initialArticles) {
     const id = getArticleId(article);
@@ -60,8 +61,9 @@ export function setupInstagramObserver(callback: () => void): void {
     }
 
     // Check for new articles by ID, not just count
-    // Instagram virtualizes DOM - count stays same but articles swap out
-    const currentArticles = document.querySelectorAll('article');
+    // Instagram virtualizes DOM - count stays same but articles swap out.
+    // On Explore these are the tiles near the screen, so scrolling brings in new ones.
+    const currentArticles = findPostElements();
     let hasNewArticles = false;
 
     for (const article of currentArticles) {
@@ -154,7 +156,10 @@ function handleNavigation(callback: () => void): void {
 export function isValidFeedPage(): boolean {
   const pathname = window.location.pathname;
 
-  // Skip explore, reels page, stories, direct messages FIRST
+  // The Explore grid is scored tile by tile (scraper.ts); pages under it are not
+  if (isExplorePage(pathname)) return true;
+
+  // Skip the rest of explore, reels page, stories, direct messages FIRST
   if (pathname.startsWith('/explore')) return false;
   if (pathname.startsWith('/reels')) return false;
   if (pathname.startsWith('/reel/')) return false;  // Individual reel pages

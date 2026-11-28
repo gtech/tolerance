@@ -1132,7 +1132,8 @@ export async function scoreInstagramPosts(
     // Instagram is media-heavy - check for video/reel or image content
     const hasMedia = item.post.isReel || item.post.mediaType === 'video' ||
                      item.post.mediaType === 'image' || item.post.mediaType === 'gallery';
-    const hasImage = item.post.imageUrl || item.post.thumbnailUrl;
+    // An Explore tile has a video address and no picture
+    const hasImage = item.post.imageUrl || item.post.thumbnailUrl || item.post.videoUrl;
 
     if (hasMedia && hasImage) {
       mediaPosts.push(item);

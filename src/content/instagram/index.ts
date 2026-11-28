@@ -1,6 +1,6 @@
 import { InstagramPost, EngagementScore, AppState, Settings, MessageType, ResponseFor, isTrustedExempt, pendingBlurTimeoutMs } from '../../shared/types';
 import { log, setLogLevel, QUALITY_MODE_THRESHOLD } from '../../shared/constants';
-import { scrapeVisiblePosts, serializePost } from './scraper';
+import { scrapeVisiblePosts, serializePost, isExplorePage, TILE_CLASS } from './scraper';
 import { setupInstagramObserver, setupNavigationObserver, isValidFeedPage, disconnectObserver } from './observer';
 import { injectOnboardingStyles, showOnboardingTooltip } from '../onboarding';
 import { noteFailedScore } from '../unscoredNotice';
@@ -274,36 +274,14 @@ function injectStyles(): void {
       visibility: hidden !important;
     }
 
-    /* Blur overlay for navigation buttons (Explore, Reels) */
-    .tolerance-nav-blur {
-      position: absolute !important;
+    /* Explore tiles (scraper.ts, TILE_CLASS): the cover fits the tile exactly */
+    .tolerance-tile > .tolerance-blur-overlay {
       top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
       bottom: 0 !important;
-      backdrop-filter: blur(4px) !important;
-      -webkit-backdrop-filter: blur(4px) !important;
-      background: rgba(0, 0, 0, 0.3) !important;
-      z-index: 9999 !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      cursor: pointer !important;
-      border-radius: 8px;
-      transition: opacity 0.3s ease !important;
+      border: none !important;
     }
-
-    .tolerance-nav-blur::after {
-      content: attr(data-countdown);
-      color: white;
-      font-size: 11px;
-      font-weight: bold;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    }
-
-    .tolerance-nav-blur.revealed {
-      opacity: 0 !important;
+    .tolerance-tile.tolerance-video-blocked video {
+      visibility: hidden !important;
       pointer-events: none !important;
     }
 
@@ -312,78 +290,18 @@ function injectStyles(): void {
       position: relative;
     }
 
-    article.tolerance-pending .tolerance-blur-overlay::after {
+    article.tolerance-pending .tolerance-blur-overlay::after,
+    .tolerance-tile.tolerance-pending .tolerance-blur-overlay::after {
       content: 'Scoring...';
     }
 
     /* Hide score badge while pending */
-    article.tolerance-pending .tolerance-score-badge {
+    article.tolerance-pending .tolerance-score-badge,
+    .tolerance-tile.tolerance-pending .tolerance-score-badge {
       display: none;
     }
   `;
   document.head.appendChild(style);
-}
-
-function blurNavigationButtons(): void {
-  // Find Explore and Reels links in the navigation
-  const navLinks = document.querySelectorAll('a[href="/explore/"], a[href="/reels/"]');
-
-  for (const link of navLinks) {
-    if (!(link instanceof HTMLElement)) continue;
-    if (link.querySelector('.tolerance-nav-blur')) continue; // Already blurred
-
-    // Make the link container relative for positioning
-    link.style.position = 'relative';
-
-    const overlay = document.createElement('div');
-    overlay.className = 'tolerance-nav-blur';
-    overlay.setAttribute('data-countdown', '10s');
-
-    // 10-second hover reveal for both
-    let revealTimer: ReturnType<typeof setTimeout> | null = null;
-    let countdownInterval: ReturnType<typeof setInterval> | null = null;
-    let revealed = false;
-
-    overlay.addEventListener('mouseenter', () => {
-      if (revealed) return;
-
-      let remaining = 10;
-      overlay.setAttribute('data-countdown', `${remaining}s`);
-
-      // Update countdown every second
-      countdownInterval = setInterval(() => {
-        remaining--;
-        if (remaining > 0) {
-          overlay.setAttribute('data-countdown', `${remaining}s`);
-        } else {
-          overlay.setAttribute('data-countdown', '');
-          if (countdownInterval) clearInterval(countdownInterval);
-        }
-      }, 1000);
-
-      revealTimer = setTimeout(() => {
-        revealed = true;
-        overlay.classList.add('revealed');
-        noteReveal(overlay);
-        if (countdownInterval) clearInterval(countdownInterval);
-      }, 10000);
-    });
-
-    overlay.addEventListener('mouseleave', () => {
-      if (revealed) return;
-      if (revealTimer) {
-        clearTimeout(revealTimer);
-        revealTimer = null;
-      }
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-      }
-      overlay.setAttribute('data-countdown', '10s');
-    });
-
-    link.appendChild(overlay);
-  }
 }
 
 // Apply pending blur (before scoring) to a post
@@ -495,7 +413,11 @@ async function processPosts(): Promise<void> {
     log.debug(` Instagram: Found ${posts.length} posts`);
 
     // Take these posts from the CSS gate; new ones get their pending blur below, before any await
-    for (const post of posts) post.element.setAttribute(GATE_POST_ATTR, post.id);
+    const onExplore = isExplorePage();
+    for (const post of posts) {
+      post.element.setAttribute(GATE_POST_ATTR, post.id);
+      if (onExplore) post.element.classList.add(TILE_CLASS);
+    }
 
     const scraped = new Set<Element>(posts.map(p => p.element));
     for (const article of document.querySelectorAll('main article')) {
@@ -504,7 +426,8 @@ async function processPosts(): Promise<void> {
 
     // Filter to unprocessed posts
     const newPosts = posts.filter(p => !processedPostIds.has(p.id));
-    reportScraped('instagram', newPosts.filter(p => !healthReported.has(p.id)));
+    // Explore tiles name no account, which the health check would read as a broken scraper
+    if (!onExplore) reportScraped('instagram', newPosts.filter(p => !healthReported.has(p.id)));
     for (const p of newPosts) healthReported.add(p.id);
 
     // Re-inject badges for posts that were processed but DOM was recreated
@@ -559,7 +482,8 @@ async function processPosts(): Promise<void> {
     });
 
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Scoring timeout')), 10000)
+      // Explore tiles are scored from their video, which takes longer than a caption
+      setTimeout(() => reject(new Error('Scoring timeout')), onExplore ? 30000 : 10000)
     );
 
     let response;
@@ -597,7 +521,8 @@ async function processPosts(): Promise<void> {
         scoreCache.set(post.id, { score, originalPosition: 0, author: post.authorUsername });
         injectBadge(post, score);
         shown.push({
-          id: post.id, element: post.element, source: post.authorUsername, score,
+          // An Explore tile names no account; "Explore" can't be mistaken for a handle
+          id: post.id, element: post.element, source: post.authorUsername || 'Explore', score,
           blurThreshold: qualityModeEnabled ? QUALITY_MODE_THRESHOLD : currentBlurThreshold,
           blurred: shouldBlurScore(score),
         });
@@ -796,12 +721,6 @@ async function init(): Promise<void> {
   } catch (error) {
     log.error('Instagram: Failed to get settings:', error);
   }
-
-  // Blur navigation buttons (Explore, Reels) with 10-second hover reveal. After the
-  // settings, so it doesn't happen with Instagram turned off.
-  blurNavigationButtons();
-  // Re-check periodically in case Instagram recreates the nav
-  setInterval(blurNavigationButtons, 2000);
 
   let feedStarted = false;
   const startFeed = async (): Promise<void> => {

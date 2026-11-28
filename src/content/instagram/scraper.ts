@@ -9,6 +9,14 @@ import { withAiLabel } from '../aiLabel';
 export function scrapeVisiblePosts(): InstagramPost[] {
   const posts: InstagramPost[] = [];
 
+  if (isExplorePage()) {
+    for (const tile of findExploreTiles()) {
+      const post = parseExploreTile(tile);
+      if (post) posts.push(post);
+    }
+    return posts;
+  }
+
   // Instagram feed posts are in article elements, often with __igdl_id attribute.
   // Only inside <main>: the Messages panel and dialogs are never read.
   const articleElements = document.querySelectorAll<HTMLElement>('main article');
@@ -21,6 +29,90 @@ export function scrapeVisiblePosts(): InstagramPost[] {
   }
 
   return posts;
+}
+
+// ---- Explore ----
+//
+// The Explore page (instagram.com/explore/) is a grid of tiles, three to a row. As of
+// Nov 2026 a tile is a div holding one link to /p/{shortcode}/, and the link holds a
+// <video> with a direct address and a small icon saying what kind of post it is. There
+// is no caption, no account name and no like count on the page, so the video itself is
+// all there is to score.
+
+export const TILE_CLASS = 'tolerance-tile';
+const TILE_LINKS = 'main a[href^="/p/"], main a[href^="/reel/"]';
+
+// Only the grid itself, not a tag, place or search page under /explore/
+export function isExplorePage(pathname: string = window.location.pathname): boolean {
+  return /^\/explore\/?$/.test(pathname);
+}
+
+// Tiles on screen or within a screen of it. The grid keeps dozens of tiles in the page
+// at once and each one costs a video call to score, so the rest wait until they are near.
+export function findExploreTiles(): HTMLElement[] {
+  const tiles: HTMLElement[] = [];
+  const screen = window.innerHeight;
+  for (const link of document.querySelectorAll<HTMLAnchorElement>(TILE_LINKS)) {
+    const tile = link.parentElement;
+    if (!tile || !link.querySelector('video, img')) continue;
+    const rect = tile.getBoundingClientRect();
+    if (rect.height === 0 || rect.bottom < -screen || rect.top > screen * 2) continue;
+    tiles.push(tile);
+  }
+  return tiles;
+}
+
+// The post elements on the current page: feed articles, or tiles on Explore
+export function findPostElements(): HTMLElement[] {
+  return isExplorePage() ? findExploreTiles() : [...document.querySelectorAll<HTMLElement>('article')];
+}
+
+const isInstagramMedia = (src: string): boolean => /^https:\/\/[^/]*(fbcdn\.net|cdninstagram\.com)\//.test(src);
+
+export function parseExploreTile(tile: HTMLElement): InstagramPost | null {
+  try {
+    const id = extractShortcode(tile);
+    if (!id) return null;
+
+    const video = tile.querySelector<HTMLVideoElement>('video');
+    const videoUrl = video?.src && isInstagramMedia(video.src) ? video.src : undefined;
+    // Other extensions add their own icons to tiles; only Instagram's own images count
+    const image = [...tile.querySelectorAll<HTMLImageElement>('img')].find(img => isInstagramMedia(img.src));
+    const imageUrl = image?.src || (video?.poster && isInstagramMedia(video.poster) ? video.poster : undefined);
+    // Nothing the model could look at: leave the tile alone
+    if (!videoUrl && !imageUrl) return null;
+
+    // A photo tile's alt text describes the picture ("Photo by ... May be an image of ...")
+    const alt = image?.alt?.trim() ?? '';
+    const caption = withAiLabel(tile, alt.length > 20 ? alt : '');
+    const isReel = !!video || tile.querySelector('svg[aria-label="Reel"], svg[aria-label="Clip"]') !== null;
+    const isCarousel = tile.querySelector('svg[aria-label="Carousel"]') !== null;
+
+    return {
+      id,
+      platform: 'instagram',
+      author: '',
+      authorUsername: '',
+      text: caption,
+      caption,
+      score: null,
+      likeCount: null,
+      numComments: 0,
+      commentCount: 0,
+      mediaType: isReel ? 'reel' : isCarousel ? 'gallery' : 'image',
+      isReel,
+      isCarousel,
+      permalink: `https://www.instagram.com/p/${id}/`,
+      createdUtc: Date.now() / 1000,
+      thumbnailUrl: imageUrl,
+      imageUrl,
+      videoUrl,
+      element: tile,
+    };
+  } catch (error) {
+    log.error('Instagram: Failed to parse Explore tile:', error);
+    return null;
+  }
 }
 
 function parsePostElement(element: HTMLElement): InstagramPost | null {

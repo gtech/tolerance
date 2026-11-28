@@ -246,6 +246,8 @@ function inferPlatform(source: string): ScorePlatform {
 
 // Source as the spec expects it: subreddit without r/, Twitter/Instagram with @
 function sourceFor(platform: ScorePlatform, source: string): string {
+  // An Instagram Explore tile names no account
+  if (!source.replace(/^@/, '').trim()) return '(not shown on the page)';
   if (platform === 'reddit') return source.replace(/^r\//, '');
   if ((platform === 'twitter' || platform === 'instagram') && !source.startsWith('@')) return `@${source}`;
   return source;
@@ -848,7 +850,9 @@ export async function scoreInstagramVideo(
   const rubric = await getRubric();
   const prompt = buildSinglePrompt({
     platform: 'instagram', text: caption, source: sourceFor('instagram', author),
-    likes: likeCount, comments: commentCount, media: 'reel',
+    // An Explore tile (no account named) shows no counts either; leave them out
+    // sooner than tell the model "0 comments"
+    likes: author ? likeCount : undefined, comments: author ? commentCount : undefined, media: 'reel',
   }, activeThemes, rubric, await getAdNote(), await getAiNote(), await getGist());
 
   // Use the Gemini video model for full video analysis
