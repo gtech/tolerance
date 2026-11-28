@@ -6,6 +6,8 @@
 // someone decides what to do about their scoring; Settings.blurUnscored turns that
 // round for anyone who would sooner see nothing than see it unfiltered.
 
+export const ACCOUNT_URL = 'https://tolerance.lol/account.html';
+
 export interface FailedScoreNotice {
   text: string;
   opensAccount: boolean; // clicking the "?" badge opens the account page

@@ -687,6 +687,9 @@ export type MessageType =
   | { type: 'SUBMIT_CALIBRATION_FEEDBACK'; response: 'restricted' | 'balanced' | 'too_easy' }
   // Content scripts can't open extension pages themselves; section is the #anchor
   | { type: 'OPEN_DASHBOARD'; section?: 'thresholds' | 'api-setup' }
+  // The account page on tolerance.lol. Opened by the background because a window.open
+  // from a content script is a pop-up to the browser, and Brave blocks it.
+  | { type: 'OPEN_ACCOUNT' }
   | { type: 'GET_FEEDBACK_PROMPT_STATUS' }  // Check if we should show feedback prompt
   // `site` is the feed asking; without it the answer leaves out any per-site adjustment
   | { type: 'GET_EFFECTIVE_BLUR_THRESHOLD'; phase: 'normal' | 'reduced' | 'wind-down' | 'minimal'; site?: ThresholdSite }

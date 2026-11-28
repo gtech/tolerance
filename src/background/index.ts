@@ -57,6 +57,7 @@ import { getScheduledOrder } from './scheduler';
 import { getApiUsage, resetApiUsage, getApiCallLog, getApiCallSummary, testRubric } from './openrouter';
 import { rewriteResponse, recordClaudeHeartbeat, getClaudeFilterStatus } from './rewriter';
 import { getProductivityStats } from './rescuetime';
+import { ACCOUNT_URL } from '../shared/failed-score';
 import { checkGrounding, logGroundingEvent } from './grounding';
 import {
   discoverEmergingNarratives,
@@ -783,6 +784,11 @@ async function handleMessage(
     case 'OPEN_DASHBOARD': {
       const anchor = message.section ? `#${message.section}` : '';
       await chrome.tabs.create({ url: chrome.runtime.getURL(`dashboard/index.html${anchor}`) });
+      return { success: true };
+    }
+
+    case 'OPEN_ACCOUNT': {
+      await chrome.tabs.create({ url: ACCOUNT_URL });
       return { success: true };
     }
 
