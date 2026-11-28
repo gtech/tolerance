@@ -93,7 +93,9 @@ export async function setApiErrorState(state: ApiErrorState | null): Promise<voi
   if (state) {
     await chrome.storage.local.set({ apiErrorState: state });
   } else {
-    await chrome.storage.local.remove('apiErrorState');
+    // The key works again. Forget how often the "couldn't score" corner notice has been
+    // shown (content/unscoredNotice.ts), so the next time the key stops it is said again.
+    await chrome.storage.local.remove(['apiErrorState', 'unscoredNotice']);
   }
 }
 
