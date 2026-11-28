@@ -845,6 +845,7 @@
     #fb-reels-slider:before,
     #yt-shorts-slider:before,
     #yt-playables-slider:before,
+    #twitch-recaps-slider:before,
     #research-slider:before {
       position: absolute;
       content: "";
@@ -860,6 +861,7 @@
     #fb-reels-toggle:checked + #fb-reels-slider,
     #yt-shorts-toggle:checked + #yt-shorts-slider,
     #yt-playables-toggle:checked + #yt-playables-slider,
+    #platform-twitch:checked + #twitch-recaps-slider,
     #research-toggle:checked + #research-slider {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
@@ -867,6 +869,7 @@
     #fb-reels-toggle:checked + #fb-reels-slider:before,
     #yt-shorts-toggle:checked + #yt-shorts-slider:before,
     #yt-playables-toggle:checked + #yt-playables-slider:before,
+    #platform-twitch:checked + #twitch-recaps-slider:before,
     #research-toggle:checked + #research-slider:before {
       transform: translateX(24px);
       background-color: #fff;
@@ -1366,6 +1369,21 @@
           Removes the row of instant games from your YouTube home page. The Playables page itself still works.
         </div>
       </div>
+      <!-- The checkbox keeps its old id: it was a small row under Platforms until 28 Nov 2026 -->
+      <div class="card" id="twitch-recaps-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <h2 style="display: flex; align-items: center; gap: 8px;">
+            Hide Twitch Recent Recaps
+          </h2>
+          <label style="position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0;">
+            <input type="checkbox" id="platform-twitch" style="opacity: 0; width: 0; height: 0;">
+            <span id="twitch-recaps-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: 0.3s; border-radius: 28px;"></span>
+          </label>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: #888; line-height: 1.5;">
+          Removes the "Recent Recaps" row on Twitch. Nothing on Twitch is scored or blurred; your browser will ask for access to twitch.tv.
+        </div>
+      </div>
       <div class="card" id="fb-ads-section" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #4a4a8a;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <h2 style="display: flex; align-items: center; gap: 8px;">
@@ -1685,10 +1703,6 @@
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 12px; font-size: 13px; color: #aaa;">
           <input type="checkbox" id="platform-tiktok" style="width: 16px; height: 16px; cursor: pointer;" />
           <span>Count time on TikTok towards my session. Nothing on TikTok is scored or blurred; your browser will ask for access to tiktok.com.</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 8px; font-size: 13px; color: #aaa;">
-          <input type="checkbox" id="platform-twitch" style="width: 16px; height: 16px; cursor: pointer;" />
-          <span>Hide the "Recent Recaps" row on Twitch. Nothing on Twitch is scored or blurred; your browser will ask for access to twitch.tv.</span>
         </label>
         <div id="turn-down-offer" role="status" style="display: none; margin-top: 12px; padding: 12px; background: #222; border: 1px solid #333; border-radius: 6px; font-size: 13px; color: #ccc;">
           <span id="turn-down-text"></span>
