@@ -67,6 +67,7 @@ async function init(): Promise<void> {
   await setupResearchSetting();
   await setupFacebookAdsSetting();
   await setupAiLabelSetting();
+  await setupGistSetting();
   await setupScrapeHealth();
   setupWeekCardPreview();
   await setupSubscriptionsOnly();
@@ -201,6 +202,20 @@ async function setupAiLabelSetting(): Promise<void> {
     const current = await getSettings();
     await chrome.storage.local.set({
       settings: { ...current, blurAiLabeled: toggle.checked },
+      topicsChangedAt: Date.now(), // re-score posts under the new setting
+    });
+  });
+}
+
+// "Say What's Under the Blur" row (off unless turned on)
+async function setupGistSetting(): Promise<void> {
+  const toggle = document.getElementById('gist-summaries') as HTMLInputElement | null;
+  if (!toggle) return;
+  toggle.checked = (await getSettings()).gistSummaries === true;
+  toggle.addEventListener('change', async () => {
+    const current = await getSettings();
+    await chrome.storage.local.set({
+      settings: { ...current, gistSummaries: toggle.checked },
       topicsChangedAt: Date.now(), // re-score posts under the new setting
     });
   });

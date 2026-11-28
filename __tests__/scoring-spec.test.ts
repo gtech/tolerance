@@ -100,6 +100,28 @@ describe('readScore', () => {
   });
 });
 
+describe('reason wording', () => {
+  const post = { id: 'a', platform: 'twitter' as const, text: 'You will not believe this', source: '@a' };
+
+  it('asks why the post scored as it did by default', () => {
+    for (const prompt of [buildBatchPrompt([post]), buildSinglePrompt(post), buildMediaPrompt(post)]) {
+      expect(prompt).toContain('what grabs attention');
+      expect(prompt).not.toContain('punchline');
+    }
+  });
+
+  it('asks for the gist of the post when the option is on', () => {
+    for (const prompt of [
+      buildBatchPrompt([post], [], undefined, RUBRIC, true, true, true),
+      buildSinglePrompt(post, [], RUBRIC, true, true, true),
+      buildMediaPrompt(post, [], true, RUBRIC, true, true, true),
+    ]) {
+      expect(prompt).toContain('punchline');
+      expect(prompt).not.toContain('what grabs attention');
+    }
+  });
+});
+
 describe('AI-generated note', () => {
   const post = { id: 'a', platform: 'instagram' as const, text: 'Sunset over the bay', source: '@a' };
 

@@ -519,6 +519,9 @@ export interface Settings {
   // Give posts labeled AI-generated (by the site or their author) the top score, so they
   // get blurred. Nothing is guessed from how a post reads. Default: false (true until 0.1.35)
   blurAiLabeled?: boolean;
+  // The line on a blurred post says what the post holds, where it otherwise says why
+  // the post scored as it did (scoring-spec.ts, GIST_ASK). Default: false
+  gistSummaries?: boolean;
   // Developer: count what each site's scraper finds and check it once a day for signs
   // that the site changed its markup (shared/scrape-health.ts). Default: false
   scrapeHealthCheck?: boolean;

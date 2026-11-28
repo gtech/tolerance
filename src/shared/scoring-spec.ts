@@ -30,7 +30,9 @@
 // v13: same rubric; "reason" is now the gist of the post, stated flat, where it used
 // to say what grabs attention. It is the text shown on a blurred post, and a reader
 // who has been told what is under the cover has less cause to open it.
-export const SCORING_SPEC_VERSION = 13;
+// v14: "reason" goes back to what grabs attention and what the post gives back. The
+// v13 gist is now an option (Settings.gistSummaries), off by default.
+export const SCORING_SPEC_VERSION = 14;
 
 // Put ahead of the text of a post the site itself marks as an ad, so the model can't miss it
 export const SPONSORED_PREFIX = '[Sponsored] ';
@@ -204,31 +206,33 @@ Include "narratives" with the matching theme numbers, or [] if none match.`;
 }
 
 // What "reason" should hold. It is shown on the cover of a blurred post and in the
-// badge tooltip, to someone deciding whether to open the post. Told plainly what is
-// there, they mostly don't need to; a description of how gripping it is does the opposite.
-const REASON_ASK = '20 words max, flat and plain: what the post says or shows. State outright any fact, answer or punchline it holds, so nothing is left to open it for. If it teases something without telling it, say what it leaves out. If it holds nothing, name the kind of post. No praise, no excitement, none of its own bait wording';
+// badge tooltip. By default it says why the post scored as it did. With the gist
+// option on it says what the post holds instead, so that someone told plainly what
+// is under the cover has less cause to open it.
+const REASON_ASK = '15 words max: what grabs attention and what, if anything, it gives back';
+const GIST_ASK = '20 words max, flat and plain: what the post says or shows. State outright any fact, answer or punchline it holds, so nothing is left to open it for. If it teases something without telling it, say what it leaves out. If it holds nothing, name the kind of post. No praise, no excitement, none of its own bait wording';
 
-function fields(themes: ScoringTheme[]): string {
-  return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<${REASON_ASK}>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
+function fields(themes: ScoringTheme[], gist: boolean): string {
+  return `"hook": <1-10>, "effort": <1-10>, "pull": <1-10>, "value": <1-10>, "score": <1-10>, "reason": "<${gist ? GIST_ASK : REASON_ASK}>"${themes.length ? ', "narratives": [<theme numbers>]' : ''}`;
 }
 
-export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true, aiNote = true): string {
+export function buildSinglePrompt(post: ScoringPost, themes: ScoringTheme[] = [], rubric = RUBRIC, adNote = true, aiNote = true, gist = false): string {
   return `You rate social media posts, one at a time.
 
 ${rubric}${platformNotes(adNote, aiNote)}${themeSection(themes, false)}
 
-Respond with ONLY valid JSON: {${fields(themes)}}${mediaNotes([post])}
+Respond with ONLY valid JSON: {${fields(themes, gist)}}${mediaNotes([post])}
 
 The post to rate:
 
 ${describePost(post)}`;
 }
 
-export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true, aiNote = true): string {
-  const list = posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
+export function buildBatchPrompt(posts: ScoringPost[], themes: ScoringTheme[] = [], imageFor?: string, rubric = RUBRIC, adNote = true, aiNote = true, gist = false): string {
+  const list =posts.map((p, i) => `[${i + 1}] ID: ${p.id}\n${describePost(p)}`).join('\n\n');
   // The description is asked for outside the rubric, so an edited rubric still gets one
   const imageNote = imageFor ? `\n\nThe attached image belongs only to post ID ${imageFor}; the other posts have no image. In that post's result, also include "image": what the image shows, stated plainly in 25 words or fewer, quoting any prominent text in it.` : '';
-  const format = `Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes)}}, ...]}`;
+  const format = `Respond with ONLY valid JSON, one object per post in order, every object with all of these fields: {"results": [{"id": "<post ID>", ${fields(themes, gist)}}, ...]}`;
 
   // YouTube keeps the posts first. With the rubric ahead of them DeepSeek v4.1 Flash
   // scored video titles lower: about 50% at 5 or above on a replay of real titles,
@@ -276,8 +280,8 @@ export function isCalibrationId(id: string | undefined): boolean {
 // One image/video post, scored alongside the calibration posts: alone, the model
 // rates anything intriguing 6-7. With attached=true the image is marked as its own.
 export const MEDIA_POST_ID = 'post-1';
-export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC, adNote = true, aiNote = true): string {
-  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric, adNote, aiNote);
+export function buildMediaPrompt(post: ScoringPost, themes: ScoringTheme[] = [], attached = true, rubric = RUBRIC, adNote = true, aiNote = true, gist = false): string {
+  return buildBatchPrompt(withCalibration([{ ...post, id: MEDIA_POST_ID }]), themes, attached ? MEDIA_POST_ID : undefined, rubric, adNote, aiNote, gist);
 }
 
 // The scored post's item from a batch-shaped reply, skipping calibration items.
