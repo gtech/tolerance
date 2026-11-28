@@ -8,23 +8,26 @@ describe('failed score notice', () => {
   it('sends someone on the hosted key to the account page, whatever went wrong', () => {
     const limit = describeFailedScore(false, true);
     expect(limit.text).toContain('go Pro');
-    expect(limit.opensAccount).toBe(true);
+    expect(limit.opens).toBe('account');
 
     const oneOff = describeFailedScore(false, false);
     expect(oneOff.text).not.toContain('go Pro');
-    expect(oneOff.opensAccount).toBe(true);
+    expect(oneOff.opens).toBe('account');
   });
 
-  it('tells someone with their own key to check it only when it was refused', () => {
+  it('sends someone with their own key to the key setup, whatever went wrong', () => {
+    for (const refused of [true, false]) {
+      const notice = describeFailedScore(true, refused);
+      expect(notice.text).toContain('Click here to check your key');
+      expect(notice.opens).toBe('key-setup');
+    }
     expect(describeFailedScore(true, true).text).toContain('spend limit');
-    expect(describeFailedScore(true, true).opensAccount).toBe(false);
     expect(describeFailedScore(true, false).text).not.toContain('spend limit');
-    expect(describeFailedScore(true, false).opensAccount).toBe(false);
   });
 
   it('includes the cause when there is one', () => {
     const notice = describeFailedScore(true, false, 'Scoring failed: Empty reply from some/model');
-    expect(notice.text).toBe('This post could not be scored (Empty reply from some/model). One request failed; your key is fine.');
+    expect(notice.text).toBe('This post could not be scored (Empty reply from some/model). Click here to check your key.');
   });
 });
 

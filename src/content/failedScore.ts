@@ -25,17 +25,18 @@ export function failedScoreNotice(settings: Settings | null | undefined, reason?
   return describeFailedScore(settings?.apiTier === 'own-key', keyProblem, reason);
 }
 
-// Only a notice the account page can fix makes the badge a link to it
+export function openKeySetup(): void {
+  void chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD', section: 'api-setup' }).catch(() => {});
+}
+
+// A failed score's "?" badge is a link to where the problem can be fixed
 export function linkFailedBadge(badge: HTMLElement, notice: FailedScoreNotice): void {
   badge.style.pointerEvents = 'auto';
-  if (!notice.opensAccount) {
-    badge.style.cursor = 'help';
-    return;
-  }
   badge.style.cursor = 'pointer';
   badge.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    openAccount();
+    if (notice.opens === 'key-setup') openKeySetup();
+    else openAccount();
   });
 }

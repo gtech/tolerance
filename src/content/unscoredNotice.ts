@@ -4,7 +4,7 @@
 // like the "Tolerance was updated" notice (reloadNotice.ts) and sits where that does.
 import type { Settings } from '../shared/types';
 import { blursUnscored, nextUnscoredNotice, UnscoredNoticeRecord, UNSCORED_BEFORE_NOTICE } from '../shared/failed-score';
-import { openAccount } from './failedScore';
+import { openAccount, openKeySetup } from './failedScore';
 
 const NOTICE_TAG = 'tolerance-unscored-notice';
 const STORAGE_KEY = 'unscoredNotice';
@@ -69,7 +69,7 @@ function show(ownKey: boolean, blurred: boolean): void {
       <button class="go" type="button">${ownKey ? 'Check your key' : 'Go Pro'}</button>
     </div>`;
   root.querySelector('.go')?.addEventListener('click', () => {
-    if (ownKey) void chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD', section: 'api-setup' }).catch(() => {});
+    if (ownKey) openKeySetup();
     else openAccount();
     host.remove();
   });

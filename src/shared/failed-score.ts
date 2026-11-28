@@ -10,21 +10,22 @@ export const ACCOUNT_URL = 'https://tolerance.lol/account.html';
 
 export interface FailedScoreNotice {
   text: string;
-  opensAccount: boolean; // clicking the "?" badge opens the account page
+  // Where a click on the "?" badge goes: the account page on tolerance.lol, or the
+  // API key setup on the dashboard for someone scoring with their own key
+  opens: 'account' | 'key-setup';
 }
 
 export function describeFailedScore(ownKey: boolean, keyProblem: boolean, reason?: string): FailedScoreNotice {
   if (keyProblem) {
     return ownKey
-      ? { text: 'Your API key was refused. Check its spend limit and credits in the dashboard.', opensAccount: false }
-      : { text: 'Free credits used up. Click to go Pro, or use your own API key.', opensAccount: true };
+      ? { text: 'Your API key was refused: it may be out of credit or over its spend limit. Click here to check your key.', opens: 'key-setup' }
+      : { text: 'Free credits used up. Click to go Pro, or use your own API key.', opens: 'account' };
   }
   const detail = (reason ?? '').replace(/^Scoring failed:\s*/, '').trim();
   const what = `This post could not be scored${detail ? ` (${detail})` : ''}.`;
-  // The account page is no help to someone scoring with their own key
   return ownKey
-    ? { text: `${what} One request failed; your key is fine.`, opensAccount: false }
-    : { text: `${what} Click to open your account.`, opensAccount: true };
+    ? { text: `${what} Click here to check your key.`, opens: 'key-setup' }
+    : { text: `${what} Click to open your account.`, opens: 'account' };
 }
 
 export function blursUnscored(settings: { blurUnscored?: boolean } | null | undefined): boolean {
